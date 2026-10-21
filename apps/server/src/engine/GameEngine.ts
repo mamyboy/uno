@@ -165,25 +165,25 @@ export class GameEngine {
     const hand = this.getHand(playerId);
     const mustRespondToDraw = this.pendingDraw?.targetId === playerId;
 
-    // Determine if the ONLY playable cards are Wild Draw cards (Wild Draw Two/Four/Eight).
-    // If so, the player MAY choose to draw instead of playing a Wild Draw.
-    // If there are ANY other playable cards (color/number match, Skip, Reverse, plain Wild, Draw Two),
+    // Determine if the ONLY playable cards are wild cards (plain Wild + Wild Draw Two/Four/Eight).
+    // If so, the player MAY choose to draw instead of playing a wild card.
+    // If there are ANY other playable cards (color/number match, Skip, Reverse, Draw Two),
     // drawing is NOT allowed (must play).
-    const WILD_DRAW_KINDS = new Set(['WILD_DRAW_TWO', 'WILD_DRAW_FOUR', 'WILD_DRAW_EIGHT']);
-    const onlyWildDrawPlayable = playable.length > 0 &&
-      playable.every((id) => WILD_DRAW_KINDS.has(hand.find((c) => c.id === id)?.kind ?? ''));
+    const WILD_KINDS_SET = new Set(['WILD', 'WILD_DRAW_TWO', 'WILD_DRAW_FOUR', 'WILD_DRAW_EIGHT']);
+    const onlyWildPlayable = playable.length > 0 &&
+      playable.every((id) => WILD_KINDS_SET.has(hand.find((c) => c.id === id)?.kind ?? ''));
 
     const canDraw = isMyTurn && this.status === 'PLAYING' && (
       mustRespondToDraw ||
       (playable.length === 0 && this.drawPile.length > 0) ||
-      (onlyWildDrawPlayable && this.drawPile.length > 0)
+      (onlyWildPlayable && this.drawPile.length > 0)
     );
 
     return {
       hand,
       playableCardIds: playable,
       canDraw,
-      canDrawInsteadOfWild: onlyWildDrawPlayable && !mustRespondToDraw,
+      canDrawInsteadOfWild: onlyWildPlayable && !mustRespondToDraw,
       isMyTurn,
     };
   }
