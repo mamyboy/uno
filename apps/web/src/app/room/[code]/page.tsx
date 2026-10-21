@@ -726,7 +726,7 @@ export default function RoomPage() {
                 {hand.isMyTurn && hand.canDraw && (
                   <Button onClick={drawCard} variant="gold" size="lg" fullWidth>
                     {game.pendingDraw?.targetId === session?.playerId
-                      ? `จั่วสะสม ${game.pendingDraw.count} ใบ`
+                      ? `จั่วสะสม ${game.pendingDraw?.count} ใบ`
                       : 'จั่วไพ่ (Draw Card)'}
                   </Button>
                 )}

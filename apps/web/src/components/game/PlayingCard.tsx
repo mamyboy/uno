@@ -176,7 +176,7 @@ export function PlayingCard({ card, playable, selected, faceDown, onClick, size 
       ? {
           duration: card.kind === 'REVERSE' ? 2.2 : isWild ? 5 : 1.6,
           repeat: Infinity,
-          ease: (isWild ? 'linear' : 'easeInOut') as const,
+          ease: isWild ? ('linear' as const) : ('easeInOut' as const),
         }
       : undefined;
 

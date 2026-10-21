@@ -34,7 +34,7 @@ const SIZE_CLASS: Record<ButtonSize, string> = {
 const BASE =
   'relative inline-flex items-center justify-center font-bold tracking-tight transition-[transform,filter] active:translate-y-[2px] active:shadow-none disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:active:translate-y-0 select-none whitespace-nowrap';
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onAnimationStart' | 'onDrag' | 'onDragStart' | 'onDragEnd'> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   fullWidth?: boolean;
