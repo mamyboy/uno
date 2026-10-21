@@ -677,7 +677,7 @@ export default function RoomPage() {
               </motion.div>
             )}
 
-            {hand && (
+            {hand && !game?.finishedOrder?.includes(session?.playerId ?? '') && !game?.winnerId && (
               <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-4 sm:p-6 space-y-4">
                 <p className="text-sm text-zinc-400">
                   ไพ่ในมือของคุณ ({hand.hand.length} ใบ)
