@@ -202,6 +202,15 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
       handle(socket, cb, () => ({ rooms: rooms.listStaticRooms() }));
     });
 
+    socket.on(EV.ADMIN_RESET_ALL, (_data: unknown, cb: (ack: Ack<{ cleared: number }>) => void) => {
+      handle(socket, cb, () => {
+        const count = rooms.size;
+        rooms.clearAllRooms();
+        io.emit(EV.ROOM_STATE_UPDATED, null); // broadcast reset to all connected clients
+        return { cleared: count };
+      });
+    });
+
     socket.on(EV.ROOM_SET_AVATAR, (data: unknown, cb: (ack: Ack<object>) => void) => {
       handle(socket, cb, () => {
         const room = withRoom(socket);

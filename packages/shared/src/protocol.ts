@@ -34,6 +34,7 @@ export const EV = {
   PLAYER_RECONNECTED: 'player:reconnected',
   PLAYER_RECONNECT: 'player:reconnect',
   SESSION_REPLACED: 'session:replaced',
+  ADMIN_RESET_ALL: 'admin:reset_all',
 } as const;
 
 const code = z.string().trim().toUpperCase().regex(/^[A-Z0-9]{6}$/);

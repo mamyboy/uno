@@ -260,6 +260,16 @@ export class RoomManager {
     }
   }
 
+  /** Clear ALL rooms (including static TABLE1-4) and recreate static tables fresh.
+   *  Call this when you want a complete server-side reset of all connections. */
+  clearAllRooms() {
+    for (const room of this.rooms.values()) {
+      room.members.forEach((m) => this.sessions.delete(m.sessionToken));
+    }
+    this.rooms.clear();
+    this.ensureStaticRooms();
+  }
+
   private resolveSession(code: string, token: string) {
     const s = this.sessions.get(token);
     if (!s || s.code !== code.toUpperCase()) return null;
