@@ -108,14 +108,17 @@ function CardIcon({ card, accent }: { card: Card; accent: string }) {
 }
 
 /** Reference-matched badge for the Draw-family Wild cards: a clean 2x2 grid of the four colors
- *  (red/blue/yellow/green) filling the white center shape, with a small bold "+N" tucked in the
- *  top-right corner — exactly like the real printed deck's Wild Draw Four card, not a big
- *  overlaid number. */
+ *  (red/blue/yellow/green) filling the white center shape, with a bold "+N" pill sitting right
+ *  on top, dead center — big and high-contrast (black text on a white pill with a black
+ *  outline) so it reads instantly even at hand-sized cards, unlike a small tucked-in corner label. */
 function WildDrawBadge({ label }: { label: string }) {
   return (
     <div className="relative flex items-center justify-center w-full h-full">
-      <WildSwatchGrid size="80%" />
-      <span className="absolute top-[6%] right-[6%] text-[10px] sm:text-xs font-black text-zinc-900 drop-shadow-[0_1px_0_rgba(255,255,255,0.6)]">
+      <WildSwatchGrid size="78%" />
+      <span
+        className="absolute flex items-center justify-center rounded-full bg-white px-1.5 py-0.5 text-base sm:text-lg font-black leading-none text-zinc-900"
+        style={{ border: '2px solid #18181b', boxShadow: '0 2px 4px rgba(0,0,0,0.45)' }}
+      >
         {label}
       </span>
     </div>

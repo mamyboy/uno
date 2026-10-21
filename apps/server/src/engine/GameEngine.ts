@@ -131,14 +131,13 @@ export class GameEngine {
   }
 
   /**
-   * Wild Draw Four may only be played when the hand holds no card matching
-   * the top card's color (the standard UNO house rule) — anything else uses
-   * the plain color/kind/value match from canPlayCard.
+   * All Wild-family cards (plain Wild, and Wild Draw Two/Four/Eight) are always playable
+   * regardless of hand contents — no "must have no color match" restriction. Players may freely
+   * open or continue with a Wild Draw card any time it's their turn.
    *
-   * Exception: while a +2/+4 combo is pending against this player, the ONLY
-   * legal plays are Draw Two / Wild Draw Four (to stack and pass it on) —
-   * color/value matching and the Wild Draw Four color-match restriction
-   * don't apply, since this isn't a normal play against the top card.
+   * Exception: while a +2/+4/+8 combo is pending against this player, the ONLY legal plays are
+   * DRAW_TWO / WILD_DRAW_TWO / WILD_DRAW_FOUR / WILD_DRAW_EIGHT (to stack and pass it on) —
+   * normal color/value matching doesn't apply, since this isn't a normal play against the top card.
    */
   getPlayableIds(playerId: string): string[] {
     const hand = this.hands.get(playerId) ?? [];
@@ -146,13 +145,7 @@ export class GameEngine {
       return hand.filter((c) => DRAW_FAMILY_KINDS.has(c.kind)).map((c) => c.id);
     }
     const top = this.topCard;
-    const hasColorMatch = hand.some((c) => !isWild(c) && c.color === top.color);
-    return hand
-      .filter((c) => {
-        if (c.kind === 'WILD_DRAW_FOUR' || c.kind === 'WILD_DRAW_TWO' || c.kind === 'WILD_DRAW_EIGHT') return !hasColorMatch;
-        return canPlayCard(c, top);
-      })
-      .map((c) => c.id);
+    return hand.filter((c) => canPlayCard(c, top)).map((c) => c.id);
   }
 
   getPrivateHand(playerId: string): PrivateHand {
@@ -270,12 +263,6 @@ export class GameEngine {
       if (!DRAW_FAMILY_KINDS.has(card.kind)) throw new GameError('MUST_COUNTER_OR_DRAW');
     } else {
       if (!canPlayCard(card, this.topCard)) throw new GameError('CARD_NOT_PLAYABLE');
-      if (
-        (card.kind === 'WILD_DRAW_FOUR' || card.kind === 'WILD_DRAW_TWO' || card.kind === 'WILD_DRAW_EIGHT') &&
-        this.getPlayableIds(playerId).includes(cardId) === false
-      ) {
-        throw new GameError('CARD_NOT_PLAYABLE');
-      }
     }
     if (isWild(card) && !chosenColor) throw new GameError('COLOR_REQUIRED');
     if (chosenColor && !COLORS.includes(chosenColor)) throw new GameError('INVALID_COLOR');
@@ -376,12 +363,7 @@ export class GameEngine {
     if (!defendingCombo) {
       // Not countering a pending combo — this stack has to be a legal opening play against the
       // current top card, checked using its first card (same rule a lone card would follow).
-      const first = picked[0];
-      if (first.kind === 'WILD_DRAW_TWO' || first.kind === 'WILD_DRAW_FOUR' || first.kind === 'WILD_DRAW_EIGHT') {
-        if (!this.getPlayableIds(playerId).includes(first.id)) throw new GameError('CARD_NOT_PLAYABLE');
-      } else if (!canPlayCard(first, this.topCard)) {
-        throw new GameError('CARD_NOT_PLAYABLE');
-      }
+      if (!canPlayCard(picked[0], this.topCard)) throw new GameError('CARD_NOT_PLAYABLE');
     }
 
     const needsColor = picked.some((c) => isWild(c));
@@ -555,11 +537,10 @@ export class GameEngine {
     if (turnNumber !== this.turnNumber) throw new GameError('STALE_TURN');
   }
 
-  /** canPlayCard() plus the Wild Draw Four / Wild Draw Two "no color match in hand" house rule. */
-  private isPlayableForPlayer(playerId: string, card: Card): boolean {
-    if (!canPlayCard(card, this.topCard)) return false;
-    if (card.kind === 'WILD_DRAW_FOUR' || card.kind === 'WILD_DRAW_TWO' || card.kind === 'WILD_DRAW_EIGHT') return this.getPlayableIds(playerId).includes(card.id);
-    return true;
+  /** canPlayCard() — the Wild Draw "no color match in hand" house rule has been removed, so
+   *  this is now just a thin alias kept for readability at call sites. */
+  private isPlayableForPlayer(_playerId: string, card: Card): boolean {
+    return canPlayCard(card, this.topCard);
   }
 
   /**

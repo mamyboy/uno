@@ -410,7 +410,7 @@ describe('GameEngine', () => {
       expect(result.card.color).toBe('BLUE');
     });
 
-    it('WILD_DRAW_FOUR can only be played when the hand has no color-matching card', () => {
+    it('WILD_DRAW_FOUR is always playable, even with a color-matching card in hand', () => {
       const wild4 = { id: 'p1-0', kind: 'WILD_DRAW_FOUR' as const, color: null };
       const redCard = { id: 'p1-1', kind: 'NUMBER' as const, color: 'RED' as const, value: 3 };
       const top = { id: 'top', kind: 'NUMBER' as const, color: 'RED' as const, value: 9 };
@@ -418,9 +418,12 @@ describe('GameEngine', () => {
       const deck = [wild4, rest[0], redCard, rest[1], top, ...rest.slice(2)];
       const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
       engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
-      // p1 holds a RED card matching top's color -> Wild Draw Four is illegal.
-      expect(engine.getPlayableIds('p1')).not.toContain('p1-0');
-      expect(() => engine.playCard('p1', 'p1-0', engine.turnNumber, 'BLUE')).toThrow(/CARD_NOT_PLAYABLE/);
+      // p1 holds a RED card matching top's color, but the "no color match" house rule has been
+      // removed — Wild Draw Four is legal any time it's the player's turn.
+      expect(engine.getPlayableIds('p1')).toContain('p1-0');
+      const result = engine.playCard('p1', 'p1-0', engine.turnNumber, 'BLUE');
+      expect(engine.topCard.color).toBe('BLUE');
+      expect(result.card.id).toBe('p1-0');
     });
 
     it('WILD_DRAW_FOUR starts a pending +4 combo; absorbing it keeps the turn', () => {
@@ -446,7 +449,7 @@ describe('GameEngine', () => {
       expect(engine.currentPlayerId).toBe('p2');
     });
 
-    it('WILD_DRAW_TWO can only be played when the hand has no color-matching card', () => {
+    it('WILD_DRAW_TWO is always playable, even with a color-matching card in hand', () => {
       const wild2 = { id: 'p1-0', kind: 'WILD_DRAW_TWO' as const, color: null };
       const redCard = { id: 'p1-1', kind: 'NUMBER' as const, color: 'RED' as const, value: 3 };
       const top = { id: 'top', kind: 'NUMBER' as const, color: 'RED' as const, value: 9 };
@@ -454,9 +457,12 @@ describe('GameEngine', () => {
       const deck = [wild2, rest[0], redCard, rest[1], top, ...rest.slice(2)];
       const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
       engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
-      // p1 holds a RED card matching top's color -> Wild Draw Two is illegal, same house rule as Wild Draw Four.
-      expect(engine.getPlayableIds('p1')).not.toContain('p1-0');
-      expect(() => engine.playCard('p1', 'p1-0', engine.turnNumber, 'BLUE')).toThrow(/CARD_NOT_PLAYABLE/);
+      // p1 holds a RED card matching top's color, but the "no color match" house rule has been
+      // removed — Wild Draw Two is legal any time it's the player's turn, same as Wild Draw Four.
+      expect(engine.getPlayableIds('p1')).toContain('p1-0');
+      const result = engine.playCard('p1', 'p1-0', engine.turnNumber, 'BLUE');
+      expect(engine.topCard.color).toBe('BLUE');
+      expect(result.card.id).toBe('p1-0');
     });
 
     it('WILD_DRAW_TWO starts a pending +2 combo; absorbing it keeps the turn', () => {
