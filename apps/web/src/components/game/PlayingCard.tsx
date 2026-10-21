@@ -74,58 +74,33 @@ function ReverseArrows({ fill }: { fill: string }) {
   );
 }
 
-/** Hand-drawn SVG icon for the big center badge — matches a real printed UNO deck:
- *  Skip = no-entry circle, Reverse = the two chasing chevron arrows, plain Wild = the
- *  four-petal color pinwheel. The Draw-family wilds (+2/+4/+8) get a premium metallic-gold
- *  treatment instead — a smaller dimmed pinwheel sitting behind a bold gold-foil number, so the
- *  number itself reads as the "heavy hitter" badge rather than competing with the colors. */
-function CardIcon({ card, accent }: { card: Card; accent: string }) {
-  switch (card.kind) {
-    case 'SKIP':
-      return (
-        <svg viewBox="0 0 100 100" className="w-[64%] h-[64%]" fill="none">
-          <circle cx="50" cy="50" r="38" stroke={accent} strokeWidth="13" />
-          <line x1="23" y1="23" x2="77" y2="77" stroke={accent} strokeWidth="13" strokeLinecap="round" />
-        </svg>
-      );
-    case 'REVERSE':
-      return (
-        <div className="w-[76%] h-[76%]">
-          <ReverseArrows fill={accent} />
-        </div>
-      );
-    case 'WILD':
-      return <WildPinwheel size="80%" />;
-    case 'WILD_DRAW_TWO':
-      return <WildDrawBadge label="+2" />;
-    case 'WILD_DRAW_FOUR':
-      return <WildDrawBadge label="+4" />;
-    case 'WILD_DRAW_EIGHT':
-      return <WildDrawBadge label="+8" />;
-    case 'DRAW_TWO':
-      return (
-        <span className="relative text-5xl font-black" style={{ color: accent }}>
-          +2
-        </span>
-      );
-    default:
-      return null;
-  }
-}
-
-/** The "+N" number is the main thing a player needs to read at a glance during play, so it's
- *  now the dominant element — big bold dark text filling most of the white center shape, same
- *  visual weight as a plain colored Draw Two's number. A small row of 4 color dots underneath
- *  is just a secondary "any color" hint, kept small so it never competes with the number. */
+/** The "+N" number is the hero — big, bold, high-contrast, sitting on top of a clean
+ *  2x2 color swatch grid (red/blue/yellow/green) so the card reads instantly as
+ *  "Wild Draw +N" without any overlap or clutter. */
 function WildDrawBadge({ label }: { label: string }) {
   return (
-    <div className="relative flex flex-col items-center justify-center w-full h-full gap-0.5">
-      <span className="text-3xl sm:text-4xl font-black leading-none text-zinc-900 drop-shadow-sm">{label}</span>
-      <div className="flex gap-0.5">
+    <div className="relative flex items-center justify-center w-full h-full">
+      {/* 2x2 color swatch grid as background */}
+      <div className="absolute inset-0 flex flex-wrap items-center justify-center gap-0.5 p-1">
         {['#ef4444', '#3b82f6', '#eab308', '#22c55e'].map((c) => (
-          <span key={c} className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full" style={{ backgroundColor: c }} />
+          <span
+            key={c}
+            className="w-1/2 h-1/2 sm:w-8 sm:h-8 rounded-[6px]"
+            style={{ backgroundColor: c }}
+          />
         ))}
       </div>
+      {/* Large +N number on top — white text, thick black stroke for maximum contrast on any color */}
+      <span
+        className="relative z-10 text-4xl sm:text-5xl font-black leading-none select-none"
+        style={{
+          color: 'white',
+          textShadow: '-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 0 8px rgba(0,0,0,0.8)',
+          fontFamily: 'system-ui, sans-serif',
+        }}
+      >
+        {label}
+      </span>
     </div>
   );
 }
@@ -315,4 +290,43 @@ export function PlayingCard({ card, playable, selected, faceDown, onClick, size 
       </div>
     </motion.button>
   );
+}
+
+/** Hand-drawn SVG icon for the big center badge — matches a real printed UNO deck:
+ *  Skip = no-entry circle, Reverse = the two chasing chevron arrows, plain Wild = the
+ *  four-petal color pinwheel. The Draw-family wilds (+2/+4/+8) get a premium metallic-gold
+ *  treatment instead — a smaller dimmed pinwheel sitting behind a bold gold-foil number, so the
+ *  number itself reads as the "heavy hitter" badge rather than competing with the colors. */
+function CardIcon({ card, accent }: { card: Card; accent: string }) {
+  switch (card.kind) {
+    case 'SKIP':
+      return (
+        <svg viewBox="0 0 100 100" className="w-[64%] h-[64%]" fill="none">
+          <circle cx="50" cy="50" r="38" stroke={accent} strokeWidth="13" />
+          <line x1="23" y1="23" x2="77" y2="77" stroke={accent} strokeWidth="13" strokeLinecap="round" />
+        </svg>
+      );
+    case 'REVERSE':
+      return (
+        <div className="w-[76%] h-[76%]">
+          <ReverseArrows fill={accent} />
+        </div>
+      );
+    case 'WILD':
+      return <WildPinwheel size="80%" />;
+    case 'WILD_DRAW_TWO':
+      return <WildDrawBadge label="+2" />;
+    case 'WILD_DRAW_FOUR':
+      return <WildDrawBadge label="+4" />;
+    case 'WILD_DRAW_EIGHT':
+      return <WildDrawBadge label="+8" />;
+    case 'DRAW_TWO':
+      return (
+        <span className="relative text-5xl font-black" style={{ color: accent }}>
+          +2
+        </span>
+      );
+    default:
+      return null;
+  }
 }
