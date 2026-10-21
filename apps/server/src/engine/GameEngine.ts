@@ -29,6 +29,22 @@ function drawAmountFor(kind: Card['kind']): number {
   return 2; // DRAW_TWO / WILD_DRAW_TWO
 }
 
+/** Wild Draw cards (choose a new color) — always legal to stack onto any pending combo
+ * regardless of which draw-family card started/extended it. */
+function isWildDrawKind(kind: Card['kind']): boolean {
+  return kind === 'WILD_DRAW_TWO' || kind === 'WILD_DRAW_FOUR' || kind === 'WILD_DRAW_EIGHT';
+}
+
+/**
+ * A plain DRAW_TWO may only cross-stack onto a combo that's currently sitting at the "+2
+ * family" (DRAW_TWO or WILD_DRAW_TWO) — never onto WILD_DRAW_FOUR or WILD_DRAW_EIGHT. Those
+ * stronger Wild Draw cards can only be countered by another Wild Draw card (any of the three),
+ * not by a plain Draw Two even if its color matches.
+ */
+function canCounterWithPlainDrawTwo(topCardKind: Card['kind']): boolean {
+  return topCardKind === 'DRAW_TWO' || topCardKind === 'WILD_DRAW_TWO';
+}
+
 
 export class GameError extends Error {
   constructor(public readonly code: string) {
@@ -149,8 +165,8 @@ export class GameEngine {
       const chosenColor = top.color; // the color selected by the previous Wild Draw player
       return hand
         .filter((c) => {
-          if (c.kind === 'WILD_DRAW_TWO' || c.kind === 'WILD_DRAW_FOUR' || c.kind === 'WILD_DRAW_EIGHT') return true;
-          if (c.kind === 'DRAW_TWO') return c.color === chosenColor;
+          if (isWildDrawKind(c.kind)) return true;
+          if (c.kind === 'DRAW_TWO') return canCounterWithPlainDrawTwo(top.kind) && c.color === chosenColor;
           return false;
         })
         .map((c) => c.id);
@@ -285,13 +301,16 @@ export class GameEngine {
     const defendingCombo = this.pendingDraw?.targetId === playerId;
     if (defendingCombo) {
       // Responding to a pending +2/+4/+8 combo:
-      // - Any Wild Draw card is legal (player chooses new color)
-      // - DRAW_TWO is legal only if it matches the chosen color on the top card
-      const topColor = this.topCard.color;
-      if (card.kind === 'WILD_DRAW_TWO' || card.kind === 'WILD_DRAW_FOUR' || card.kind === 'WILD_DRAW_EIGHT') {
+      // - Any Wild Draw card is legal (player chooses new color) — stacks on top of any other
+      //   draw-family card, including Wild Draw Four/Eight.
+      // - DRAW_TWO is legal only if the combo is currently at the "+2 family" (DRAW_TWO or
+      //   WILD_DRAW_TWO) AND its color matches the chosen color on the top card — it can never
+      //   counter a WILD_DRAW_FOUR/EIGHT combo, even with a matching color.
+      const top = this.topCard;
+      if (isWildDrawKind(card.kind)) {
         // OK — Wild Draw cards can always be played to stack
       } else if (card.kind === 'DRAW_TWO') {
-        if (card.color !== topColor) throw new GameError('MUST_COUNTER_OR_DRAW');
+        if (!canCounterWithPlainDrawTwo(top.kind) || card.color !== top.color) throw new GameError('MUST_COUNTER_OR_DRAW');
       } else {
         throw new GameError('MUST_COUNTER_OR_DRAW');
       }
@@ -400,15 +419,16 @@ export class GameEngine {
       if (!canPlayCard(picked[0], this.topCard)) throw new GameError('CARD_NOT_PLAYABLE');
     } else {
       // Defending against a pending combo — validate each card in the stack:
-      // - Wild Draw cards: always legal (choose new color)
-      // - DRAW_TWO: must match the chosen color on the top card
-      const topColor = this.topCard.color;
+      // - Wild Draw cards: always legal (choose new color), stacks onto any draw-family combo
+      // - DRAW_TWO: only legal while the combo is at the "+2 family" (DRAW_TWO/WILD_DRAW_TWO),
+      //   and only if its color matches the chosen color on the top card
+      const top = this.topCard;
       for (const card of picked) {
-        if (card.kind === 'WILD_DRAW_TWO' || card.kind === 'WILD_DRAW_FOUR' || card.kind === 'WILD_DRAW_EIGHT') {
+        if (isWildDrawKind(card.kind)) {
           continue;
         }
         if (card.kind === 'DRAW_TWO') {
-          if (card.color !== topColor) throw new GameError('MUST_COUNTER_OR_DRAW');
+          if (!canCounterWithPlainDrawTwo(top.kind) || card.color !== top.color) throw new GameError('MUST_COUNTER_OR_DRAW');
         } else {
           throw new GameError('MUST_COUNTER_OR_DRAW');
         }

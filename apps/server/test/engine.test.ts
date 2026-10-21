@@ -522,6 +522,39 @@ describe('GameEngine', () => {
       expect(engine.getHand('p1')).toHaveLength(1); // just the filler left
     });
 
+    it('WILD_DRAW_FOUR combo can only be countered by another Wild Draw card, never a plain DRAW_TWO even with matching color', () => {
+      const wild4 = { id: 'p1-0', kind: 'WILD_DRAW_FOUR' as const, color: null };
+      const p1Filler = { id: 'p1-1', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 5 };
+      const drawTwo = { id: 'p2-0', kind: 'DRAW_TWO' as const, color: 'GREEN' as const }; // matches chosen color, but still illegal
+      const p2Filler = { id: 'p2-1', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 6 };
+      const top = { id: 'top', kind: 'NUMBER' as const, color: 'RED' as const, value: 9 };
+      const rest = Array.from({ length: 20 }, (_, i) => ({ id: `rest-${i}`, kind: 'NUMBER' as const, color: 'YELLOW' as const, value: i % 10 }));
+      const deck = [wild4, drawTwo, p1Filler, p2Filler, top, ...rest];
+      const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
+      engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+      engine.playCard('p1', 'p1-0', engine.turnNumber, 'GREEN');
+      expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p2' });
+
+      expect(engine.getPlayableIds('p2')).not.toContain('p2-0');
+      expect(() => engine.playCard('p2', 'p2-0', engine.turnNumber)).toThrow(/MUST_COUNTER_OR_DRAW/);
+    });
+
+    it('WILD_DRAW_TWO stacks on top of a pending WILD_DRAW_FOUR combo (Wild Draw cards always cross-stack with each other)', () => {
+      const wild4 = { id: 'p1-0', kind: 'WILD_DRAW_FOUR' as const, color: null };
+      const p1Filler = { id: 'p1-1', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 5 };
+      const wild2 = { id: 'p2-0', kind: 'WILD_DRAW_TWO' as const, color: null };
+      const p2Filler = { id: 'p2-1', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 6 };
+      const top = { id: 'top', kind: 'NUMBER' as const, color: 'RED' as const, value: 9 };
+      const rest = Array.from({ length: 20 }, (_, i) => ({ id: `rest-${i}`, kind: 'NUMBER' as const, color: 'YELLOW' as const, value: i % 10 }));
+      const deck = [wild4, wild2, p1Filler, p2Filler, top, ...rest];
+      const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
+      engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+      engine.playCard('p1', 'p1-0', engine.turnNumber, 'GREEN');
+      expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p2' });
+      engine.playCard('p2', 'p2-0', engine.turnNumber, 'BLUE');
+      expect(engine.getPublicState().pendingDraw).toEqual({ count: 6, targetId: 'p1' });
+    });
+
     it('playCards lets the combo target counter-stack two matching-color DRAW_TWO cards at once (+4 back)', () => {
       const openingDrawTwo = { id: 'p1-0', kind: 'DRAW_TWO' as const, color: 'RED' as const };
       const p1Filler1 = { id: 'p1-1', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 5 };
