@@ -183,6 +183,7 @@ export class GameEngine {
       hand,
       playableCardIds: playable,
       canDraw,
+      canDrawInsteadOfWild: onlyWildDrawPlayable && !mustRespondToDraw,
       isMyTurn,
     };
   }

@@ -730,11 +730,16 @@ export default function RoomPage() {
                     เล่น {selectedIds.length} ใบ
                   </Button>
                 )}
-                {hand.isMyTurn && hand.canDraw && (
+                {hand.isMyTurn && hand.canDraw && !hand.canDrawInsteadOfWild && (
                   <Button onClick={drawCard} variant="gold" size="lg" fullWidth>
                     {game.pendingDraw?.targetId === session?.playerId
                       ? `จั่วสะสม ${game.pendingDraw?.count} ใบ`
                       : 'จั่วไพ่ (Draw Card)'}
+                  </Button>
+                )}
+                {hand.isMyTurn && hand.canDrawInsteadOfWild && (
+                  <Button onClick={drawCard} variant="ghost" size="lg" fullWidth>
+                    จั่วแทนการเล่น Wild Draw
                   </Button>
                 )}
                 {hand.isMyTurn && !hand.canDraw && hand.playableCardIds.length === 0 && (

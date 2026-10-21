@@ -111,6 +111,8 @@ export interface PrivateHand {
   hand: Card[];
   playableCardIds: string[];
   canDraw: boolean;
+  /** True when the ONLY playable cards are Wild Draw Two/Four/Eight — player may choose to draw instead of playing a Wild Draw. */
+  canDrawInsteadOfWild: boolean;
   isMyTurn: boolean;
 }
 
