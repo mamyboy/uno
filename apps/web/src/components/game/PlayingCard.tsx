@@ -74,37 +74,6 @@ function ReverseArrows({ fill }: { fill: string }) {
   );
 }
 
-/** The "+N" number is the hero — big, bold, high-contrast, sitting on top of a clean
- *  2x2 color swatch grid (red/blue/yellow/green) so the card reads instantly as
- *  "Wild Draw +N" without any overlap or clutter. */
-function WildDrawBadge({ label }: { label: string }) {
-  return (
-    <div className="relative flex items-center justify-center w-full h-full">
-      {/* 2x2 color swatch grid as background */}
-      <div className="absolute inset-0 flex flex-wrap items-center justify-center gap-0.5 p-1">
-        {['#ef4444', '#3b82f6', '#eab308', '#22c55e'].map((c) => (
-          <span
-            key={c}
-            className="w-1/2 h-1/2 sm:w-8 sm:h-8 rounded-[6px]"
-            style={{ backgroundColor: c }}
-          />
-        ))}
-      </div>
-      {/* Large +N number on top — white text, thick black stroke for maximum contrast on any color */}
-      <span
-        className="relative z-10 text-4xl sm:text-5xl font-black leading-none select-none"
-        style={{
-          color: 'white',
-          textShadow: '-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 0 8px rgba(0,0,0,0.8)',
-          fontFamily: 'system-ui, sans-serif',
-        }}
-      >
-        {label}
-      </span>
-    </div>
-  );
-}
-
 /** Four-petal color pinwheel used for every Wild-family card — curved teardrop petals meeting
  *  at the center, like the real card's mark (not geometric pie-slice triangles). */
 function WildPinwheel({ size }: { size: string }) {
@@ -315,11 +284,11 @@ function CardIcon({ card, accent }: { card: Card; accent: string }) {
     case 'WILD':
       return <WildPinwheel size="80%" />;
     case 'WILD_DRAW_TWO':
-      return <WildDrawBadge label="+2" />;
+      return <WildPinwheel size="80%" />;
     case 'WILD_DRAW_FOUR':
-      return <WildDrawBadge label="+4" />;
+      return <WildPinwheel size="80%" />;
     case 'WILD_DRAW_EIGHT':
-      return <WildDrawBadge label="+8" />;
+      return <WildPinwheel size="80%" />;
     case 'DRAW_TWO':
       return (
         <span className="relative text-5xl font-black" style={{ color: accent }}>
