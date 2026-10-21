@@ -12,6 +12,7 @@ interface Props {
   onClick?: () => void;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
+  stolen?: boolean;
 }
 
 const SIZES = {

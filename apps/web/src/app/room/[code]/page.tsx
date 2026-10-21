@@ -50,6 +50,7 @@ export default function RoomPage() {
   const [pendingWildCardIds, setPendingWildCardIds] = useState<string[] | null>(null);
   const [effectCard, setEffectCard] = useState<Card | null>(null);
   const [stealNotice, setStealNotice] = useState('');
+  const [stolenCardId, setStolenCardId] = useState<string | null>(null);
   const [finishNotice, setFinishNotice] = useState('');
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
@@ -323,9 +324,15 @@ export default function RoomPage() {
         setActionError(ack.error);
         return;
       }
-      if (ack.stolen) {
+      if (ack.stolen && ack.card) {
+        setStealNotice('ขโมยไพ่จากคู่ต่อสู้! 🤏');
+        setTimeout(() => setStealNotice(''), 2500);
+        // Trigger a brief highlight animation on the stolen card
+        setStolenCardId(ack.card.id);
+        setTimeout(() => setStolenCardId(null), 3000);
+      } else if (ack.stolen) {
         setStealNotice('กองไพ่หมดแล้ว! ดึงไพ่จากคู่ต่อสู้มา 🤏');
-        setTimeout(() => setStealNotice(''), 2000);
+        setTimeout(() => setStealNotice(''), 2500);
       }
     });
   };

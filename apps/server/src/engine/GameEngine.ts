@@ -461,12 +461,14 @@ export class GameEngine {
       this.cardsDrawn[playerId]++;
       this.log({ turnNumber, playerId, action: 'DRAW' });
 
-      if (this.isPlayableForPlayer(playerId, card) || this.drawPile.length > 0) {
+      if (this.isPlayableForPlayer(playerId, card)) {
         return { card, skipped: false, stolen: false };
       }
-      // Drew an unplayable card and draw pile is exhausted — skip turn.
-      this.skipAndAdvance(playerId);
-      return { card, skipped: true, stolen: false };
+      // If draw pile still has cards, keep the turn (can draw again).
+      if (this.drawPile.length > 0) {
+        return { card, skipped: false, stolen: false };
+      }
+      // Draw pile is now exhausted and card is unplayable — fall through to steal logic below.
     }
 
     // Draw pile is exhausted — steal randomly from other players until drawing a playable card.
