@@ -15,9 +15,9 @@ interface Props {
 }
 
 const SIZES = {
-  sm: { box: 'w-12 h-16', big: 'text-xl', mid: 'text-sm', corner: 'text-[9px]' },
-  md: { box: 'w-16 h-24', big: 'text-3xl', mid: 'text-lg', corner: 'text-[10px]' },
-  lg: { box: 'w-24 h-36', big: 'text-5xl', mid: 'text-2xl', corner: 'text-sm' },
+  sm: { box: 'w-10 h-14 sm:w-12 sm:h-16', big: 'text-lg sm:text-xl', mid: 'text-sm', corner: 'text-[8px] sm:text-[9px]' },
+  md: { box: 'w-12 h-[4.5rem] sm:w-16 sm:h-24', big: 'text-2xl sm:text-3xl', mid: 'text-lg', corner: 'text-[9px] sm:text-[10px]' },
+  lg: { box: 'w-16 h-24 sm:w-24 sm:h-36', big: 'text-3xl sm:text-5xl', mid: 'text-xl sm:text-2xl', corner: 'text-xs sm:text-sm' },
 };
 
 /** Compact Unicode glyph for the corner pips — crisper and more consistent across OSes than emoji. */

@@ -355,12 +355,12 @@ export default function RoomPage() {
       <Soundboard />
 
       <div className="max-w-3xl mx-auto space-y-6 relative z-10">
-        <header className="flex items-center justify-between">
+        <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-4">
             <button
               type="button"
               onClick={() => avatarInputRef.current?.click()}
-              className="relative group"
+              className="relative group shrink-0"
               title="อัปโหลดรูปโปรไฟล์"
             >
               <Avatar nickname={me?.nickname ?? '?'} avatar={meAvatar} size="lg" />
@@ -370,20 +370,20 @@ export default function RoomPage() {
             </button>
             <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatarPick} className="hidden" />
             {!meAvatar && (
-              <span className="text-xs text-zinc-400 bg-zinc-800/60 px-2 py-1 rounded backdrop-blur border border-zinc-700/50">
+              <span className="hidden sm:inline text-xs text-zinc-400 bg-zinc-800/60 px-2 py-1 rounded backdrop-blur border border-zinc-700/50">
                 กดรูปเพื่ออัปโหลดโปรไฟล์
               </span>
             )}
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">{room.name}</h1>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight truncate">{room.name}</h1>
               <p className="text-zinc-400 text-sm">
                 รหัสห้อง: <span className="font-mono text-emerald-400 tracking-widest">{room.code}</span>
               </p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <LinkButton href={`/room/${code}/board`} target="_blank" rel="noreferrer" variant="ghost" size="md">
-              <Tv className="w-4 h-4" /> เปิดกระดานกลาง
+          <div className="grid grid-cols-2 sm:flex gap-2">
+            <LinkButton href={`/room/${code}/board`} target="_blank" rel="noreferrer" variant="ghost" size="md" className="justify-self-stretch">
+              <Tv className="w-4 h-4" /> <span className="hidden xs:inline">เปิด</span>กระดานกลาง
             </LinkButton>
             <Button onClick={leaveRoom} variant="danger" size="md">
               <LogOut className="w-4 h-4" /> ออกจากห้อง
@@ -501,7 +501,7 @@ export default function RoomPage() {
 
         {/* Lobby / Waiting */}
         {room.status === 'WAITING' && (
-          <section className="rounded-2xl bg-zinc-900/80 backdrop-blur border border-zinc-800 p-6 space-y-4 shadow-xl">
+          <section className="rounded-2xl bg-zinc-900/80 backdrop-blur border border-zinc-800 p-4 sm:p-6 space-y-4 shadow-xl">
             <div className="flex items-center gap-2 text-zinc-300">
               <Users className="w-5 h-5" /> ผู้เล่นในห้อง ({players.length}/{room.maxPlayers})
             </div>
@@ -544,13 +544,13 @@ export default function RoomPage() {
           <section className="space-y-4">
             {/* casino table */}
             <div
-              className="rounded-3xl border-4 border-casino-border p-6 space-y-4 text-center shadow-2xl relative overflow-hidden"
+              className="rounded-3xl border-4 border-casino-border p-3 sm:p-6 space-y-3 sm:space-y-4 text-center shadow-2xl relative overflow-hidden"
               style={{
                 background:
                   'radial-gradient(ellipse at center, #1a4530 0%, #0f2b1d 60%, #081710 100%)',
               }}
             >
-              <div className="flex items-center justify-center gap-6">
+              <div className="flex items-center justify-center gap-2 sm:gap-6 flex-wrap">
                 <div className="text-center space-y-1">
                   <p className="text-xs text-zinc-400">กองจั่ว</p>
                   <PlayingCard card={game.topCard} faceDown size="md" />
@@ -572,7 +572,7 @@ export default function RoomPage() {
                 </div>
                 <div className="text-center space-y-1">
                   <p className="text-xs text-zinc-400">ทิศทาง</p>
-                  <div className={`w-12 h-12 rounded-full bg-zinc-800/80 flex items-center justify-center text-2xl ${game.direction ? 'animate-spin-slow' : ''}`}>
+                  <div className={`w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-zinc-800/80 flex items-center justify-center text-lg sm:text-2xl ${game.direction ? 'animate-spin-slow' : ''}`}>
                     {game.direction === 'RIGHT' ? '⟳' : game.direction === 'LEFT' ? '⟲' : '?'}
                   </div>
                 </div>
@@ -664,7 +664,7 @@ export default function RoomPage() {
             )}
 
             {hand && (
-              <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-6 space-y-4">
+              <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-4 sm:p-6 space-y-4">
                 <p className="text-sm text-zinc-400">
                   ไพ่ในมือของคุณ ({hand.hand.length} ใบ)
                   {selectedIds.length > 1 && (

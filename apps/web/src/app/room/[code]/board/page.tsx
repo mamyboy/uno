@@ -111,7 +111,7 @@ export default function BoardPage() {
 
   return (
     <main
-      className="min-h-screen text-white flex flex-col items-center justify-center p-8 gap-8 relative overflow-hidden"
+      className="min-h-screen text-white flex flex-col items-center justify-center p-4 sm:p-8 gap-4 sm:gap-8 relative overflow-hidden"
       style={{ background: 'radial-gradient(ellipse at center, #1a4530 0%, #0f2b1d 55%, #040a06 100%)' }}
     >
       {/* felt texture */}
@@ -124,7 +124,7 @@ export default function BoardPage() {
       <ActionEffect card={effectCard} />
       <Soundboard />
 
-      <h1 className="text-3xl font-black tracking-tight relative z-10">
+      <h1 className="text-xl sm:text-3xl font-black tracking-tight relative z-10 text-center px-2">
         Color Match Arena · <span className="text-emerald-400 font-mono">{room.code}</span>
       </h1>
 
@@ -186,8 +186,8 @@ export default function BoardPage() {
       )}
 
       {room.status === 'PLAYING' && game && (
-        <div className="w-full max-w-4xl space-y-8 relative z-10">
-          <div className="flex items-center justify-center gap-8">
+        <div className="w-full max-w-4xl space-y-4 sm:space-y-8 relative z-10 px-1">
+          <div className="flex items-center justify-center gap-3 sm:gap-8 flex-wrap">
             <div className="text-center space-y-2">
               <p className="text-sm text-zinc-400">กองจั่ว</p>
               <PlayingCard card={game.topCard} faceDown size="lg" />
@@ -209,7 +209,7 @@ export default function BoardPage() {
             </div>
             <div className="text-center space-y-2">
               <p className="text-sm text-zinc-400">ทิศทาง</p>
-              <div className={`w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-3xl ${game.direction ? 'animate-spin-slow' : ''}`}>
+              <div className={`w-10 h-10 sm:w-16 sm:h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-xl sm:text-3xl ${game.direction ? 'animate-spin-slow' : ''}`}>
                 {game.direction === 'RIGHT' ? '⟳' : game.direction === 'LEFT' ? '⟲' : '?'}
               </div>
             </div>
