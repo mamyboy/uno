@@ -29,20 +29,31 @@ function drawAmountFor(kind: Card['kind']): number {
   return 2; // DRAW_TWO / WILD_DRAW_TWO
 }
 
-/** Wild Draw cards (choose a new color) — always legal to stack onto any pending combo
- * regardless of which draw-family card started/extended it. */
+/** Wild Draw cards (choose a new color) — can stack onto a pending combo, but ONLY if their own
+ * tier (drawAmountFor) is >= the current top card's tier: Wild Draw Four or Eight can counter a
+ * Wild Draw Two combo, but Wild Draw Two can NOT counter a Wild Draw Four/Eight combo — once the
+ * combo escalates to a stronger Wild Draw, only that tier or higher can answer it. */
 function isWildDrawKind(kind: Card['kind']): boolean {
   return kind === 'WILD_DRAW_TWO' || kind === 'WILD_DRAW_FOUR' || kind === 'WILD_DRAW_EIGHT';
 }
 
 /**
- * A plain DRAW_TWO may only cross-stack onto a combo that's currently sitting at the "+2
- * family" (DRAW_TWO or WILD_DRAW_TWO) — never onto WILD_DRAW_FOUR or WILD_DRAW_EIGHT. Those
- * stronger Wild Draw cards can only be countered by another Wild Draw card (any of the three),
- * not by a plain Draw Two even if its color matches.
+ * Can `card` legally be stacked to counter/extend the pending combo currently topped by
+ * `topCard`?
+ *  - A plain DRAW_TWO only counters a combo still at the "+2 family" (DRAW_TWO/WILD_DRAW_TWO,
+ *    tier 2) AND only if its color matches the chosen color on the top card.
+ *  - A Wild Draw card (Two/Four/Eight) counters any combo whose tier is <= its own tier — e.g.
+ *    Wild Draw Four or Eight can answer a Wild Draw Two combo, but Wild Draw Two cannot answer a
+ *    Wild Draw Four/Eight combo; Wild Draw Eight can only be answered by another Wild Draw Eight.
  */
-function canCounterWithPlainDrawTwo(topCardKind: Card['kind']): boolean {
-  return topCardKind === 'DRAW_TWO' || topCardKind === 'WILD_DRAW_TWO';
+function canCounterCombo(card: Card, topCard: Card): boolean {
+  if (card.kind === 'DRAW_TWO') {
+    return drawAmountFor(topCard.kind) <= 2 && card.color === topCard.color;
+  }
+  if (isWildDrawKind(card.kind)) {
+    return drawAmountFor(card.kind) >= drawAmountFor(topCard.kind);
+  }
+  return false;
 }
 
 
@@ -162,14 +173,7 @@ export class GameEngine {
     const hand = this.hands.get(playerId) ?? [];
     if (this.pendingDraw?.targetId === playerId) {
       const top = this.topCard;
-      const chosenColor = top.color; // the color selected by the previous Wild Draw player
-      return hand
-        .filter((c) => {
-          if (isWildDrawKind(c.kind)) return true;
-          if (c.kind === 'DRAW_TWO') return canCounterWithPlainDrawTwo(top.kind) && c.color === chosenColor;
-          return false;
-        })
-        .map((c) => c.id);
+      return hand.filter((c) => DRAW_FAMILY_KINDS.has(c.kind) && canCounterCombo(c, top)).map((c) => c.id);
     }
     const top = this.topCard;
     return hand.filter((c) => canPlayCard(c, top)).map((c) => c.id);
@@ -300,18 +304,10 @@ export class GameEngine {
 
     const defendingCombo = this.pendingDraw?.targetId === playerId;
     if (defendingCombo) {
-      // Responding to a pending +2/+4/+8 combo:
-      // - Any Wild Draw card is legal (player chooses new color) — stacks on top of any other
-      //   draw-family card, including Wild Draw Four/Eight.
-      // - DRAW_TWO is legal only if the combo is currently at the "+2 family" (DRAW_TWO or
-      //   WILD_DRAW_TWO) AND its color matches the chosen color on the top card — it can never
-      //   counter a WILD_DRAW_FOUR/EIGHT combo, even with a matching color.
-      const top = this.topCard;
-      if (isWildDrawKind(card.kind)) {
-        // OK — Wild Draw cards can always be played to stack
-      } else if (card.kind === 'DRAW_TWO') {
-        if (!canCounterWithPlainDrawTwo(top.kind) || card.color !== top.color) throw new GameError('MUST_COUNTER_OR_DRAW');
-      } else {
+      // Responding to a pending +2/+4/+8 combo: only a draw-family card that passes
+      // canCounterCombo() is legal — Wild Draw cards need tier >= the combo's current tier,
+      // and a plain DRAW_TWO needs the combo still at tier 2 AND a matching color.
+      if (!DRAW_FAMILY_KINDS.has(card.kind) || !canCounterCombo(card, this.topCard)) {
         throw new GameError('MUST_COUNTER_OR_DRAW');
       }
     } else {
@@ -418,18 +414,12 @@ export class GameEngine {
       // current top card, checked using its first card (same rule a lone card would follow).
       if (!canPlayCard(picked[0], this.topCard)) throw new GameError('CARD_NOT_PLAYABLE');
     } else {
-      // Defending against a pending combo — validate each card in the stack:
-      // - Wild Draw cards: always legal (choose new color), stacks onto any draw-family combo
-      // - DRAW_TWO: only legal while the combo is at the "+2 family" (DRAW_TWO/WILD_DRAW_TWO),
-      //   and only if its color matches the chosen color on the top card
+      // Defending against a pending combo — every card in the stack must individually pass
+      // canCounterCombo() against the current top card (tier + color rules, same as a single
+      // countering play).
       const top = this.topCard;
       for (const card of picked) {
-        if (isWildDrawKind(card.kind)) {
-          continue;
-        }
-        if (card.kind === 'DRAW_TWO') {
-          if (!canCounterWithPlainDrawTwo(top.kind) || card.color !== top.color) throw new GameError('MUST_COUNTER_OR_DRAW');
-        } else {
+        if (!DRAW_FAMILY_KINDS.has(card.kind) || !canCounterCombo(card, top)) {
           throw new GameError('MUST_COUNTER_OR_DRAW');
         }
       }
