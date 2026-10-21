@@ -86,6 +86,12 @@ const PLAYERS: Record<string, (c: AudioContext) => void> = {
     thud(c, { duration: 0.35, gain: 0.32 });
     [392, 494, 587, 698].forEach((f) => tone(c, { freq: f, wave: 'sawtooth', duration: 0.3, gain: 0.12, delay: 0.03 }));
   },
+  WILD_DRAW_EIGHT: (c) => {
+    // The biggest card in the deck — double boom plus a full descending-then-rising stab chord.
+    thud(c, { duration: 0.4, gain: 0.36 });
+    thud(c, { duration: 0.4, gain: 0.3, delay: 0.08 });
+    [392, 494, 587, 698, 880].forEach((f, i) => tone(c, { freq: f, wave: 'sawtooth', duration: 0.32, gain: 0.13, delay: 0.05 + i * 0.015 }));
+  },
 };
 
 /** Play the synthesized SFX for a given card kind (no-op for NUMBER or unknown kinds). */

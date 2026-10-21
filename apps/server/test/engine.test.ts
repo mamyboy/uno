@@ -44,21 +44,22 @@ describe('deck', () => {
     }
   });
 
-  it('builds 12 wild cards: 4 Wild + 4 Wild Draw Two + 4 Wild Draw Four, all colorless', () => {
+  it('builds 14 wild cards: 4 Wild + 4 Wild Draw Two + 4 Wild Draw Four + 2 Wild Draw Eight, all colorless', () => {
     const wilds = createWildCards();
-    expect(wilds).toHaveLength(12);
+    expect(wilds).toHaveLength(14);
     expect(wilds.filter((c) => c.kind === 'WILD')).toHaveLength(4);
     expect(wilds.filter((c) => c.kind === 'WILD_DRAW_TWO')).toHaveLength(4);
     expect(wilds.filter((c) => c.kind === 'WILD_DRAW_FOUR')).toHaveLength(4);
+    expect(wilds.filter((c) => c.kind === 'WILD_DRAW_EIGHT')).toHaveLength(2);
     expect(wilds.every((c) => c.color === null)).toBe(true);
   });
 
-  it('builds the full 112-card deck (76 number + 24 action + 12 wild)', () => {
+  it('builds the full 114-card deck (76 number + 24 action + 14 wild)', () => {
     const deck = createDeck();
-    expect(deck).toHaveLength(112);
+    expect(deck).toHaveLength(114);
     expect(deck.filter((c) => c.kind === 'NUMBER')).toHaveLength(76);
     expect(deck.filter((c) => ['SKIP', 'REVERSE', 'DRAW_TWO'].includes(c.kind))).toHaveLength(24);
-    expect(deck.filter((c) => c.kind === 'WILD' || c.kind === 'WILD_DRAW_TWO' || c.kind === 'WILD_DRAW_FOUR')).toHaveLength(12);
+    expect(deck.filter((c) => c.kind === 'WILD' || c.kind === 'WILD_DRAW_TWO' || c.kind === 'WILD_DRAW_FOUR' || c.kind === 'WILD_DRAW_EIGHT')).toHaveLength(14);
   });
 });
 

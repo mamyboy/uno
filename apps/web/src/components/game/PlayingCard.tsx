@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'motion/react';
-import { cn, CARD_COLOR_CLASSES, CARD_ACCENT_HEX, WILD_CARD_BG, WILD_CARD_BORDER } from '@/lib/utils';
+import { cn, CARD_COLOR_CLASSES, CARD_ACCENT_HEX, WILD_CARD_BG, WILD_CARD_BORDER, WILD_DRAW_CARD_BG, WILD_DRAW_CARD_BORDER } from '@/lib/utils';
 import type { Card } from '@cma/shared';
 
 interface Props {
@@ -30,6 +30,8 @@ function cornerText(card: Card): string {
       return '+2';
     case 'WILD_DRAW_FOUR':
       return '+4';
+    case 'WILD_DRAW_EIGHT':
+      return '+8';
     default:
       return String(card.value ?? '');
   }
@@ -67,9 +69,10 @@ function ReverseArrows({ fill }: { fill: string }) {
 }
 
 /** Hand-drawn SVG icon for the big center badge — matches a real printed UNO deck:
- *  Skip = no-entry circle, Reverse = the two chasing chevron arrows, Wild / Wild Draw
- *  Four / Wild Draw Two = the four-petal color pinwheel (the real cards use the SAME
- *  mark for all three, just with a "+4"/"+2" added), Draw Two = plain bold "+2". */
+ *  Skip = no-entry circle, Reverse = the two chasing chevron arrows, plain Wild = the
+ *  four-petal color pinwheel. The Draw-family wilds (+2/+4/+8) get a premium metallic-gold
+ *  treatment instead — a smaller dimmed pinwheel sitting behind a bold gold-foil number, so the
+ *  number itself reads as the "heavy hitter" badge rather than competing with the colors. */
 function CardIcon({ card, accent }: { card: Card; accent: string }) {
   switch (card.kind) {
     case 'SKIP':
@@ -88,19 +91,11 @@ function CardIcon({ card, accent }: { card: Card; accent: string }) {
     case 'WILD':
       return <WildPinwheel size="80%" />;
     case 'WILD_DRAW_TWO':
-      return (
-        <div className="relative flex items-center justify-center w-full h-full">
-          <WildPinwheel size="100%" />
-          <span className="absolute text-xl font-black text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">+2</span>
-        </div>
-      );
+      return <PremiumDrawBadge label="+2" />;
     case 'WILD_DRAW_FOUR':
-      return (
-        <div className="relative flex items-center justify-center w-full h-full">
-          <WildPinwheel size="100%" />
-          <span className="absolute text-xl font-black text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">+4</span>
-        </div>
-      );
+      return <PremiumDrawBadge label="+4" />;
+    case 'WILD_DRAW_EIGHT':
+      return <PremiumDrawBadge label="+8" big />;
     case 'DRAW_TWO':
       return (
         <span className="relative text-5xl font-black" style={{ color: accent }}>
@@ -110,6 +105,41 @@ function CardIcon({ card, accent }: { card: Card; accent: string }) {
     default:
       return null;
   }
+}
+
+/** Premium center badge for the Draw-family Wild cards: a dimmed pinwheel behind a bold
+ *  gold-foil number inside a thin metallic ring — reads as the deck's "heavy hitter" cards. */
+function PremiumDrawBadge({ label, big }: { label: string; big?: boolean }) {
+  return (
+    <div className="relative flex items-center justify-center w-full h-full">
+      <div className="opacity-35">
+        <WildPinwheel size="92%" />
+      </div>
+      <div
+        className={cn(
+          'absolute rounded-full flex items-center justify-center',
+          big ? 'w-[72%] h-[72%]' : 'w-[62%] h-[62%]',
+        )}
+        style={{
+          background: 'radial-gradient(circle at 35% 30%, #fff6d8 0%, #f3c65f 35%, #a9741c 75%, #7a4e0d 100%)',
+          boxShadow: '0 0 0 2px rgba(255,236,180,0.9), inset 0 1px 3px rgba(255,255,255,0.8), inset 0 -3px 5px rgba(0,0,0,0.35)',
+        }}
+      >
+        <span
+          className={cn('font-black tracking-tight', big ? 'text-2xl' : 'text-xl')}
+          style={{
+            backgroundImage: 'linear-gradient(180deg, #4a2f05 0%, #2a1a02 100%)',
+            WebkitBackgroundClip: 'text',
+            backgroundClip: 'text',
+            color: 'transparent',
+            filter: 'drop-shadow(0 1px 0 rgba(255,255,255,0.4))',
+          }}
+        >
+          {label}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 /** Four-petal color pinwheel used for every Wild-family card — curved teardrop petals meeting
@@ -160,9 +190,10 @@ export function PlayingCard({ card, playable, selected, faceDown, onClick, size 
     );
   }
 
-  const isWild = card.kind === 'WILD' || card.kind === 'WILD_DRAW_TWO' || card.kind === 'WILD_DRAW_FOUR';
+  const isWild = card.kind === 'WILD' || card.kind === 'WILD_DRAW_TWO' || card.kind === 'WILD_DRAW_FOUR' || card.kind === 'WILD_DRAW_EIGHT';
+  const isWildDraw = card.kind === 'WILD_DRAW_TWO' || card.kind === 'WILD_DRAW_FOUR' || card.kind === 'WILD_DRAW_EIGHT';
   const isPureWild = card.kind === 'WILD'; // only the plain Wild spins its pinwheel — the draw
-  // variants show a static swatch grid + "+2"/"+4", which would be unreadable while spinning.
+  // variants show a static premium gold badge, which would be unreadable while spinning.
   const isAction = card.kind === 'SKIP' || card.kind === 'REVERSE' || card.kind === 'DRAW_TWO' || isWild;
   const hasCornerIcon = card.kind === 'SKIP' || card.kind === 'REVERSE' || card.kind === 'WILD';
   const cornerLabel = cornerText(card);
@@ -180,7 +211,7 @@ export function PlayingCard({ card, playable, selected, faceDown, onClick, size 
           ? { scale: [1, 1 + 0.08 * idleScale, 1] }
           : isPureWild
             ? { rotate: [0, 360] }
-            : card.kind === 'WILD_DRAW_TWO' || card.kind === 'WILD_DRAW_FOUR'
+            : card.kind === 'WILD_DRAW_TWO' || card.kind === 'WILD_DRAW_FOUR' || card.kind === 'WILD_DRAW_EIGHT'
               ? { scale: [1, 1 + 0.06 * idleScale, 1] }
               : undefined;
   const glyphTransition =
@@ -197,21 +228,33 @@ export function PlayingCard({ card, playable, selected, faceDown, onClick, size 
     y: playable ? -6 : 0,
     rotate: 0,
     scale: selected ? 1.08 : 1,
-    ...(isWild
+    ...(isWildDraw
       ? {
+          // Premium gold shimmer pulse — distinct from the plain Wild's rainbow cycle, signals
+          // "this is a heavy-hitter card" rather than "pick any color".
           boxShadow: [
-            '0 0 14px 2px rgba(220,38,38,0.55)',
-            '0 0 14px 2px rgba(217,119,6,0.55)',
-            '0 0 14px 2px rgba(5,150,105,0.55)',
-            '0 0 14px 2px rgba(37,99,235,0.55)',
-            '0 0 14px 2px rgba(220,38,38,0.55)',
+            '0 0 10px 1px rgba(243,198,95,0.45)',
+            '0 0 22px 5px rgba(255,221,140,0.85)',
+            '0 0 10px 1px rgba(243,198,95,0.45)',
           ],
         }
-      : {}),
+      : isWild
+        ? {
+            boxShadow: [
+              '0 0 14px 2px rgba(220,38,38,0.55)',
+              '0 0 14px 2px rgba(217,119,6,0.55)',
+              '0 0 14px 2px rgba(5,150,105,0.55)',
+              '0 0 14px 2px rgba(37,99,235,0.55)',
+              '0 0 14px 2px rgba(220,38,38,0.55)',
+            ],
+          }
+        : {}),
   };
-  const cardTransition = isWild
-    ? { default: { type: 'spring' as const, stiffness: 400, damping: 26 }, boxShadow: { duration: 4, repeat: Infinity, ease: 'linear' as const } }
-    : { type: 'spring' as const, stiffness: 400, damping: 26 };
+  const cardTransition = isWildDraw
+    ? { default: { type: 'spring' as const, stiffness: 400, damping: 26 }, boxShadow: { duration: 1.8, repeat: Infinity, ease: 'easeInOut' as const } }
+    : isWild
+      ? { default: { type: 'spring' as const, stiffness: 400, damping: 26 }, boxShadow: { duration: 4, repeat: Infinity, ease: 'linear' as const } }
+      : { type: 'spring' as const, stiffness: 400, damping: 26 };
 
   return (
     <motion.button
@@ -226,14 +269,14 @@ export function PlayingCard({ card, playable, selected, faceDown, onClick, size 
       className={cn(
         dims.box,
         'relative rounded-xl border-2 shadow-lg select-none overflow-hidden',
-        isWild ? WILD_CARD_BORDER : CARD_COLOR_CLASSES[card.color ?? 'RED'],
+        isWildDraw ? WILD_DRAW_CARD_BORDER : isWild ? WILD_CARD_BORDER : CARD_COLOR_CLASSES[card.color ?? 'RED'],
         playable && !selected && 'ring-2 ring-white/70 cursor-pointer animate-glow-pulse',
         selected && 'ring-4 ring-yellow-300 cursor-pointer shadow-yellow-300/70',
         onClick && !playable && !selected ? 'opacity-50 cursor-not-allowed' : '',
         !onClick ? 'cursor-default' : '',
         className,
       )}
-      style={isWild ? { backgroundImage: WILD_CARD_BG } : undefined}
+      style={isWildDraw ? { backgroundImage: WILD_DRAW_CARD_BG } : isWild ? { backgroundImage: WILD_CARD_BG } : undefined}
     >
       {/* glossy highlight */}
       <div className="absolute inset-0 bg-gradient-to-br from-white/35 via-transparent to-black/20 pointer-events-none" />
@@ -273,7 +316,10 @@ export function PlayingCard({ card, playable, selected, faceDown, onClick, size 
       {/* center ellipse badge */}
       <div className="absolute inset-0 flex items-center justify-center">
         <div
-          className="w-[72%] h-[82%] rounded-[50%] bg-white shadow-inner flex items-center justify-center overflow-hidden"
+          className={cn(
+            'w-[72%] h-[82%] rounded-[50%] shadow-inner flex items-center justify-center overflow-hidden',
+            isWildDraw ? 'bg-gradient-to-br from-zinc-800 via-zinc-900 to-black' : 'bg-white',
+          )}
           style={{ transform: 'rotate(-14deg)' }}
         >
           {card.kind === 'NUMBER' ? (

@@ -27,16 +27,17 @@ export function createActionCards(): Card[] {
   return deck;
 }
 
-/** 12 cards: 4x Wild, 4x Wild Draw Two, 4x Wild Draw Four — colorless until played. */
+/** 14 cards: 4x Wild, 4x Wild Draw Two, 4x Wild Draw Four, 2x Wild Draw Eight — colorless until played. */
 export function createWildCards(): Card[] {
   const deck: Card[] = [];
   for (let c = 0; c < 4; c++) deck.push({ id: randomUUID().slice(0, 12), kind: 'WILD', color: null });
   for (let c = 0; c < 4; c++) deck.push({ id: randomUUID().slice(0, 12), kind: 'WILD_DRAW_TWO', color: null });
   for (let c = 0; c < 4; c++) deck.push({ id: randomUUID().slice(0, 12), kind: 'WILD_DRAW_FOUR', color: null });
+  for (let c = 0; c < 2; c++) deck.push({ id: randomUUID().slice(0, 12), kind: 'WILD_DRAW_EIGHT', color: null });
   return deck;
 }
 
-/** Standard deck: 76 number + 24 action + 12 wild (4 Wild + 4 Wild Draw Two + 4 Wild Draw Four) = 112 cards. */
+/** Standard deck: 76 number + 24 action + 14 wild (4 Wild + 4 Wild Draw Two + 4 Wild Draw Four + 2 Wild Draw Eight) = 114 cards. */
 export function createDeck(): Card[] {
   return [...createNumberCards(), ...createActionCards(), ...createWildCards()];
 }

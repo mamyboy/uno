@@ -1,7 +1,12 @@
 import type { Card, Direction } from './types';
 
 export function isWild(card: Card): boolean {
-  return card.kind === 'WILD' || card.kind === 'WILD_DRAW_FOUR' || card.kind === 'WILD_DRAW_TWO';
+  return (
+    card.kind === 'WILD' ||
+    card.kind === 'WILD_DRAW_FOUR' ||
+    card.kind === 'WILD_DRAW_TWO' ||
+    card.kind === 'WILD_DRAW_EIGHT'
+  );
 }
 
 /**

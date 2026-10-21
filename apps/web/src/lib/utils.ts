@@ -18,6 +18,15 @@ export const CARD_COLOR_CLASSES: Record<string, string> = {
 export const WILD_CARD_BG = 'linear-gradient(145deg, #27272a 0%, #18181b 55%, #000000 100%)';
 export const WILD_CARD_BORDER = 'border-zinc-900';
 
+/** Premium black-and-gold foil treatment for the Draw-family Wild cards (+2/+4/+8) — a diagonal
+ *  metallic gold sheen over a deep black base plus a soft gold rim, so these feel like the
+ *  "heavy hitter" cards in the deck rather than a plain flat-black card. */
+export const WILD_DRAW_CARD_BG =
+  'linear-gradient(125deg, rgba(255,214,122,0.35) 0%, rgba(255,214,122,0.08) 22%, rgba(255,214,122,0) 40%), ' +
+  'radial-gradient(120% 90% at 15% 0%, rgba(255,225,160,0.18) 0%, rgba(255,225,160,0) 55%), ' +
+  'linear-gradient(155deg, #1c1a14 0%, #0d0c09 45%, #000000 100%)';
+export const WILD_DRAW_CARD_BORDER = 'border-amber-300/70';
+
 export const CARD_ACCENT_HEX: Record<string, string> = {
   RED: '#dc2626',
   YELLOW: '#d97706',

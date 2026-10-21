@@ -293,9 +293,9 @@ export default function RoomPage() {
       if (prev.length === 0) return [cardId];
       const firstCard = hand?.hand.find((c) => c.id === prev[0]);
       if (!firstCard) return prev;
-      const DRAW_FAMILY = new Set(['DRAW_TWO', 'WILD_DRAW_TWO', 'WILD_DRAW_FOUR']);
+      const DRAW_FAMILY = new Set(['DRAW_TWO', 'WILD_DRAW_TWO', 'WILD_DRAW_FOUR', 'WILD_DRAW_EIGHT']);
       // NUMBER cards stack only by matching value; SKIP/REVERSE stack regardless of color;
-      // DRAW_TWO / WILD_DRAW_TWO / WILD_DRAW_FOUR stack with EACH OTHER in any mix (amounts add up).
+      // DRAW_TWO / WILD_DRAW_TWO / WILD_DRAW_FOUR / WILD_DRAW_EIGHT stack with EACH OTHER in any mix (amounts add up).
       if (DRAW_FAMILY.has(firstCard.kind)) {
         if (!DRAW_FAMILY.has(card.kind)) return prev;
       } else if (firstCard.kind !== card.kind) {
@@ -585,7 +585,7 @@ export default function RoomPage() {
                   <span className="text-zinc-400">สีที่ต้องเล่น:</span>
                   <span className={`w-4 h-4 rounded-full ${COLOR_SWATCH[game.topCard.color]} ring-2 ring-white/30`} />
                   <span className="font-bold">{COLOR_LABEL[game.topCard.color]}</span>
-                  {(game.topCard.kind === 'WILD' || game.topCard.kind === 'WILD_DRAW_TWO' || game.topCard.kind === 'WILD_DRAW_FOUR') && (
+                  {(game.topCard.kind === 'WILD' || game.topCard.kind === 'WILD_DRAW_TWO' || game.topCard.kind === 'WILD_DRAW_FOUR' || game.topCard.kind === 'WILD_DRAW_EIGHT') && (
                     <span className="text-xs text-purple-300">(เลือกจากไพ่เปลี่ยนสี)</span>
                   )}
                 </div>

@@ -16,6 +16,7 @@ const EFFECT_CONFIG: Record<string, { label: string; emoji: string; bg: string; 
   WILD: { label: 'เปลี่ยนสี!', emoji: '\u{1F3A8}', bg: 'from-pink-600/95 via-purple-600/95 to-blue-600/95', ring: 'ring-white/50' },
   WILD_DRAW_TWO: { label: 'เปลี่ยนสี +2!', emoji: '\u{1F300}', bg: 'from-pink-600/95 via-purple-700/95 to-orange-700/95', ring: 'ring-white/50' },
   WILD_DRAW_FOUR: { label: '+4 สุดแรง!', emoji: '\u{1F4A5}', bg: 'from-pink-600/95 via-purple-700/95 to-red-700/95', ring: 'ring-white/50' },
+  WILD_DRAW_EIGHT: { label: '+8 จัดเต็ม!!', emoji: '\u{1F525}', bg: 'from-fuchsia-600/95 via-purple-800/95 to-black/95', ring: 'ring-amber-300/60' },
 };
 
 /**
@@ -65,7 +66,7 @@ export function ActionEffect({ card }: Props) {
                   ? { rotate: [0, 360] }
                   : card.kind === 'SKIP'
                     ? { x: [0, -10, 10, -10, 10, 0] }
-                    : card.kind === 'WILD' || card.kind === 'WILD_DRAW_TWO' || card.kind === 'WILD_DRAW_FOUR'
+                    : card.kind === 'WILD' || card.kind === 'WILD_DRAW_TWO' || card.kind === 'WILD_DRAW_FOUR' || card.kind === 'WILD_DRAW_EIGHT'
                       ? { rotate: [0, 15, -15, 0], scale: [1, 1.15, 1] }
                       : { scale: [1, 1.25, 1] }
               }

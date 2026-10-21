@@ -220,7 +220,7 @@ export default function BoardPage() {
               <span className="text-zinc-400">สีที่ต้องเล่น:</span>
               <span className={`w-5 h-5 rounded-full ${COLOR_SWATCH[game.topCard.color]} ring-2 ring-white/30`} />
               <span className="font-bold">{COLOR_LABEL[game.topCard.color]}</span>
-              {(game.topCard.kind === 'WILD' || game.topCard.kind === 'WILD_DRAW_TWO' || game.topCard.kind === 'WILD_DRAW_FOUR') && (
+              {(game.topCard.kind === 'WILD' || game.topCard.kind === 'WILD_DRAW_TWO' || game.topCard.kind === 'WILD_DRAW_FOUR' || game.topCard.kind === 'WILD_DRAW_EIGHT') && (
                 <span className="text-sm text-purple-300">(เลือกจากไพ่เปลี่ยนสี)</span>
               )}
             </div>

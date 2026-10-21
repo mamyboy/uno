@@ -18,6 +18,18 @@ import {
 } from '@cma/shared';
 import { createDeck, cryptoRng, shuffle, type Rng } from './deck';
 
+/** DRAW_TWO / WILD_DRAW_TWO / WILD_DRAW_FOUR / WILD_DRAW_EIGHT — any mix of these can be
+ * stacked together in one combo, cross-stacking into a single growing draw count. */
+const DRAW_FAMILY_KINDS = new Set<Card['kind']>(['DRAW_TWO', 'WILD_DRAW_TWO', 'WILD_DRAW_FOUR', 'WILD_DRAW_EIGHT']);
+
+/** How many cards a single draw-family card adds to a combo. */
+function drawAmountFor(kind: Card['kind']): number {
+  if (kind === 'WILD_DRAW_EIGHT') return 8;
+  if (kind === 'WILD_DRAW_FOUR') return 4;
+  return 2; // DRAW_TWO / WILD_DRAW_TWO
+}
+
+
 export class GameError extends Error {
   constructor(public readonly code: string) {
     super(code);
@@ -131,13 +143,13 @@ export class GameEngine {
   getPlayableIds(playerId: string): string[] {
     const hand = this.hands.get(playerId) ?? [];
     if (this.pendingDraw?.targetId === playerId) {
-      return hand.filter((c) => c.kind === 'DRAW_TWO' || c.kind === 'WILD_DRAW_TWO' || c.kind === 'WILD_DRAW_FOUR').map((c) => c.id);
+      return hand.filter((c) => DRAW_FAMILY_KINDS.has(c.kind)).map((c) => c.id);
     }
     const top = this.topCard;
     const hasColorMatch = hand.some((c) => !isWild(c) && c.color === top.color);
     return hand
       .filter((c) => {
-        if (c.kind === 'WILD_DRAW_FOUR' || c.kind === 'WILD_DRAW_TWO') return !hasColorMatch;
+        if (c.kind === 'WILD_DRAW_FOUR' || c.kind === 'WILD_DRAW_TWO' || c.kind === 'WILD_DRAW_EIGHT') return !hasColorMatch;
         return canPlayCard(c, top);
       })
       .map((c) => c.id);
@@ -255,10 +267,13 @@ export class GameEngine {
     if (defendingCombo) {
       // The only way to respond to a pending +2/+4 is to stack another Draw card — no normal
       // color/value match is required since this isn't a play against the top card.
-      if (card.kind !== 'DRAW_TWO' && card.kind !== 'WILD_DRAW_TWO' && card.kind !== 'WILD_DRAW_FOUR') throw new GameError('MUST_COUNTER_OR_DRAW');
+      if (!DRAW_FAMILY_KINDS.has(card.kind)) throw new GameError('MUST_COUNTER_OR_DRAW');
     } else {
       if (!canPlayCard(card, this.topCard)) throw new GameError('CARD_NOT_PLAYABLE');
-      if ((card.kind === 'WILD_DRAW_FOUR' || card.kind === 'WILD_DRAW_TWO') && this.getPlayableIds(playerId).includes(cardId) === false) {
+      if (
+        (card.kind === 'WILD_DRAW_FOUR' || card.kind === 'WILD_DRAW_TWO' || card.kind === 'WILD_DRAW_EIGHT') &&
+        this.getPlayableIds(playerId).includes(cardId) === false
+      ) {
         throw new GameError('CARD_NOT_PLAYABLE');
       }
     }
@@ -309,8 +324,7 @@ export class GameEngine {
       picked.push(card);
     }
 
-    const DRAW_FAMILY = new Set(['DRAW_TWO', 'WILD_DRAW_TWO', 'WILD_DRAW_FOUR']);
-    const allDrawFamily = picked.every((c) => DRAW_FAMILY.has(c.kind));
+    const allDrawFamily = picked.every((c) => DRAW_FAMILY_KINDS.has(c.kind));
     const defendingCombo = this.pendingDraw?.targetId === playerId;
 
     if (allDrawFamily) return this.playDrawStack(playerId, picked, turnNumber, chosenColor, defendingCombo);
@@ -363,7 +377,7 @@ export class GameEngine {
       // Not countering a pending combo — this stack has to be a legal opening play against the
       // current top card, checked using its first card (same rule a lone card would follow).
       const first = picked[0];
-      if (first.kind === 'WILD_DRAW_TWO' || first.kind === 'WILD_DRAW_FOUR') {
+      if (first.kind === 'WILD_DRAW_TWO' || first.kind === 'WILD_DRAW_FOUR' || first.kind === 'WILD_DRAW_EIGHT') {
         if (!this.getPlayableIds(playerId).includes(first.id)) throw new GameError('CARD_NOT_PLAYABLE');
       } else if (!canPlayCard(first, this.topCard)) {
         throw new GameError('CARD_NOT_PLAYABLE');
@@ -382,7 +396,7 @@ export class GameEngine {
       this.discardPile.push(placedCard);
       placed.push(placedCard);
     }
-    const totalDrawAmount = picked.reduce((sum, c) => sum + (c.kind === 'WILD_DRAW_FOUR' ? 4 : 2), 0);
+    const totalDrawAmount = picked.reduce((sum, c) => sum + drawAmountFor(c.kind), 0);
     this.consecutiveSkips = 0;
     this.log({ turnNumber, playerId, action: 'PLAY', card: placed[placed.length - 1], cards: placed });
 
@@ -471,7 +485,7 @@ export class GameEngine {
     // If the outgoing player was countering a pending combo with their last card(s), the combo
     // carries forward (amount keeps accumulating onto the next target) instead of vanishing —
     // only clear it here when they're going out WITHOUT extending it (e.g. an unrelated card).
-    const continuesCombo = card?.kind === 'DRAW_TWO' || card?.kind === 'WILD_DRAW_TWO' || card?.kind === 'WILD_DRAW_FOUR';
+    const continuesCombo = !!card && DRAW_FAMILY_KINDS.has(card.kind);
     if (this.pendingDraw?.targetId === playerId && !continuesCombo) this.pendingDraw = null;
 
     // Resolve the card's effect (if any) while the finished player's seat is still in the
@@ -544,7 +558,7 @@ export class GameEngine {
   /** canPlayCard() plus the Wild Draw Four / Wild Draw Two "no color match in hand" house rule. */
   private isPlayableForPlayer(playerId: string, card: Card): boolean {
     if (!canPlayCard(card, this.topCard)) return false;
-    if (card.kind === 'WILD_DRAW_FOUR' || card.kind === 'WILD_DRAW_TWO') return this.getPlayableIds(playerId).includes(card.id);
+    if (card.kind === 'WILD_DRAW_FOUR' || card.kind === 'WILD_DRAW_TWO' || card.kind === 'WILD_DRAW_EIGHT') return this.getPlayableIds(playerId).includes(card.id);
     return true;
   }
 
@@ -582,8 +596,8 @@ export class GameEngine {
    * skips N players, same as Skip).
    */
   private applyCardEffectAndAdvance(card: Card, count = 1, totalDrawAmount?: number) {
-    if (card.kind === 'DRAW_TWO' || card.kind === 'WILD_DRAW_TWO' || card.kind === 'WILD_DRAW_FOUR') {
-      const amount = totalDrawAmount ?? (card.kind === 'WILD_DRAW_FOUR' ? 4 : 2);
+    if (DRAW_FAMILY_KINDS.has(card.kind)) {
+      const amount = totalDrawAmount ?? drawAmountFor(card.kind);
       this.step(); // move to the player this combo now targets
       if (this.status === 'FINISHED') return;
       this.pendingDraw = { count: (this.pendingDraw?.count ?? 0) + amount, targetId: this.currentPlayerId! };

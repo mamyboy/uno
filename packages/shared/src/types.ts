@@ -1,10 +1,10 @@
 export const COLORS = ['RED', 'YELLOW', 'GREEN', 'BLUE'] as const;
 export type CardColor = (typeof COLORS)[number];
 
-export type CardKind = 'NUMBER' | 'SKIP' | 'REVERSE' | 'DRAW_TWO' | 'WILD' | 'WILD_DRAW_FOUR' | 'WILD_DRAW_TWO';
+export type CardKind = 'NUMBER' | 'SKIP' | 'REVERSE' | 'DRAW_TWO' | 'WILD' | 'WILD_DRAW_FOUR' | 'WILD_DRAW_TWO' | 'WILD_DRAW_EIGHT';
 export const ACTION_KINDS = ['SKIP', 'REVERSE', 'DRAW_TWO'] as const;
-export const WILD_KINDS = ['WILD', 'WILD_DRAW_FOUR', 'WILD_DRAW_TWO'] as const;
-/** color is null only for WILD / WILD_DRAW_FOUR before a color is chosen when played. */
+export const WILD_KINDS = ['WILD', 'WILD_DRAW_FOUR', 'WILD_DRAW_TWO', 'WILD_DRAW_EIGHT'] as const;
+/** color is null only for WILD / WILD_DRAW_FOUR / WILD_DRAW_TWO / WILD_DRAW_EIGHT before a color is chosen when played. */
 export interface Card { id: string; kind: CardKind; color: CardColor | null; value?: number }
 
 export type Direction = 'LEFT' | 'RIGHT';
