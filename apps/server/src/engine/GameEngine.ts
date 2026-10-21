@@ -438,7 +438,7 @@ export class GameEngine {
     return { cards: placed, finished: this.status === 'FINISHED' };
   }
 
-  drawCard(playerId: string, turnNumber: number): { card: Card | null; skipped: boolean; stolen: boolean } {
+  drawCard(playerId: string, turnNumber: number, drawInsteadOfWild = false): { card: Card | null; skipped: boolean; stolen: boolean } {
     this.assertTurn(playerId, turnNumber, 'PLAYING');
 
     if (this.pendingDraw?.targetId === playerId) {
@@ -453,7 +453,7 @@ export class GameEngine {
       return { card: null, skipped: false, stolen: false };
     }
 
-    if (this.getPlayableIds(playerId).length > 0) throw new GameError('HAS_PLAYABLE_CARD');
+    if (!drawInsteadOfWild && this.getPlayableIds(playerId).length > 0) throw new GameError('HAS_PLAYABLE_CARD');
 
     if (this.drawPile.length > 0) {
       const card = this.drawPile.pop()!;

@@ -316,9 +316,9 @@ export default function RoomPage() {
     });
   };
 
-  const drawCard = () => {
+  const drawCard = (drawInsteadOfWild = false) => {
     if (!game) return;
-    socket.emit(EV.GAME_DRAW_CARD, { turnNumber: game.turnNumber }, (ack: any) => {
+    socket.emit(EV.GAME_DRAW_CARD, { turnNumber: game.turnNumber, drawInsteadOfWild }, (ack: any) => {
       if (!ack.ok) {
         setActionError(ack.error);
         return;
@@ -731,14 +731,14 @@ export default function RoomPage() {
                   </Button>
                 )}
                 {hand.isMyTurn && hand.canDraw && !hand.canDrawInsteadOfWild && (
-                  <Button onClick={drawCard} variant="gold" size="lg" fullWidth>
+                  <Button onClick={() => drawCard(false)} variant="gold" size="lg" fullWidth>
                     {game.pendingDraw?.targetId === session?.playerId
                       ? `จั่วสะสม ${game.pendingDraw?.count} ใบ`
                       : 'จั่วไพ่ (Draw Card)'}
                   </Button>
                 )}
                 {hand.isMyTurn && hand.canDrawInsteadOfWild && (
-                  <Button onClick={drawCard} variant="ghost" size="lg" fullWidth>
+                  <Button onClick={() => drawCard(true)} variant="ghost" size="lg" fullWidth>
                     จั่วแทนการเล่น Wild Draw
                   </Button>
                 )}

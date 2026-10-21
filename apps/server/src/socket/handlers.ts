@@ -282,7 +282,7 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
         const room = withRoom(socket);
         if (!room.engine) throw new GameError('GAME_NOT_STARTED');
         const parsed = schemas.drawCard.parse(data);
-        const result = room.engine.drawCard(sd(socket).playerId ?? '', parsed.turnNumber);
+        const result = room.engine.drawCard(sd(socket).playerId ?? '', parsed.turnNumber, parsed.drawInsteadOfWild);
         emitRoom(room);
         return result;
       });

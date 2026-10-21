@@ -58,7 +58,7 @@ export const schemas = {
   selectDirection: z.object({ direction: z.enum(['LEFT', 'RIGHT']), turnNumber: turn }),
   playCard: z.object({ cardId: z.string().max(64), turnNumber: turn, chosenColor: z.enum(COLORS).optional() }),
   playCards: z.object({ cardIds: z.array(z.string().max(64)).min(2).max(10), turnNumber: turn, chosenColor: z.enum(COLORS).optional() }),
-  drawCard: z.object({ turnNumber: turn }),
+  drawCard: z.object({ turnNumber: turn, drawInsteadOfWild: z.boolean().optional() }),
   setAvatar: z.object({ avatar: z.string().max(300_000) }),
   playSound: z.object({ soundId: z.enum(SOUND_IDS) }),
 };
