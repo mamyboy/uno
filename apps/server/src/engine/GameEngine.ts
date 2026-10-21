@@ -447,7 +447,10 @@ export class GameEngine {
       // may immediately play a card if one of the newly drawn ones is playable.
       const { count } = this.pendingDraw;
       this.pendingDraw = null;
-      for (let i = 0; i < count; i++) this.forceDraw(playerId);
+      for (let i = 0; i < count; i++) {
+        const drew = this.drawOrStealOne(playerId, turnNumber);
+        if (!drew) break; // draw pile AND every other player's hand are both empty
+      }
       this.consecutiveSkips = 0; // absorbing a combo is real progress, not a stuck-skip
       this.resolveStuckPlayers(); // covers the rare case they still can't act at all afterward
       return { card: null, skipped: false, stolen: false };
@@ -455,56 +458,78 @@ export class GameEngine {
 
     if (!drawInsteadOfWild && this.getPlayableIds(playerId).length > 0) throw new GameError('HAS_PLAYABLE_CARD');
 
+    // Keep drawing/stealing one card at a time until a playable card turns up, or there is
+    // truly nothing left anywhere (draw pile empty AND every other player's hand empty).
+    let anyStolen = false;
+    while (true) {
+      const result = this.drawOrStealOne(playerId, turnNumber);
+      if (!result) {
+        // Nothing left to draw or steal from anyone — skip the turn.
+        this.skipAndAdvance(playerId);
+        return { card: null, skipped: true, stolen: anyStolen };
+      }
+      anyStolen = anyStolen || result.stolen;
+      if (this.isPlayableForPlayer(playerId, result.card)) {
+        return { card: result.card, skipped: false, stolen: result.stolen };
+      }
+      // Not playable: if it came from the draw pile and the pile still has cards left, the
+      // player keeps their turn and this single draw is the end of the action (matches normal
+      // UNO: draw one, done; can draw again next time). But if the draw pile is now completely
+      // empty (whether this card came from it or was stolen), keep going — stealing continues
+      // one card at a time from the next player with cards until a playable one turns up.
+      if (!result.stolen && this.drawPile.length > 0) {
+        return { card: result.card, skipped: false, stolen: false };
+      }
+    }
+  }
+
+  /**
+   * Draw exactly one card for `playerId`: from the draw pile if it still has cards, otherwise
+   * steal one card from the nearest next player (in turn order, following the current
+   * direction) who still has at least one card in hand — cascading to the player after that
+   * once a donor's hand runs dry. Returns null only when the draw pile AND every other
+   * player's hand are completely empty (true stalemate — nothing left anywhere to deal out).
+   */
+  private drawOrStealOne(playerId: string, turnNumber: number): { card: Card; stolen: boolean } | null {
     if (this.drawPile.length > 0) {
       const card = this.drawPile.pop()!;
       this.hands.get(playerId)!.push(card);
-      this.cardsDrawn[playerId]++;
+      this.cardsDrawn[playerId] = (this.cardsDrawn[playerId] ?? 0) + 1;
       this.log({ turnNumber, playerId, action: 'DRAW' });
-
-      if (this.isPlayableForPlayer(playerId, card)) {
-        return { card, skipped: false, stolen: false };
-      }
-      // If draw pile still has cards, keep the turn (can draw again).
-      if (this.drawPile.length > 0) {
-        return { card, skipped: false, stolen: false };
-      }
-      // Draw pile is now exhausted and card is unplayable — fall through to steal logic below.
+      return { card, stolen: false };
     }
 
-    // Draw pile is exhausted — steal randomly from other players until drawing a playable card.
-    if (this.seatOrder.length <= 1) {
-      this.skipAndAdvance(playerId);
-      return { card: null, skipped: true, stolen: false };
+    const donorId = this.nextDonorFrom(playerId);
+    if (!donorId) return null;
+
+    const fromHand = this.hands.get(donorId)!;
+    const randomIdx = this.rng(fromHand.length);
+    const card = fromHand.splice(randomIdx, 1)[0];
+    this.hands.get(playerId)!.push(card);
+    this.cardsDrawn[playerId] = (this.cardsDrawn[playerId] ?? 0) + 1;
+    this.log({ turnNumber, playerId, action: 'STEAL', card, fromPlayerId: donorId });
+    return { card, stolen: true };
+  }
+
+  /**
+   * Find the nearest player — walking forward from `excludeId` in current turn-order direction,
+   * wrapping around the table — who currently holds at least one card. This is what makes
+   * stealing always target "the next player" one card at a time: as long as that player still
+   * has cards, repeated calls keep returning the same donor; once their hand is empty, the walk
+   * naturally lands on whoever's next after them. Returns null if nobody else has any cards.
+   */
+  private nextDonorFrom(excludeId: string): string | null {
+    const n = this.seatOrder.length;
+    if (n <= 1) return null;
+    let idx = this.seatOrder.indexOf(excludeId);
+    if (idx < 0) idx = this.currentIndex;
+    for (let i = 0; i < n; i++) {
+      idx = nextSeatIndex(idx, n, this.direction ?? 'LEFT');
+      const candidate = this.seatOrder[idx];
+      if (candidate === excludeId) continue;
+      if ((this.hands.get(candidate)?.length ?? 0) > 0) return candidate;
     }
-
-    // Build list of other players who have at least one card.
-    const donors = this.seatOrder
-      .filter((id) => id !== playerId && (this.hands.get(id)?.length ?? 0) > 0);
-
-    if (donors.length === 0) {
-      this.skipAndAdvance(playerId);
-      return { card: null, skipped: true, stolen: false };
-    }
-
-    // Shuffle donors for randomness, then try each one's hand completely before moving to next.
-    const shuffledDonors = shuffle([...donors], this.rng);
-    for (const fromId of shuffledDonors) {
-      const fromHand = this.hands.get(fromId)!;
-      while (fromHand.length > 0) {
-        const randomIdx = this.rng(fromHand.length);
-        const card = fromHand.splice(randomIdx, 1)[0];
-        this.hands.get(playerId)!.push(card);
-        this.cardsDrawn[playerId] = (this.cardsDrawn[playerId] ?? 0) + 1;
-        this.log({ turnNumber, playerId, action: 'STEAL', card, fromPlayerId: fromId });
-        if (this.isPlayableForPlayer(playerId, card)) {
-          return { card, skipped: false, stolen: true };
-        }
-      }
-    }
-
-    // All other hands exhausted and no playable card found.
-    this.skipAndAdvance(playerId);
-    return { card: null, skipped: true, stolen: false };
+    return null;
   }
 
   /**
@@ -609,15 +634,6 @@ export class GameEngine {
   private advanceTurn() {
     this.step();
     this.resolveStuckPlayers();
-  }
-
-  /** Force a card into a player's hand bypassing turn/skip checks (for Draw Two / Wild Draw Four effects). */
-  private forceDraw(playerId: string) {
-    if (this.drawPile.length === 0) return; // draw pile exhausted — no reshuffle, combo just deals fewer cards
-    const card = this.drawPile.pop()!;
-    this.hands.get(playerId)!.push(card);
-    this.cardsDrawn[playerId] = (this.cardsDrawn[playerId] ?? 0) + 1;
-    this.log({ turnNumber: this.turnNumber, playerId, action: 'DRAW' });
   }
 
   /**
