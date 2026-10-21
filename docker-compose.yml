@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: cma
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cma_secret}
+      POSTGRES_DB: color_match_arena
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cma -d color_match_arena"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  server:
+    build: { context: ., dockerfile: apps/server/Dockerfile }
+    environment:
+      PORT: 4000
+      DATABASE_URL: postgresql://cma:***@db:5432/color_match_arena
+      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-*}
+    depends_on: { db: { condition: service_healthy } }
+    ports: ["4000:4000"]
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:-}
+    depends_on: [server]
+    ports: ["3000:3000"]
+    restart: unless-stopped
+
+volumes:
+  pgdata:

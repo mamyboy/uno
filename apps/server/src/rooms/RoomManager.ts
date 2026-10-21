@@ -1,0 +1,291 @@
+import { randomBytes, randomInt, randomUUID } from 'node:crypto';
+import { MIN_PLAYERS, type GameResult, type Room, type RoomStatus, type StaticRoomSummary } from '@cma/shared';
+import { GameEngine, GameError } from '../engine/GameEngine';
+
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ROOM_TTL_MS = 30 * 60 * 1000;
+
+export interface LeaderboardRecord {
+  nickname: string;
+  wins: number;
+  gamesPlayed: number;
+  avatar?: string | null;
+}
+
+export interface ServerMember {
+  id: string;
+  nickname: string;
+  sessionToken: string;
+  seatIndex: number;
+  connected: boolean;
+  isHost: boolean;
+  isPlayer: boolean;
+  socketId: string | null;
+  lastSeen: number;
+  avatar?: string | null;
+}
+
+export interface ServerRoom {
+  id: string;
+  code: string;
+  name: string;
+  hostId: string;
+  maxPlayers: number;
+  status: RoomStatus;
+  members: ServerMember[];
+  createdAt: Date;
+  engine: GameEngine | null;
+  lastResult: GameResult | null;
+  isStatic: boolean;
+  leaderboard: Map<string, LeaderboardRecord>;
+}
+
+const STATIC_ROOM_DEFS: { code: string; name: string; maxPlayers: number }[] = [
+  { code: 'TABLE1', name: 'โต๊ะ 1 · เริ่มต้น', maxPlayers: 4 },
+  { code: 'TABLE2', name: 'โต๊ะ 2 · มือใหม่', maxPlayers: 4 },
+  { code: 'TABLE3', name: 'โต๊ะ 3 · สนุกสนาน', maxPlayers: 6 },
+  { code: 'TABLE4', name: 'โต๊ะ 4 · ท้าทาย', maxPlayers: 6 },
+];
+
+export class RoomManager {
+  private rooms = new Map<string, ServerRoom>();
+  private sessions = new Map<string, { code: string; playerId: string }>();
+
+  get size() { return this.rooms.size; }
+  find(code: string) { return this.rooms.get(code.toUpperCase()) ?? null; }
+  get(code: string) {
+    const room = this.find(code);
+    if (!room) throw new GameError('ROOM_NOT_FOUND');
+    return room;
+  }
+
+  players(room: ServerRoom) {
+    return room.members.filter((m) => m.isPlayer).sort((a, b) => a.seatIndex - b.seatIndex);
+  }
+
+  getMember(room: ServerRoom, playerId: string): ServerMember | null {
+    return room.members.find((m) => m.id === playerId) ?? null;
+  }
+
+  deleteRoom(code: string) {
+    const room = this.rooms.get(code.toUpperCase());
+    if (!room) return;
+    room.members.forEach((m) => this.sessions.delete(m.sessionToken));
+    this.rooms.delete(code.toUpperCase());
+  }
+
+  setConnected(room: ServerRoom, playerId: string, connected: boolean, socketId: string | null) {
+    const member = this.getMember(room, playerId);
+    if (!member) return;
+    member.connected = connected;
+    member.socketId = socketId;
+    member.lastSeen = Date.now();
+  }
+
+  assertHost(room: ServerRoom, playerId: string) {
+    if (room.hostId !== playerId) throw new GameError('HOST_ONLY');
+  }
+
+  /** Create (or re-verify) the fixed set of always-available, pick-and-join static rooms. */
+  ensureStaticRooms() {
+    for (const def of STATIC_ROOM_DEFS) {
+      if (this.rooms.has(def.code)) continue;
+      const room: ServerRoom = {
+        id: randomUUID(), code: def.code, name: def.name, hostId: '', maxPlayers: def.maxPlayers,
+        status: 'WAITING', members: [], createdAt: new Date(), engine: null, lastResult: null,
+        isStatic: true, leaderboard: new Map(),
+      };
+      this.rooms.set(def.code, room);
+    }
+  }
+
+  listStaticRooms(): StaticRoomSummary[] {
+    return [...this.rooms.values()]
+      .filter((r) => r.isStatic)
+      .sort((a, b) => a.code.localeCompare(b.code))
+      .map((r) => ({
+        code: r.code, name: r.name, status: r.status,
+        playerCount: this.players(r).length, maxPlayers: r.maxPlayers,
+      }));
+  }
+
+  createRoom(input: { name: string; nickname: string; maxPlayers: number; hostPlays: boolean }) {
+    const code = this.generateCode();
+    const host = this.newMember(input.nickname, true, input.hostPlays);
+    const room: ServerRoom = {
+      id: randomUUID(), code, name: input.name, hostId: host.id, maxPlayers: input.maxPlayers,
+      status: 'WAITING', members: [host], createdAt: new Date(), engine: null, lastResult: null,
+      isStatic: false, leaderboard: new Map(),
+    };
+    this.reseat(room);
+    this.rooms.set(code, room);
+    this.sessions.set(host.sessionToken, { code, playerId: host.id });
+    return { room, member: host };
+  }
+
+  joinRoom(code: string, nickname: string, sessionToken?: string) {
+    const room = this.get(code);
+    if (sessionToken) {
+      const existing = this.resolveSession(code, sessionToken);
+      if (existing) return { ...existing, rejoined: true };
+    }
+    if (room.status === 'PLAYING') throw new GameError('ROOM_IN_GAME');
+    if (this.players(room).length >= room.maxPlayers) throw new GameError('ROOM_FULL');
+    const name = nickname.trim();
+    const becomesHost = room.members.length === 0;
+    const member = this.newMember(name, becomesHost, true);
+    member.seatIndex = this.players(room).length;
+    room.members.push(member);
+    if (becomesHost) room.hostId = member.id;
+    this.sessions.set(member.sessionToken, { code: room.code, playerId: member.id });
+    return { room, member, rejoined: false };
+  }
+
+  reconnect(code: string, sessionToken: string) {
+    const found = this.resolveSession(code, sessionToken);
+    if (!found) throw new GameError('SESSION_INVALID');
+    return found;
+  }
+
+  removeMember(room: ServerRoom, playerId: string) {
+    const idx = room.members.findIndex((m) => m.id === playerId);
+    if (idx < 0) return null;
+    const [member] = room.members.splice(idx, 1);
+    this.sessions.delete(member.sessionToken);
+    if (room.engine && room.status === 'PLAYING') room.engine.removePlayer(member.id);
+    if (room.members.length === 0) {
+      if (room.isStatic) {
+        // Static rooms never get deleted — just reset back to an empty, host-less lobby.
+        room.status = 'WAITING';
+        room.engine = null;
+        room.lastResult = null;
+        room.hostId = '';
+        return member;
+      }
+      this.rooms.delete(room.code);
+      return member;
+    }
+    if (member.isHost) {
+      const next = room.members.find((m) => m.connected) ?? room.members[0];
+      next.isHost = true;
+      room.hostId = next.id;
+    }
+    this.reseat(room);
+    return member;
+  }
+
+  reorder(room: ServerRoom, requesterId: string, playerIds: string[]) {
+    this.assertHost(room, requesterId);
+    if (room.status === 'PLAYING') throw new GameError('GAME_IN_PROGRESS');
+    const ps = this.players(room);
+    if (playerIds.length !== ps.length || !ps.every((p) => playerIds.includes(p.id))) {
+      throw new GameError('INVALID_ORDER');
+    }
+    this.reseat(room, playerIds.map((id) => ps.find((p) => p.id === id)!));
+  }
+
+  setHostPlays(room: ServerRoom, requesterId: string, hostPlays: boolean) {
+    this.assertHost(room, requesterId);
+    if (room.status === 'PLAYING') throw new GameError('GAME_IN_PROGRESS');
+    const host = room.members.find((m) => m.id === room.hostId)!;
+    if (host.isPlayer === hostPlays) return;
+    if (hostPlays && this.players(room).length >= room.maxPlayers) throw new GameError('ROOM_FULL');
+    host.isPlayer = hostPlays;
+    host.seatIndex = hostPlays ? Number.MAX_SAFE_INTEGER : -1;
+    this.reseat(room);
+  }
+
+  setAvatar(room: ServerRoom, playerId: string, avatar: string) {
+    const member = this.getMember(room, playerId);
+    if (!member) throw new GameError('NOT_IN_ROOM');
+    member.avatar = avatar;
+    const key = member.nickname.toLowerCase();
+    const entry = room.leaderboard.get(key) ?? { nickname: member.nickname, wins: 0, gamesPlayed: 0 };
+    entry.nickname = member.nickname;
+    entry.avatar = avatar;
+    room.leaderboard.set(key, entry);
+  }
+
+  /** Roll a finished match's ranking into the room's persistent by-name leaderboard. */
+  recordMatchResult(room: ServerRoom, result: GameResult) {
+    for (const r of result.ranking) {
+      const key = r.nickname.toLowerCase();
+      const entry = room.leaderboard.get(key) ?? { nickname: r.nickname, wins: 0, gamesPlayed: 0 };
+      entry.nickname = r.nickname;
+      entry.gamesPlayed += 1;
+      if (result.winnerId && r.playerId === result.winnerId) entry.wins += 1;
+      const member = room.members.find((m) => m.id === r.playerId);
+      if (member?.avatar) entry.avatar = member.avatar;
+      room.leaderboard.set(key, entry);
+    }
+  }
+
+  startGame(room: ServerRoom, requesterId: string, restart = false) {
+    this.assertHost(room, requesterId);
+    if (!restart && room.status === 'PLAYING') throw new GameError('GAME_IN_PROGRESS');
+    const ps = this.players(room);
+    if (ps.length < MIN_PLAYERS) throw new GameError('NOT_ENOUGH_PLAYERS');
+    if (ps.some((p) => !p.connected)) throw new GameError('PLAYER_DISCONNECTED');
+    room.engine = new GameEngine(room.id, ps.map((p) => p.id));
+    room.status = 'PLAYING';
+    room.lastResult = null;
+    return room.engine;
+  }
+
+  toPublicRoom(room: ServerRoom): Room {
+    const counts = room.engine?.getCardCounts() ?? {};
+    const leaderboard = [...room.leaderboard.values()]
+      .sort((a, b) => b.wins - a.wins || b.gamesPlayed - a.gamesPlayed || a.nickname.localeCompare(b.nickname))
+      .map((e) => ({ nickname: e.nickname, wins: e.wins, gamesPlayed: e.gamesPlayed, avatar: e.avatar ?? null }));
+    return {
+      id: room.id, code: room.code, name: room.name, hostId: room.hostId, status: room.status,
+      maxPlayers: room.maxPlayers, createdAt: room.createdAt.toISOString(), isStatic: room.isStatic,
+      players: room.members.map((m) => ({
+        id: m.id, nickname: m.nickname, seatIndex: m.seatIndex, cardCount: counts[m.id] ?? 0,
+        connected: m.connected, isHost: m.isHost, isPlayer: m.isPlayer,
+        isWinner: room.lastResult?.winnerId === m.id, avatar: m.avatar ?? null,
+      })),
+      leaderboard,
+    };
+  }
+
+  sweep(now = Date.now()) {
+    for (const room of this.rooms.values()) {
+      if (room.isStatic) continue; // static rooms persist forever, regardless of activity
+      const alive = room.members.some((m) => m.connected || now - m.lastSeen < ROOM_TTL_MS);
+      if (!alive) {
+        room.members.forEach((m) => this.sessions.delete(m.sessionToken));
+        this.rooms.delete(room.code);
+      }
+    }
+  }
+
+  private resolveSession(code: string, token: string) {
+    const s = this.sessions.get(token);
+    if (!s || s.code !== code.toUpperCase()) return null;
+    const room = this.rooms.get(s.code);
+    const member = room?.members.find((m) => m.id === s.playerId);
+    return room && member ? { room, member } : null;
+  }
+
+  private reseat(room: ServerRoom, ordered?: ServerMember[]) {
+    (ordered ?? this.players(room)).forEach((p, i) => (p.seatIndex = i));
+    room.members.filter((m) => !m.isPlayer).forEach((m) => (m.seatIndex = -1));
+  }
+
+  private newMember(nickname: string, isHost: boolean, isPlayer: boolean): ServerMember {
+    return {
+      id: randomUUID(), nickname: nickname.trim(), sessionToken: randomBytes(24).toString('base64url'),
+      seatIndex: -1, connected: true, isHost, isPlayer, socketId: null, lastSeen: Date.now(), avatar: null,
+    };
+  }
+
+  private generateCode() {
+    for (let attempt = 0; attempt < 50; attempt++) {
+      let code = '';
+      for (let i = 0; i < 6; i++) code += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)];
+      if (!this.rooms.has(code)) return code;
+    }
+    throw new GameError('SERVER_BUSY');
+  }
+}

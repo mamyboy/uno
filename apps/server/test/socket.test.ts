@@ -1,0 +1,242 @@
+import { createServer } from 'node:http';
+import type { Server as HTTPServer } from 'node:http';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Server } from 'socket.io';
+import { io as ioc, type Socket as ClientSocket } from 'socket.io-client';
+import { RoomManager } from '../src/rooms/RoomManager';
+import { Persistence } from '../src/db/persistence';
+import { registerSocketHandlers } from '../src/socket/handlers';
+
+let httpServer: HTTPServer;
+let port: number;
+
+function connect(): Promise<ClientSocket> {
+  return new Promise((resolve) => {
+    const socket = ioc(`http://localhost:${port}`, { transports: ['websocket'] });
+    socket.on('connect', () => resolve(socket));
+  });
+}
+
+function emit<T = any>(socket: ClientSocket, event: string, data: unknown): Promise<T> {
+  return new Promise((resolve) => socket.emit(event, data, resolve));
+}
+
+let rooms: RoomManager;
+
+beforeAll(async () => {
+  httpServer = createServer();
+  const io = new Server(httpServer, { cors: { origin: '*' } });
+  rooms = new RoomManager();
+  rooms.ensureStaticRooms();
+  const db = new Persistence(undefined); // no DB in tests
+  registerSocketHandlers(io, rooms, db);
+  await new Promise<void>((resolve) => httpServer.listen(0, resolve));
+  const addr = httpServer.address();
+  port = typeof addr === 'object' && addr ? addr.port : 0;
+});
+
+afterAll(() => {
+  httpServer.close();
+});
+
+describe('socket integration', () => {
+  it('creates a room and returns a session token', async () => {
+    const host = await connect();
+    const ack = await emit(host, 'room:create', { name: 'Room A', nickname: 'Host', maxPlayers: 4, hostPlays: true });
+    expect(ack.ok).toBe(true);
+    expect(ack.code).toMatch(/^[A-Z0-9]{6}$/);
+    expect(ack.sessionToken).toBeTruthy();
+    host.close();
+  });
+
+  it('allows duplicate nicknames in the same room', async () => {
+    const host = await connect();
+    const guest = await connect();
+    const created = await emit(host, 'room:create', { name: 'Room B', nickname: 'Alice', maxPlayers: 4, hostPlays: false });
+    const join1 = await emit(guest, 'room:join', { code: created.code, nickname: 'Alice' });
+    expect(join1.ok).toBe(true);
+    expect(join1.snapshot.room.players.filter((p: any) => p.nickname === 'Alice')).toHaveLength(2);
+    host.close();
+    guest.close();
+  });
+
+  it('keeps private hands isolated between players', async () => {
+    const host = await connect();
+    const guest = await connect();
+    const created = await emit(host, 'room:create', { name: 'Room C', nickname: 'Host', maxPlayers: 4, hostPlays: true });
+    await emit(guest, 'room:join', { code: created.code, nickname: 'Guest' });
+
+    const handUpdates: Record<string, any> = {};
+    host.on('game:hand_updated', (h: any) => { handUpdates.host = h; });
+    guest.on('game:hand_updated', (h: any) => { handUpdates.guest = h; });
+
+    const startAck = await emit(host, 'game:start', {});
+    expect(startAck.ok).toBe(true);
+
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(handUpdates.host.hand).toHaveLength(7);
+    expect(handUpdates.guest.hand).toHaveLength(7);
+    // Ensure the two hands don't share card ids (no leakage of the same card object to both).
+    const hostIds = new Set(handUpdates.host.hand.map((c: any) => c.id));
+    const guestIds = new Set(handUpdates.guest.hand.map((c: any) => c.id));
+    for (const id of hostIds) expect(guestIds.has(id)).toBe(false);
+
+    host.close();
+    guest.close();
+  });
+
+  it('rejects playing a card when it is not your turn', async () => {
+    const host = await connect();
+    const guest = await connect();
+    const created = await emit(host, 'room:create', { name: 'Room D', nickname: 'Host', maxPlayers: 4, hostPlays: true });
+    await emit(guest, 'room:join', { code: created.code, nickname: 'Guest' });
+    await emit(host, 'game:start', {});
+
+    const sync = await emit(host, 'game:sync_state', {});
+    const game = sync.snapshot.game;
+    const notCurrentIsHost = game.currentPlayerId !== created.playerId;
+    const wrongActor = notCurrentIsHost ? host : guest; // whichever one is NOT current
+    const wrongSync = await emit(wrongActor, 'game:sync_state', {});
+    const wrongHand = wrongSync.snapshot.hand;
+
+    if (wrongHand && wrongHand.hand.length > 0) {
+      const ack = await emit(wrongActor, 'game:play_card', { cardId: wrongHand.hand[0].id, turnNumber: game.turnNumber });
+      expect(ack.ok).toBe(false);
+    }
+
+    host.close();
+    guest.close();
+  });
+
+  it('supports reconnect with the same session token after disconnect', async () => {
+    const host = await connect();
+    const created = await emit(host, 'room:create', { name: 'Room E', nickname: 'Host', maxPlayers: 4, hostPlays: true });
+    host.disconnect();
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    const host2 = await connect();
+    const rejoinAck = await emit(host2, 'room:join', { code: created.code, nickname: 'ignored', sessionToken: created.sessionToken });
+    expect(rejoinAck.ok).toBe(true);
+    expect(rejoinAck.playerId).toBe(created.playerId);
+    host2.close();
+  });
+
+  it('game:play_cards rejects a stack with duplicate card ids', async () => {
+    const host = await connect();
+    const guest = await connect();
+    const created = await emit(host, 'room:create', { name: 'Room F', nickname: 'Host', maxPlayers: 4, hostPlays: true });
+    await emit(guest, 'room:join', { code: created.code, nickname: 'Guest' });
+    await emit(host, 'game:start', {});
+
+    const sync = await emit(host, 'game:sync_state', {});
+    const game = sync.snapshot.game;
+    const currentIsHost = game.currentPlayerId === created.playerId;
+    const actor = currentIsHost ? host : guest;
+    const actorSync = await emit(actor, 'game:sync_state', {});
+    const someCardId = actorSync.snapshot.hand.hand[0].id;
+
+    const ack = await emit(actor, 'game:play_cards', { cardIds: [someCardId, someCardId], turnNumber: game.turnNumber });
+    expect(ack.ok).toBe(false);
+    expect(ack.error).toBe('DUPLICATE_CARD_IN_PLAY');
+
+    host.close();
+    guest.close();
+  });
+
+  it('game:play_cards rejects when it is not the caller\'s turn', async () => {
+    const host = await connect();
+    const guest = await connect();
+    const created = await emit(host, 'room:create', { name: 'Room G', nickname: 'Host', maxPlayers: 4, hostPlays: true });
+    await emit(guest, 'room:join', { code: created.code, nickname: 'Guest' });
+    await emit(host, 'game:start', {});
+
+    const sync = await emit(host, 'game:sync_state', {});
+    const game = sync.snapshot.game;
+    const firstIsHost = game.firstPlayerId === created.playerId;
+    const firstActor = firstIsHost ? host : guest;
+    await emit(firstActor, 'game:select_direction', { direction: 'LEFT', turnNumber: game.turnNumber });
+
+    const sync2 = await emit(host, 'game:sync_state', {});
+    const game2 = sync2.snapshot.game;
+    const notCurrentIsHost = game2.currentPlayerId !== created.playerId;
+    const wrongActor = notCurrentIsHost ? host : guest;
+    const wrongSync = await emit(wrongActor, 'game:sync_state', {});
+    const wrongHand = wrongSync.snapshot.hand;
+
+    if (wrongHand && wrongHand.hand.length >= 2) {
+      const ack = await emit(wrongActor, 'game:play_cards', {
+        cardIds: [wrongHand.hand[0].id, wrongHand.hand[1].id],
+        turnNumber: game2.turnNumber,
+      });
+      expect(ack.ok).toBe(false);
+      expect(ack.error).toBe('NOT_YOUR_TURN');
+    }
+
+    host.close();
+    guest.close();
+  });
+
+  it('auto-resets a static room back to WAITING right after a match finishes, so a new round can start immediately', async () => {
+    const host = await connect();
+    const guest = await connect();
+    const joinHost = await emit(host, 'room:join', { code: 'TABLE1', nickname: 'StaticHost' });
+    expect(joinHost.ok).toBe(true);
+    const joinGuest = await emit(guest, 'room:join', { code: 'TABLE1', nickname: 'StaticGuest' });
+    expect(joinGuest.ok).toBe(true);
+
+    let over: any = null;
+    host.on('game:game_over', (res: any) => { over = res; });
+
+    const startAck = await emit(host, 'game:start', {});
+    expect(startAck.ok).toBe(true);
+
+    const sockets: Record<string, ClientSocket> = {};
+    for (const s of [host, guest]) {
+      const sync = await emit(s, 'game:sync_state', {});
+      sockets[sync.snapshot.me.playerId] = s;
+    }
+
+    // Drive the game to completion by always playing the first legal card (or drawing).
+    // Paced with a small delay — the server's generous 200-events/sec rate limiter still rejects
+    // truly back-to-back local-loopback calls with no delay at all between them.
+    for (let i = 0; i < 800 && !over; i++) {
+      await new Promise((r) => setTimeout(r, 8));
+      const sync = await emit(host, 'game:sync_state', {});
+      if (!sync?.ok) continue; // transient (e.g. rate-limited) — just retry next tick
+      const game = sync.snapshot.game;
+      if (!game || game.gameStatus === 'FINISHED') break;
+      if (game.gameStatus === 'CHOOSING_DIRECTION') {
+        await emit(sockets[game.currentPlayerId], 'game:select_direction', { direction: 'RIGHT', turnNumber: game.turnNumber });
+        continue;
+      }
+      const cur = sockets[game.currentPlayerId];
+      if (!cur) continue;
+      const hs = await emit(cur, 'game:sync_state', {});
+      if (!hs?.ok || !hs.snapshot.hand) continue;
+      const hand = hs.snapshot.hand;
+      if (hand.playableCardIds.length > 0) {
+        const cardId = hand.playableCardIds[0];
+        const card = hand.hand.find((c: any) => c.id === cardId);
+        await emit(cur, 'game:play_card', { cardId, turnNumber: game.turnNumber, chosenColor: card.color || 'RED' });
+      } else if (hand.canDraw) {
+        await emit(cur, 'game:draw_card', { turnNumber: game.turnNumber });
+      }
+      // else: stuck — the server auto-skips on its own; just keep polling.
+    }
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    const finalSync = await emit(host, 'game:sync_state', {});
+    expect(finalSync.snapshot.room.status).toBe('WAITING'); // static room already reset, not stuck on FINISHED
+    expect(rooms.find('TABLE1')?.isStatic).toBe(true);
+
+    // The room should accept a brand-new game:start right away, with no manual "restart" step needed.
+    const restartAck = await emit(host, 'game:start', {});
+    expect(restartAck.ok).toBe(true);
+
+    host.close();
+    guest.close();
+  });
+});

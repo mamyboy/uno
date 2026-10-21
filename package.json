@@ -1,0 +1,18 @@
+{
+  "name": "color-match-arena",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c yellow,cyan \"npm run dev -w @cma/server\" \"npm run dev -w @cma/web\"",
+    "build": "npm run build -w @cma/web",
+    "test": "npm run test -w @cma/server",
+    "typecheck": "npm run typecheck -w @cma/server && npm run typecheck -w @cma/web",
+    "db:migrate": "npm run db:migrate -w @cma/server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

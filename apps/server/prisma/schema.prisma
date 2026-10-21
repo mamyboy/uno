@@ -1,0 +1,48 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Room {
+  id         String   @id
+  code       String
+  name       String
+  maxPlayers Int
+  createdAt  DateTime @default(now())
+  matches    Match[]
+
+  @@index([code])
+}
+
+model Match {
+  id         String        @id
+  roomId     String
+  room       Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  startedAt  DateTime
+  endedAt    DateTime
+  durationMs Int
+  turns      Int
+  reason     String
+  winnerName String?
+  players    MatchPlayer[]
+
+  @@index([roomId])
+}
+
+model MatchPlayer {
+  id         String  @id @default(cuid())
+  matchId    String
+  match      Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  nickname   String
+  rank       Int
+  cardsLeft  Int
+  cardsDrawn Int
+  isWinner   Boolean @default(false)
+
+  @@index([matchId])
+}
