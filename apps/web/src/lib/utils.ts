@@ -12,9 +12,10 @@ export const CARD_COLOR_CLASSES: Record<string, string> = {
   BLUE: 'bg-gradient-to-br from-blue-400 via-blue-600 to-blue-800 border-blue-900',
 };
 
-/** Colorless Wild / Wild Draw Four: a 4-way pie so the card itself telegraphs "any color". */
-export const WILD_CARD_BG =
-  'conic-gradient(from 0deg, #dc2626 0deg 90deg, #d97706 90deg 180deg, #059669 180deg 270deg, #2563eb 270deg 360deg)';
+/** Colorless Wild / Wild Draw Four: real UNO wild cards are solid black, not a rainbow pie —
+ *  the color is conveyed entirely by the center pinwheel/grid badge, so the card reads instantly
+ *  as "any color" without looking noisy. */
+export const WILD_CARD_BG = 'linear-gradient(145deg, #27272a 0%, #18181b 55%, #000000 100%)';
 export const WILD_CARD_BORDER = 'border-zinc-900';
 
 export const CARD_ACCENT_HEX: Record<string, string> = {
