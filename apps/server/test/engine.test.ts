@@ -371,7 +371,7 @@ describe('GameEngine', () => {
 
     it('stacking +2 on +2 (3 players) passes a +4 total to the third player', () => {
       const d2a = { id: 'p1-d2', kind: 'DRAW_TWO' as const, color: 'RED' as const };
-      const d2b = { id: 'p2-d2', kind: 'DRAW_TWO' as const, color: 'BLUE' as const };
+      const d2b = { id: 'p2-d2', kind: 'DRAW_TWO' as const, color: 'RED' as const };
       const top = { id: 'top', kind: 'NUMBER' as const, color: 'RED' as const, value: 9 };
       const filler = (color: 'YELLOW' | 'GREEN') => ({ id: `f-${Math.random()}`, kind: 'NUMBER' as const, color, value: 1 });
       const rest = Array.from({ length: 20 }, (_, i) => ({ id: `rest-${i}`, kind: 'NUMBER' as const, color: 'GREEN' as const, value: i % 10 }));
@@ -522,12 +522,12 @@ describe('GameEngine', () => {
       expect(engine.getHand('p1')).toHaveLength(1); // just the filler left
     });
 
-    it('playCards lets the combo target counter-stack two DRAW_TWO cards at once (+4 back)', () => {
+    it('playCards lets the combo target counter-stack two matching-color DRAW_TWO cards at once (+4 back)', () => {
       const openingDrawTwo = { id: 'p1-0', kind: 'DRAW_TWO' as const, color: 'RED' as const };
       const p1Filler1 = { id: 'p1-1', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 5 };
       const p1Filler2 = { id: 'p1-2', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 6 };
-      const counter1 = { id: 'p2-0', kind: 'DRAW_TWO' as const, color: 'GREEN' as const };
-      const counter2 = { id: 'p2-1', kind: 'DRAW_TWO' as const, color: 'BLUE' as const };
+      const counter1 = { id: 'p2-0', kind: 'DRAW_TWO' as const, color: 'RED' as const };
+      const counter2 = { id: 'p2-1', kind: 'DRAW_TWO' as const, color: 'RED' as const };
       const p2Filler = { id: 'p2-2', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 7 };
       const top = { id: 'top', kind: 'NUMBER' as const, color: 'RED' as const, value: 9 };
       const rest = Array.from({ length: 20 }, (_, i) => ({ id: `rest-${i}`, kind: 'NUMBER' as const, color: 'YELLOW' as const, value: i % 10 }));

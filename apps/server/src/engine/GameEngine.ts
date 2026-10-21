@@ -135,14 +135,25 @@ export class GameEngine {
    * regardless of hand contents — no "must have no color match" restriction. Players may freely
    * open or continue with a Wild Draw card any time it's their turn.
    *
-   * Exception: while a +2/+4/+8 combo is pending against this player, the ONLY legal plays are
-   * DRAW_TWO / WILD_DRAW_TWO / WILD_DRAW_FOUR / WILD_DRAW_EIGHT (to stack and pass it on) —
-   * normal color/value matching doesn't apply, since this isn't a normal play against the top card.
+   * Exception: while a +2/+4/+8 combo is pending against this player, legal plays are:
+   * - Any Wild Draw card (WILD_DRAW_TWO / WILD_DRAW_FOUR / WILD_DRAW_EIGHT) — they choose a new color
+   * - DRAW_TWO cards that match the chosen color on the top card (the color selected by the
+   *   player who started/extended the combo)
+   * Normal color/value matching doesn't apply to other card kinds, since this isn't a normal
+   * play against the top card.
    */
   getPlayableIds(playerId: string): string[] {
     const hand = this.hands.get(playerId) ?? [];
     if (this.pendingDraw?.targetId === playerId) {
-      return hand.filter((c) => DRAW_FAMILY_KINDS.has(c.kind)).map((c) => c.id);
+      const top = this.topCard;
+      const chosenColor = top.color; // the color selected by the previous Wild Draw player
+      return hand
+        .filter((c) => {
+          if (c.kind === 'WILD_DRAW_TWO' || c.kind === 'WILD_DRAW_FOUR' || c.kind === 'WILD_DRAW_EIGHT') return true;
+          if (c.kind === 'DRAW_TWO') return c.color === chosenColor;
+          return false;
+        })
+        .map((c) => c.id);
     }
     const top = this.topCard;
     return hand.filter((c) => canPlayCard(c, top)).map((c) => c.id);
@@ -258,9 +269,17 @@ export class GameEngine {
 
     const defendingCombo = this.pendingDraw?.targetId === playerId;
     if (defendingCombo) {
-      // The only way to respond to a pending +2/+4 is to stack another Draw card — no normal
-      // color/value match is required since this isn't a play against the top card.
-      if (!DRAW_FAMILY_KINDS.has(card.kind)) throw new GameError('MUST_COUNTER_OR_DRAW');
+      // Responding to a pending +2/+4/+8 combo:
+      // - Any Wild Draw card is legal (player chooses new color)
+      // - DRAW_TWO is legal only if it matches the chosen color on the top card
+      const topColor = this.topCard.color;
+      if (card.kind === 'WILD_DRAW_TWO' || card.kind === 'WILD_DRAW_FOUR' || card.kind === 'WILD_DRAW_EIGHT') {
+        // OK — Wild Draw cards can always be played to stack
+      } else if (card.kind === 'DRAW_TWO') {
+        if (card.color !== topColor) throw new GameError('MUST_COUNTER_OR_DRAW');
+      } else {
+        throw new GameError('MUST_COUNTER_OR_DRAW');
+      }
     } else {
       if (!canPlayCard(card, this.topCard)) throw new GameError('CARD_NOT_PLAYABLE');
     }
@@ -364,6 +383,21 @@ export class GameEngine {
       // Not countering a pending combo — this stack has to be a legal opening play against the
       // current top card, checked using its first card (same rule a lone card would follow).
       if (!canPlayCard(picked[0], this.topCard)) throw new GameError('CARD_NOT_PLAYABLE');
+    } else {
+      // Defending against a pending combo — validate each card in the stack:
+      // - Wild Draw cards: always legal (choose new color)
+      // - DRAW_TWO: must match the chosen color on the top card
+      const topColor = this.topCard.color;
+      for (const card of picked) {
+        if (card.kind === 'WILD_DRAW_TWO' || card.kind === 'WILD_DRAW_FOUR' || card.kind === 'WILD_DRAW_EIGHT') {
+          continue;
+        }
+        if (card.kind === 'DRAW_TWO') {
+          if (card.color !== topColor) throw new GameError('MUST_COUNTER_OR_DRAW');
+        } else {
+          throw new GameError('MUST_COUNTER_OR_DRAW');
+        }
+      }
     }
 
     const needsColor = picked.some((c) => isWild(c));
