@@ -162,13 +162,27 @@ export class GameEngine {
   getPrivateHand(playerId: string): PrivateHand {
     const isMyTurn = this.currentPlayerId === playerId;
     const playable = this.getPlayableIds(playerId);
+    const hand = this.getHand(playerId);
     const mustRespondToDraw = this.pendingDraw?.targetId === playerId;
+
+    // Determine if the ONLY playable cards are Wild Draw cards (Wild Draw Two/Four/Eight).
+    // If so, the player MAY choose to draw instead of playing a Wild Draw.
+    // If there are ANY other playable cards (color/number match, Skip, Reverse, plain Wild, Draw Two),
+    // drawing is NOT allowed (must play).
+    const WILD_DRAW_KINDS = new Set(['WILD_DRAW_TWO', 'WILD_DRAW_FOUR', 'WILD_DRAW_EIGHT']);
+    const onlyWildDrawPlayable = playable.length > 0 &&
+      playable.every((id) => WILD_DRAW_KINDS.has(hand.find((c) => c.id === id)?.kind ?? ''));
+
+    const canDraw = isMyTurn && this.status === 'PLAYING' && (
+      mustRespondToDraw ||
+      (playable.length === 0 && this.drawPile.length > 0) ||
+      (onlyWildDrawPlayable && this.drawPile.length > 0)
+    );
+
     return {
-      hand: this.getHand(playerId),
+      hand,
       playableCardIds: playable,
-      // While a combo is pending against this player they may always choose to just absorb it,
-      // even if they also hold a card they could stack instead — stacking is optional.
-      canDraw: isMyTurn && this.status === 'PLAYING' && (mustRespondToDraw || (playable.length === 0 && this.drawPile.length > 0)),
+      canDraw,
       isMyTurn,
     };
   }
