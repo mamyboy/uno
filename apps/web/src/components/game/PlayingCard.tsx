@@ -113,35 +113,20 @@ function CardIcon({ card, accent }: { card: Card; accent: string }) {
   }
 }
 
-/** Reference-matched badge for the Draw-family Wild cards: a clean 2x2 grid of the four colors
- *  (red/blue/yellow/green) filling the white center shape, with a bold "+N" pill sitting right
- *  on top, dead center — big and high-contrast (black text on a white pill with a black
- *  outline) so it reads instantly even at hand-sized cards, unlike a small tucked-in corner label. */
+/** The "+N" number is the main thing a player needs to read at a glance during play, so it's
+ *  now the dominant element — big bold dark text filling most of the white center shape, same
+ *  visual weight as a plain colored Draw Two's number. A small row of 4 color dots underneath
+ *  is just a secondary "any color" hint, kept small so it never competes with the number. */
 function WildDrawBadge({ label }: { label: string }) {
   return (
-    <div className="relative flex items-center justify-center w-full h-full">
-      <WildSwatchGrid size="78%" />
-      <span
-        className="absolute flex items-center justify-center rounded-full bg-white px-1.5 py-0.5 text-base sm:text-lg font-black leading-none text-zinc-900"
-        style={{ border: '2px solid #18181b', boxShadow: '0 2px 4px rgba(0,0,0,0.45)' }}
-      >
-        {label}
-      </span>
+    <div className="relative flex flex-col items-center justify-center w-full h-full gap-0.5">
+      <span className="text-3xl sm:text-4xl font-black leading-none text-zinc-900 drop-shadow-sm">{label}</span>
+      <div className="flex gap-0.5">
+        {['#ef4444', '#3b82f6', '#eab308', '#22c55e'].map((c) => (
+          <span key={c} className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full" style={{ backgroundColor: c }} />
+        ))}
+      </div>
     </div>
-  );
-}
-
-/** 2x2 swatch grid used for the Draw-family Wild cards — red/blue/yellow/green rounded squares,
- *  matching the real card's simplified "any color" icon (distinct from the plain Wild's
- *  continuous pinwheel so the two are never mistaken for each other at a glance). */
-function WildSwatchGrid({ size }: { size: string }) {
-  return (
-    <svg viewBox="0 0 100 100" style={{ width: size, height: size }}>
-      <rect x="2" y="2" width="46" height="46" rx="9" fill="#ef4444" />
-      <rect x="52" y="2" width="46" height="46" rx="9" fill="#3b82f6" />
-      <rect x="2" y="52" width="46" height="46" rx="9" fill="#eab308" />
-      <rect x="52" y="52" width="46" height="46" rx="9" fill="#22c55e" />
-    </svg>
   );
 }
 
