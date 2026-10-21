@@ -47,14 +47,7 @@ function CornerIcon({ card }: { card: Card }) {
         </svg>
       );
     case 'REVERSE':
-      return (
-        <svg viewBox="0 0 100 100" className="w-full h-full" fill="none">
-          <path d="M 78 38 A 32 32 0 0 0 30 22" stroke="white" strokeWidth="14" strokeLinecap="round" />
-          <path d="M 30 22 L 18 10 M 30 22 L 38 36" stroke="white" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-          <path d="M 22 62 A 32 32 0 0 0 70 78" stroke="white" strokeWidth="14" strokeLinecap="round" />
-          <path d="M 70 78 L 82 90 M 70 78 L 62 64" stroke="white" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        </svg>
-      );
+      return <ReverseArrows fill="white" />;
     case 'WILD':
       return <WildPinwheel size="100%" />;
     default:
@@ -62,10 +55,21 @@ function CornerIcon({ card }: { card: Card }) {
   }
 }
 
-/** Hand-drawn SVG icon for the big center badge — replaces low-fidelity emoji with crisp vector art,
- *  styled to match a real printed UNO deck: Skip = no-entry circle, Reverse = chasing arrows,
- *  Wild = 4-color pinwheel, Wild Draw Four = 4-color swatch grid (distinct silhouette from Wild
- *  so the two are never confused), Draw Two = plain bold "+2" like a number card. */
+/** Official-style Reverse symbol: two thick chevron arrows pointing opposite directions,
+ *  stacked top/bottom — the real printed-deck mark, not an abstract "refresh" swirl. */
+function ReverseArrows({ fill }: { fill: string }) {
+  return (
+    <svg viewBox="0 0 100 100" className="w-full h-full">
+      <polygon points="6,22 62,22 62,8 96,32 62,56 62,42 6,42" fill={fill} />
+      <polygon points="94,58 38,58 38,44 4,68 38,92 38,78 94,78" fill={fill} />
+    </svg>
+  );
+}
+
+/** Hand-drawn SVG icon for the big center badge — matches a real printed UNO deck:
+ *  Skip = no-entry circle, Reverse = the two chasing chevron arrows, Wild / Wild Draw
+ *  Four / Wild Draw Two = the four-petal color pinwheel (the real cards use the SAME
+ *  mark for all three, just with a "+4"/"+2" added), Draw Two = plain bold "+2". */
 function CardIcon({ card, accent }: { card: Card; accent: string }) {
   switch (card.kind) {
     case 'SKIP':
@@ -77,37 +81,24 @@ function CardIcon({ card, accent }: { card: Card; accent: string }) {
       );
     case 'REVERSE':
       return (
-        <svg viewBox="0 0 100 100" className="w-[70%] h-[70%]" fill="none">
-          <path
-            d="M 78 38 A 32 32 0 0 0 30 22"
-            stroke={accent}
-            strokeWidth="11"
-            strokeLinecap="round"
-          />
-          <path d="M 30 22 L 18 10 M 30 22 L 38 36" stroke={accent} strokeWidth="11" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-          <path
-            d="M 22 62 A 32 32 0 0 0 70 78"
-            stroke={accent}
-            strokeWidth="11"
-            strokeLinecap="round"
-          />
-          <path d="M 70 78 L 82 90 M 70 78 L 62 64" stroke={accent} strokeWidth="11" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        </svg>
+        <div className="w-[76%] h-[76%]">
+          <ReverseArrows fill={accent} />
+        </div>
       );
     case 'WILD':
-      return <WildPinwheel size="78%" />;
+      return <WildPinwheel size="80%" />;
     case 'WILD_DRAW_TWO':
       return (
-        <div className="relative flex flex-col items-center justify-center w-full h-full gap-0.5">
-          <WildSwatchGrid size="58%" />
-          <span className="text-xl font-black text-zinc-800">+2</span>
+        <div className="relative flex items-center justify-center w-full h-full">
+          <WildPinwheel size="100%" />
+          <span className="absolute text-xl font-black text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">+2</span>
         </div>
       );
     case 'WILD_DRAW_FOUR':
       return (
-        <div className="relative flex flex-col items-center justify-center w-full h-full gap-0.5">
-          <WildSwatchGrid size="58%" />
-          <span className="text-xl font-black text-zinc-800">+4</span>
+        <div className="relative flex items-center justify-center w-full h-full">
+          <WildPinwheel size="100%" />
+          <span className="absolute text-xl font-black text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">+4</span>
         </div>
       );
     case 'DRAW_TWO':
@@ -121,7 +112,8 @@ function CardIcon({ card, accent }: { card: Card; accent: string }) {
   }
 }
 
-/** Four-color pinwheel used for Wild — a simple original mark, not a copy of any logo. */
+/** Four-petal color pinwheel used for every Wild-family card — curved teardrop petals meeting
+ *  at the center, like the real card's mark (not geometric pie-slice triangles). */
 function WildPinwheel({ size }: { size: string }) {
   const colors = ['#ef4444', '#eab308', '#22c55e', '#3b82f6'];
   return (
@@ -129,25 +121,12 @@ function WildPinwheel({ size }: { size: string }) {
       {colors.map((c, i) => (
         <path
           key={c}
-          d="M 50 50 L 50 6 A 44 44 0 0 1 94 50 Z"
+          d="M 50 50 C 32 50 26 24 50 4 C 74 24 68 50 50 50 Z"
           fill={c}
           transform={`rotate(${i * 90} 50 50)`}
         />
       ))}
-      <circle cx="50" cy="50" r="14" fill="white" />
-    </svg>
-  );
-}
-
-/** 2x2 swatch grid used for Wild Draw cards — a deliberately different silhouette from the
- *  pinwheel so Wild and Wild Draw Four/Two are never mistaken for each other at a glance. */
-function WildSwatchGrid({ size }: { size: string }) {
-  const colors = ['#ef4444', '#eab308', '#22c55e', '#3b82f6'];
-  return (
-    <svg viewBox="0 0 100 100" style={{ width: size, height: size }}>
-      {colors.map((c, i) => (
-        <rect key={c} x={(i % 2) * 52 + 2} y={Math.floor(i / 2) * 52 + 2} width="46" height="46" rx="10" fill={c} />
-      ))}
+      <circle cx="50" cy="50" r="12" fill="white" />
     </svg>
   );
 }
