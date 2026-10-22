@@ -14,6 +14,9 @@ import { PlayingCard } from '@/components/game/PlayingCard';
 import { Confetti } from '@/components/game/Confetti';
 import { ActionEffect } from '@/components/game/ActionEffect';
 import { Soundboard } from '@/components/game/Soundboard';
+import { GameFx } from '@/components/game/GameFx';
+import { PlayHistory } from '@/components/game/PlayHistory';
+import { TurnBanner } from '@/components/game/TurnBanner';
 import { Button, LinkButton } from '@/components/ui/Button';
 
 const COLOR_LABEL: Record<string, string> = { RED: 'แดง', YELLOW: 'เหลือง', GREEN: 'เขียว', BLUE: 'น้ำเงิน' };
@@ -144,7 +147,13 @@ export default function RoomPage() {
     function onKicked() {
       removeSession();
       reset();
-      router.push('/');
+      router.push('/join');
+    }
+    function onReplaced() {
+      // Same name joined from another tab/device — that one now owns this seat.
+      removeSession();
+      reset();
+      router.push('/join');
     }
 
     socket.on(EV.ROOM_STATE_UPDATED, onRoomUpdate);
@@ -154,6 +163,7 @@ export default function RoomPage() {
     socket.on(EV.GAME_HAND_UPDATED, onHand);
     socket.on(EV.GAME_GAME_OVER, onGameOver);
     socket.on(EV.ROOM_KICKED, onKicked);
+    socket.on(EV.SESSION_REPLACED, onReplaced);
 
     return () => {
       socket.off(EV.ROOM_STATE_UPDATED, onRoomUpdate);
@@ -163,6 +173,7 @@ export default function RoomPage() {
       socket.off(EV.GAME_HAND_UPDATED, onHand);
       socket.off(EV.GAME_GAME_OVER, onGameOver);
       socket.off(EV.ROOM_KICKED, onKicked);
+      socket.off(EV.SESSION_REPLACED, onReplaced);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
@@ -250,8 +261,13 @@ export default function RoomPage() {
   const restartGame = () => socket.emit(EV.GAME_RESTART, {}, (ack: any) => !ack.ok && setActionError(ack.error));
 
   const clearRoom = () => {
-    if (!window.confirm('Clear ห้องนี้จะเตะผู้เล่นทุกคนออก และล้าง Leaderboard ทั้งหมด เหมือนสร้างห้องใหม่ — ยืนยันหรือไม่?')) return;
+    if (!window.confirm('Clear ห้องนี้จะเตะผู้เล่นทุกคนออก (กลับไปหน้าเข้าร่วมห้อง) ให้ห้องว่าง — Leaderboard ยังอยู่ ยืนยันหรือไม่?')) return;
     socket.emit(EV.ROOM_CLEAR, {}, (ack: any) => !ack.ok && setActionError(ack.error));
+  };
+
+  const clearLeaderboard = () => {
+    if (!window.confirm('ล้าง Leaderboard ของห้องนี้ทั้งหมด ยืนยันหรือไม่?')) return;
+    socket.emit(EV.ROOM_CLEAR_LEADERBOARD, { code: room.code }, (ack: any) => !ack.ok && setActionError(ack.error));
   };
 
   const selectDirection = (direction: 'LEFT' | 'RIGHT') => {
@@ -269,7 +285,7 @@ export default function RoomPage() {
     if (!game || !hand) return;
     if (cardIds.length === 1) {
       const card = hand.hand.find((c) => c.id === cardIds[0]);
-      if (card && card.color === null) {
+      if (card && card.color === null && card.kind !== 'REFLECT') {
         // Wild / Wild Draw Four / Wild Draw Two — ask the player to pick a color before sending.
         setPendingWildCardIds(cardIds);
         return;
@@ -306,6 +322,7 @@ export default function RoomPage() {
       if (prev.length === 0) return [cardId];
       const firstCard = hand?.hand.find((c) => c.id === prev[0]);
       if (!firstCard) return prev;
+      if (firstCard.kind === 'REFLECT' || card.kind === 'REFLECT') return [cardId]; // Reflect always plays alone
       const DRAW_FAMILY = new Set(['DRAW_TWO', 'WILD_DRAW_TWO', 'WILD_DRAW_FOUR', 'WILD_DRAW_EIGHT']);
       // NUMBER cards stack only by matching value; SKIP/REVERSE stack regardless of color;
       // DRAW_TWO / WILD_DRAW_TWO / WILD_DRAW_FOUR / WILD_DRAW_EIGHT stack with EACH OTHER in any
@@ -347,6 +364,7 @@ export default function RoomPage() {
   };
 
   const players = room.players.filter((p: Player) => p.isPlayer);
+  const nameOf = (id: string | null | undefined) => room.players.find((p: Player) => p.id === id)?.nickname ?? 'ผู้เล่น';
   const joinUrl = typeof window !== 'undefined' ? `${window.location.origin}/join` : '';
   const meAvatar = room.players.find((p: Player) => p.id === session?.playerId)?.avatar;
 
@@ -375,6 +393,7 @@ export default function RoomPage() {
     <main className="min-h-screen bg-gradient-to-br from-casino-table via-casino-felt to-black text-white p-4 md:p-8 relative overflow-hidden">
       {room.status === 'FINISHED' && result && result.winnerId && <Confetti />}
       <ActionEffect card={effectCard} />
+      <GameFx game={game} result={result} nameOf={nameOf} />
       <Soundboard />
 
       <div className="max-w-3xl mx-auto space-y-6 relative z-10">
@@ -424,9 +443,16 @@ export default function RoomPage() {
 
         {room.leaderboard.length > 0 && (
           <section className="rounded-2xl bg-zinc-900/70 border border-zinc-800 p-4">
-            <p className="flex items-center gap-2 text-zinc-300 text-sm font-semibold mb-3">
-              <Trophy className="w-4 h-4 text-yellow-400" /> อันดับในห้องนี้
-            </p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="flex items-center gap-2 text-zinc-300 text-sm font-semibold">
+                <Trophy className="w-4 h-4 text-yellow-400" /> อันดับในห้องนี้ <span className="text-[10px] text-zinc-500 font-normal">(นับตามชื่อ)</span>
+              </p>
+              {(isHost || room.isStatic) && (
+                <button onClick={clearLeaderboard} className="text-xs flex items-center gap-1 px-2 py-1 rounded-lg border border-zinc-700 text-zinc-400 hover:text-red-300 hover:border-red-500/50">
+                  <Trash2 className="w-3 h-3" /> ล้าง Leaderboard
+                </button>
+              )}
+            </div>
             <ol className="space-y-1.5">
               {room.leaderboard.slice(0, 8).map((e, i) => (
                 <li key={e.nickname} className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-zinc-800/50">
@@ -573,6 +599,15 @@ export default function RoomPage() {
         {/* In game */}
         {room.status === 'PLAYING' && game && (
           <section className="space-y-4">
+            {game.gameStatus === 'PLAYING' && (
+              <TurnBanner
+                isMyTurn={!!hand?.isMyTurn}
+                myName={me?.nickname ?? ''}
+                currentName={nameOf(game.currentPlayerId)}
+                mustCounter={game.pendingDraw?.targetId === session?.playerId}
+                comboCount={game.pendingDraw?.count}
+              />
+            )}
             {/* casino table */}
             <div
               className="rounded-3xl border-4 border-casino-border p-3 sm:p-6 space-y-3 sm:space-y-4 text-center shadow-2xl relative overflow-hidden"
@@ -689,8 +724,8 @@ export default function RoomPage() {
                 className="rounded-2xl bg-orange-500/15 border border-orange-400/30 p-4 text-center font-bold text-orange-200"
               >
                 {game.pendingDraw.targetId === session?.playerId
-                  ? `ถึงตาคุณตอบโต้! เล่น +2/+4 ต่อ หรือจั่วสะสม ${game.pendingDraw.count} ใบ`
-                  : `${players.find((p) => p.id === game.pendingDraw?.targetId)?.nickname ?? ''} ต้องตอบโต้ด้วย +2/+4 หรือจั่ว ${game.pendingDraw.count} ใบ`}
+                  ? `ถึงตาคุณตอบโต้! เล่น +2/+4/+8 ต่อ, ใช้ไพ่สะท้อน 🪞 หรือจั่วสะสม ${game.pendingDraw.count} ใบ`
+                  : `${players.find((p) => p.id === game.pendingDraw?.targetId)?.nickname ?? ''} ต้องตอบโต้ด้วย +2/+4/+8, สะท้อน 🪞 หรือจั่ว ${game.pendingDraw.count} ใบ`}
               </motion.div>
             )}
 
@@ -707,7 +742,7 @@ export default function RoomPage() {
                     {hand.hand
                       .slice()
                       .sort((a, b) => {
-                        const kindOrder: Record<string, number> = { NUMBER: 0, SKIP: 1, REVERSE: 2, DRAW_TWO: 3, WILD: 4, WILD_DRAW_TWO: 5, WILD_DRAW_FOUR: 6 };
+                        const kindOrder: Record<string, number> = { NUMBER: 0, SKIP: 1, REVERSE: 2, DRAW_TWO: 3, WILD: 4, WILD_DRAW_TWO: 5, WILD_DRAW_FOUR: 6, WILD_DRAW_EIGHT: 7, REFLECT: 8 };
                         const ka = kindOrder[a.kind] ?? 99;
                         const kb = kindOrder[b.kind] ?? 99;
                         if (ka !== kb) return ka - kb;
@@ -726,7 +761,9 @@ export default function RoomPage() {
                         (firstSelected.kind === 'NUMBER'
                           ? firstSelected.value === c.value
                           : firstSelected.kind === 'SKIP' || firstSelected.kind === 'REVERSE');
-                      const clickable = hand.isMyTurn && (hand.playableCardIds.includes(c.id) || canStack);
+                      const DRAW_FAM = ['DRAW_TWO', 'WILD_DRAW_TWO', 'WILD_DRAW_FOUR', 'WILD_DRAW_EIGHT'];
+                      const canStackDraw = !!firstSelected && DRAW_FAM.includes(firstSelected.kind) && DRAW_FAM.includes(c.kind);
+                      const clickable = hand.isMyTurn && (hand.playableCardIds.includes(c.id) || canStack || canStackDraw);
                       return (
                         <motion.div key={c.id} layout className="relative" exit={{ opacity: 0, y: 30, scale: 0.6 }}>
                           <PlayingCard
@@ -771,6 +808,8 @@ export default function RoomPage() {
                 )}
               </div>
             )}
+
+            <PlayHistory game={game} nameOf={nameOf} compact />
           </section>
         )}
 

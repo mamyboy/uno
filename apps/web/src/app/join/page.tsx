@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'motion/react';
-import { ArrowLeft, Loader2, LogIn, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, Loader2, LogIn, Trash2, Trophy, UserX, Users } from 'lucide-react';
 import { socket } from '@/lib/socket';
 import { setSession } from '@/lib/session';
 import { getProfile, saveProfile } from '@/lib/profile';
@@ -53,16 +53,24 @@ export default function JoinRoomPage() {
     });
   };
 
+  const refreshRooms = () =>
+    socket.emit(EV.ROOM_LIST, {}, (listAck: any) => {
+      if (listAck.ok) setStaticRooms(listAck.rooms);
+    });
+
   const clearStaticRoom = (roomCode: string, roomName: string) => {
-    if (!window.confirm(`Clear "${roomName}" (${roomCode})? จะเตะผู้เล่นทุกคนในห้องนี้ออก และล้าง Leaderboard ทั้งหมด`)) return;
+    if (!window.confirm(`เคลียร์ห้อง "${roomName}" (${roomCode})? จะเตะผู้เล่นทุกคนออกให้ห้องว่าง (Leaderboard ยังอยู่)`)) return;
     socket.emit(EV.ROOM_CLEAR_BY_CODE, { code: roomCode }, (ack: any) => {
-      if (!ack.ok) {
-        setError(ack.error);
-        return;
-      }
-      socket.emit(EV.ROOM_LIST, {}, (listAck: any) => {
-        if (listAck.ok) setStaticRooms(listAck.rooms);
-      });
+      if (!ack.ok) return setError(ack.error);
+      refreshRooms();
+    });
+  };
+
+  const clearRoomLeaderboard = (roomCode: string, roomName: string) => {
+    if (!window.confirm(`ล้าง Leaderboard ของ "${roomName}" (${roomCode}) ทั้งหมด?`)) return;
+    socket.emit(EV.ROOM_CLEAR_LEADERBOARD, { code: roomCode }, (ack: any) => {
+      if (!ack.ok) return setError(ack.error);
+      refreshRooms();
     });
   };
 
@@ -123,9 +131,11 @@ export default function JoinRoomPage() {
             {staticRooms.map((r) => {
               const full = r.playerCount >= r.maxPlayers;
               const inGame = r.status === 'PLAYING';
-              const disabled = full || inGame || loading;
+              // Same name = same person: the server lets you re-claim your seat even mid-game/full.
+              const disabled = loading;
               return (
-                <div key={r.code} className="flex items-stretch gap-2">
+                <div key={r.code} className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-2 space-y-2">
+                <div className="flex items-stretch gap-2">
                   <button
                     type="button"
                     disabled={disabled}
@@ -146,14 +156,32 @@ export default function JoinRoomPage() {
                       {full && !inGame && <span className="text-red-400">เต็ม</span>}
                     </span>
                   </button>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="flex-1 min-w-0 truncate text-zinc-400">
+                    <Trophy className="inline w-3.5 h-3.5 text-yellow-400 mr-1" />
+                    {r.topPlayer ? `${r.topPlayer.nickname} (${r.topPlayer.wins} ชนะ)` : 'ยังไม่มีอันดับ'}
+                    {r.leaderboardCount ? ` · ${r.leaderboardCount} คน` : ''}
+                  </span>
                   <button
                     type="button"
-                    title="Clear ห้องนี้ (เตะผู้เล่นทุกคนออก + ล้าง Leaderboard)"
+                    title="เคลียร์ห้อง: เตะผู้เล่นทุกคนออกให้ห้องว่าง"
                     onClick={() => clearStaticRoom(r.code, r.name)}
-                    className="px-3 rounded-xl border border-zinc-700 bg-zinc-800/60 text-zinc-400 hover:border-red-500/60 hover:text-red-400 hover:bg-red-500/10 transition"
+                    disabled={r.playerCount === 0}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-zinc-700 bg-zinc-800/60 text-zinc-300 hover:border-orange-500/60 hover:text-orange-300 disabled:opacity-40 transition"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <UserX className="w-3.5 h-3.5" /> เคลียร์ห้อง
                   </button>
+                  <button
+                    type="button"
+                    title="ล้าง Leaderboard ของห้องนี้"
+                    onClick={() => clearRoomLeaderboard(r.code, r.name)}
+                    disabled={!r.leaderboardCount}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-zinc-700 bg-zinc-800/60 text-zinc-300 hover:border-red-500/60 hover:text-red-300 disabled:opacity-40 transition"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> ล้าง Leaderboard
+                  </button>
+                </div>
                 </div>
               );
             })}

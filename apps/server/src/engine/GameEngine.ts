@@ -108,7 +108,7 @@ export class GameEngine {
   private readonly now: () => number;
   /** Active +2/+4 combo awaiting a response from `targetId`: stack another Draw card to pass it
    * on (with the amount added on top), or draw the whole accumulated count and end the turn. */
-  private pendingDraw: { count: number; targetId: string } | null = null;
+  private pendingDraw: { count: number; targetId: string; fromId: string | null } | null = null;
   /** Players who have emptied their hand, in the order they did so — rank 1 is index 0. The
    * game keeps going for whoever's left until only one player still holds cards. */
   private finishedOrder: string[] = [];
@@ -178,7 +178,9 @@ export class GameEngine {
     const hand = this.hands.get(playerId) ?? [];
     if (this.pendingDraw?.targetId === playerId) {
       const top = this.topCard;
-      return hand.filter((c) => DRAW_FAMILY_KINDS.has(c.kind) && canCounterCombo(c, top)).map((c) => c.id);
+      return hand
+        .filter((c) => c.kind === 'REFLECT' || (DRAW_FAMILY_KINDS.has(c.kind) && canCounterCombo(c, top)))
+        .map((c) => c.id);
     }
     const top = this.topCard;
     return hand.filter((c) => canPlayCard(c, top)).map((c) => c.id);
@@ -234,7 +236,7 @@ export class GameEngine {
       winnerId: this.winnerId,
       seatOrder: [...this.seatOrder],
       cardCounts: this.getCardCounts(),
-      history: this.history.slice(-20),
+      history: this.history.slice(-40),
       startedAt: this.startedAt,
       endedAt: this.endedAt,
       pendingDraw: this.pendingDraw ? { ...this.pendingDraw } : null,
@@ -312,6 +314,10 @@ export class GameEngine {
     const card = hand[idx];
 
     const defendingCombo = this.pendingDraw?.targetId === playerId;
+    if (card.kind === 'REFLECT') {
+      if (!defendingCombo) throw new GameError('REFLECT_ONLY_VS_COMBO');
+      return this.playReflect(playerId, idx, turnNumber);
+    }
     if (defendingCombo) {
       // Responding to a pending +2/+4/+8 combo: only a draw-family card that passes
       // canCounterCombo() is legal — Wild Draw cards need tier >= the combo's current tier,
@@ -367,6 +373,15 @@ export class GameEngine {
       const card = hand.find((c) => c.id === id);
       if (!card) throw new GameError('CARD_NOT_IN_HAND');
       picked.push(card);
+    }
+
+    if (picked.some((c) => c.kind === 'REFLECT')) {
+      // A Reflect card always resolves alone — it can't be stacked with anything.
+      if (picked.length === 1) {
+        const r = this.playCard(playerId, picked[0].id, turnNumber);
+        return { cards: [r.card], finished: r.finished };
+      }
+      throw new GameError('CARDS_NOT_STACKABLE');
     }
 
     const allDrawFamily = picked.every((c) => DRAW_FAMILY_KINDS.has(c.kind));
@@ -471,6 +486,7 @@ export class GameEngine {
       // may immediately play a card if one of the newly drawn ones is playable.
       const { count } = this.pendingDraw;
       this.pendingDraw = null;
+      this.log({ turnNumber, playerId, action: 'ABSORB', count });
       for (let i = 0; i < count; i++) {
         const drew = this.drawOrStealOne(playerId, turnNumber);
         if (!drew) break; // draw pile AND every other player's hand are both empty
@@ -609,6 +625,77 @@ export class GameEngine {
     return this.status === 'FINISHED';
   }
 
+  /**
+   * REFLECT (สะท้อนกลับ): bounce the entire pending combo back to whoever sent it (the player who
+   * played the last draw card). If that player has already left the rotation, it goes to the
+   * previous active seat instead (opposite to the current direction). The combo's size and tier
+   * are unchanged — the Reflect card slides in UNDER the combo's top card, so the receiver still
+   * answers the very same draw card (stack a legal draw card, reflect again, or absorb it).
+   */
+  private playReflect(playerId: string, handIdx: number, turnNumber: number): { card: Card; finished: boolean } {
+    const hand = this.hands.get(playerId)!;
+    const [card] = hand.splice(handIdx, 1);
+    const pd = this.pendingDraw!;
+    let target: string | null = pd.fromId && pd.fromId !== playerId && this.seatOrder.includes(pd.fromId) ? pd.fromId : null;
+    if (!target) {
+      const n = this.seatOrder.length;
+      const opposite: Direction = this.direction === 'LEFT' ? 'RIGHT' : 'LEFT';
+      target = this.seatOrder[nextSeatIndex(this.seatOrder.indexOf(playerId), n, opposite)];
+    }
+    this.discardPile.splice(Math.max(this.discardPile.length - 1, 0), 0, card);
+    this.consecutiveSkips = 0;
+    this.log({ turnNumber, playerId, action: 'REFLECT', card, fromPlayerId: pd.fromId ?? undefined, toPlayerId: target, count: pd.count });
+    this.pendingDraw = { count: pd.count, targetId: target, fromId: playerId };
+    this.currentIndex = this.seatOrder.indexOf(target);
+    this.turnNumber++;
+
+    if (hand.length === 0) {
+      this.finishedOrder.push(playerId);
+      this.removeFinishedSeat(playerId);
+      if (this.status !== 'FINISHED' && this.seatOrder.length <= 1) this.finish(this.finishedOrder[0], 'EMPTY_HAND');
+    }
+    return { card, finished: this.status === 'FINISHED' };
+  }
+
+  /**
+   * Once the draw pile is exhausted and no combo is pending, a REFLECT card is only useful if some
+   * player still holds a draw-family card (a future combo it could bounce). When nobody does, every
+   * REFLECT card left in any hand vanishes on its own. A player emptied by this goes out (ranked)
+   * just like one who played their last card.
+   */
+  private purgeDeadReflects() {
+    if (this.drawPile.length > 0 || this.pendingDraw) return;
+    let anyDrawCard = false;
+    let anyReflect = false;
+    for (const id of this.seatOrder) {
+      for (const c of this.hands.get(id) ?? []) {
+        if (DRAW_FAMILY_KINDS.has(c.kind)) anyDrawCard = true;
+        if (c.kind === 'REFLECT') anyReflect = true;
+      }
+    }
+    if (anyDrawCard || !anyReflect) return;
+    const emptied: string[] = [];
+    for (const id of [...this.seatOrder]) {
+      const hand = this.hands.get(id)!;
+      const reflects = hand.filter((c) => c.kind === 'REFLECT');
+      if (reflects.length === 0) continue;
+      this.hands.set(id, hand.filter((c) => c.kind !== 'REFLECT'));
+      this.discardPile.splice(Math.max(this.discardPile.length - 1, 0), 0, ...reflects);
+      this.log({ turnNumber: this.turnNumber, playerId: id, action: 'VANISH', count: reflects.length });
+      if (this.hands.get(id)!.length === 0) emptied.push(id);
+    }
+    for (const id of emptied) {
+      if (this.status === 'FINISHED') return;
+      this.finishedOrder.push(id);
+      if (this.currentPlayerId === id && this.seatOrder.length > 1) {
+        this.currentIndex = nextSeatIndex(this.currentIndex, this.seatOrder.length, this.direction ?? 'LEFT');
+        this.turnNumber++;
+      }
+      this.removeFinishedSeat(id);
+      if (this.seatOrder.length <= 1) this.finish(this.finishedOrder[0], 'EMPTY_HAND');
+    }
+  }
+
   /** Drop a finished player's seat out of the active rotation, keeping currentIndex valid. */
   private removeFinishedSeat(playerId: string) {
     const idx = this.seatOrder.indexOf(playerId);
@@ -692,9 +779,10 @@ export class GameEngine {
   private applyCardEffectAndAdvance(card: Card, count = 1, totalDrawAmount?: number) {
     if (DRAW_FAMILY_KINDS.has(card.kind)) {
       const amount = totalDrawAmount ?? drawAmountFor(card.kind);
+      const fromId = this.currentPlayerId; // whoever just played the draw card(s)
       this.step(); // move to the player this combo now targets
       if (this.status === 'FINISHED') return;
-      this.pendingDraw = { count: (this.pendingDraw?.count ?? 0) + amount, targetId: this.currentPlayerId! };
+      this.pendingDraw = { count: (this.pendingDraw?.count ?? 0) + amount, targetId: this.currentPlayerId!, fromId };
       // Deliberately skip resolveStuckPlayers' normal auto-skip here — the target always has a
       // real action available (stack a Draw card, or drawCard() to absorb the combo).
       return;
@@ -728,6 +816,8 @@ export class GameEngine {
   }
 
   private resolveStuckPlayers() {
+    if (this.status !== 'PLAYING') return;
+    this.purgeDeadReflects();
     if (this.status !== 'PLAYING') return;
     const pid = this.currentPlayerId!;
     if (this.pendingDraw?.targetId === pid) return; // they must act: stack a Draw card or absorb the combo

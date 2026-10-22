@@ -121,7 +121,17 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
     socket.on(EV.ROOM_JOIN, (data: unknown, cb: (ack: Ack<any>) => void) => {
       handle(socket, cb, () => {
         const parsed = schemas.joinRoom.parse(data);
-        const { room, member, rejoined } = rooms.joinRoom(parsed.code, parsed.nickname, parsed.sessionToken);
+        const joined = rooms.joinRoom(parsed.code, parsed.nickname, parsed.sessionToken);
+        const { room, member, rejoined } = joined;
+        // Same-name takeover from another socket: tell the old one it's been replaced.
+        const prev = 'previousSocketId' in joined ? joined.previousSocketId : null;
+        if (prev && prev !== socket.id) {
+          io.to(prev).emit(EV.SESSION_REPLACED, {});
+          const old = io.sockets.sockets.get(prev);
+          old?.leave(roomCh(room.code));
+          old?.leave(playerCh(member.id));
+          if (old) { sd(old).code = undefined; sd(old).playerId = undefined; }
+        }
         sd(socket).code = room.code;
         sd(socket).playerId = member.id;
         socket.join(roomCh(room.code));
@@ -234,6 +244,14 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
         }
         const stillExists = rooms.find(parsed.code);
         if (stillExists) io.to(roomCh(parsed.code)).emit(EV.ROOM_STATE_UPDATED, rooms.toPublicRoom(stillExists));
+      });
+    });
+
+    socket.on(EV.ROOM_CLEAR_LEADERBOARD, (data: unknown, cb: (ack: Ack<object>) => void) => {
+      handle(socket, cb, () => {
+        const parsed = schemas.clearByCode.parse(data);
+        const room = rooms.clearLeaderboard(parsed.code, sd(socket).playerId);
+        io.to(roomCh(room.code)).emit(EV.ROOM_STATE_UPDATED, rooms.toPublicRoom(room));
       });
     });
 

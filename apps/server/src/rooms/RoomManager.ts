@@ -1,5 +1,5 @@
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
-import { MIN_PLAYERS, type GameResult, type Room, type RoomStatus, type StaticRoomSummary } from '@cma/shared';
+import { MIN_PLAYERS, nameKey, type GameResult, type Room, type RoomStatus, type StaticRoomSummary } from '@cma/shared';
 import { GameEngine, GameError } from '../engine/GameEngine';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -106,7 +106,17 @@ export class RoomManager {
       .map((r) => ({
         code: r.code, name: r.name, status: r.status,
         playerCount: this.players(r).length, maxPlayers: r.maxPlayers,
+        leaderboardCount: r.leaderboard.size,
+        topPlayer: this.topOf(r),
       }));
+  }
+
+  private topOf(room: ServerRoom): { nickname: string; wins: number } | null {
+    let best: LeaderboardRecord | null = null;
+    for (const e of room.leaderboard.values()) {
+      if (!best || e.wins > best.wins || (e.wins === best.wins && e.gamesPlayed > best.gamesPlayed)) best = e;
+    }
+    return best && best.wins > 0 ? { nickname: best.nickname, wins: best.wins } : null;
   }
 
   createRoom(input: { name: string; nickname: string; maxPlayers: number; hostPlays: boolean }) {
@@ -129,9 +139,13 @@ export class RoomManager {
       const existing = this.resolveSession(code, sessionToken);
       if (existing) return { ...existing, rejoined: true };
     }
+    const name = nickname.trim().replace(/\s+/g, ' ');
+    // Same name = same person: re-claim that member's seat (e.g. a refresh, a new device, or a
+    // cleared browser session) instead of creating a duplicate player — works mid-game too.
+    const sameName = room.members.find((m) => nameKey(m.nickname) === nameKey(name));
+    if (sameName) return { room, member: sameName, rejoined: true, previousSocketId: sameName.socketId };
     if (room.status === 'PLAYING') throw new GameError('ROOM_IN_GAME');
     if (this.players(room).length >= room.maxPlayers) throw new GameError('ROOM_FULL');
-    const name = nickname.trim();
     const becomesHost = room.members.length === 0;
     const member = this.newMember(name, becomesHost, true);
     member.seatIndex = this.players(room).length;
@@ -174,8 +188,7 @@ export class RoomManager {
     return member;
   }
 
-  /** Full reset of a single room, host-only: kicks every member (including the host), clears the
-   *  leaderboard/stats, and wipes any in-progress game — as if the room had just been created.
+  /** Full reset of a single room, host-only: kicks every member (including the host) and wipes any in-progress game — as if the room had just been created.
    *  Static rooms (TABLE1-4) stay in place, emptied. Dynamic (code-joined) rooms are deleted
    *  entirely, same as when the last member normally leaves. Returns the sessionTokens that were
    *  invalidated and the socketIds that need to be kicked off the room channel. */
@@ -203,11 +216,20 @@ export class RoomManager {
       room.engine = null;
       room.lastResult = null;
       room.hostId = '';
-      room.leaderboard = new Map();
+      // Leaderboard is kept — clearing it is a separate action (clearLeaderboard).
     } else {
       this.rooms.delete(room.code);
     }
     return kicked;
+  }
+
+  /** Wipe a room's by-name leaderboard. Static rooms: anyone (from the room list). Dynamic rooms:
+   *  host only. */
+  clearLeaderboard(code: string, requesterId: string | undefined) {
+    const room = this.get(code);
+    if (!room.isStatic) this.assertHost(room, requesterId ?? '');
+    room.leaderboard = new Map();
+    return room;
   }
 
   reorder(room: ServerRoom, requesterId: string, playerIds: string[]) {
@@ -235,7 +257,7 @@ export class RoomManager {
     const member = this.getMember(room, playerId);
     if (!member) throw new GameError('NOT_IN_ROOM');
     member.avatar = avatar;
-    const key = member.nickname.toLowerCase();
+    const key = nameKey(member.nickname);
     const entry = room.leaderboard.get(key) ?? { nickname: member.nickname, wins: 0, gamesPlayed: 0 };
     entry.nickname = member.nickname;
     entry.avatar = avatar;
@@ -245,7 +267,7 @@ export class RoomManager {
   /** Roll a finished match's ranking into the room's persistent by-name leaderboard. */
   recordMatchResult(room: ServerRoom, result: GameResult) {
     for (const r of result.ranking) {
-      const key = r.nickname.toLowerCase();
+      const key = nameKey(r.nickname);
       const entry = room.leaderboard.get(key) ?? { nickname: r.nickname, wins: 0, gamesPlayed: 0 };
       entry.nickname = r.nickname;
       entry.gamesPlayed += 1;

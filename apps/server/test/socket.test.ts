@@ -49,13 +49,14 @@ describe('socket integration', () => {
     host.close();
   });
 
-  it('allows duplicate nicknames in the same room', async () => {
+  it('a duplicate nickname in the same room is treated as the same person (re-claims the seat)', async () => {
     const host = await connect();
     const guest = await connect();
     const created = await emit(host, 'room:create', { name: 'Room B', nickname: 'Alice', maxPlayers: 4, hostPlays: false });
-    const join1 = await emit(guest, 'room:join', { code: created.code, nickname: 'Alice' });
+    const join1 = await emit(guest, 'room:join', { code: created.code, nickname: 'ALICE' });
     expect(join1.ok).toBe(true);
-    expect(join1.snapshot.room.players.filter((p: any) => p.nickname === 'Alice')).toHaveLength(2);
+    expect(join1.playerId).toBe(created.playerId);
+    expect(join1.snapshot.room.players).toHaveLength(1);
     host.close();
     guest.close();
   });
@@ -266,10 +267,11 @@ describe('socket integration', () => {
     guest.close();
   });
 
-  it('room:clear on a static room empties it (members + leaderboard) but keeps the table itself', async () => {
+  it('room:clear on a static room empties its members but KEEPS the leaderboard (cleared separately)', async () => {
     const host = await connect();
     const joinHost = await emit(host, 'room:join', { code: 'TABLE2', nickname: 'ClearHost' });
     expect(joinHost.ok).toBe(true);
+    rooms.find('TABLE2')!.leaderboard.set('someone', { nickname: 'Someone', wins: 2, gamesPlayed: 3 });
 
     const clearAck = await emit(host, 'room:clear', {});
     expect(clearAck.ok).toBe(true);
@@ -278,10 +280,44 @@ describe('socket integration', () => {
     expect(room).not.toBeNull();
     expect(room?.isStatic).toBe(true);
     expect(room?.members).toHaveLength(0);
-    expect(room?.leaderboard.size).toBe(0);
+    expect(room?.leaderboard.size).toBe(1);
     expect(room?.status).toBe('WAITING');
 
+    // Separate action: clear the leaderboard (static room — allowed from the room list).
+    const lbAck = await emit(host, 'room:clear_leaderboard', { code: 'TABLE2' });
+    expect(lbAck.ok).toBe(true);
+    expect(rooms.find('TABLE2')?.leaderboard.size).toBe(0);
+
     host.close();
+  });
+
+  it('joining with a name that already exists in the room re-claims that same player (same name = same person)', async () => {
+    const a = await connect();
+    const b = await connect();
+    const first = await emit(a, 'room:join', { code: 'TABLE4', nickname: 'Somchai' });
+    expect(first.ok).toBe(true);
+    let replaced = false;
+    a.on('session:replaced', () => { replaced = true; });
+    const second = await emit(b, 'room:join', { code: 'TABLE4', nickname: '  somchai ' });
+    expect(second.ok).toBe(true);
+    expect(second.playerId).toBe(first.playerId);
+    expect(rooms.find('TABLE4')?.members).toHaveLength(1);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(replaced).toBe(true);
+    await emit(b, 'room:clear_by_code', { code: 'TABLE4' });
+    a.close();
+    b.close();
+  });
+
+  it('room:clear_leaderboard on a dynamic room is host-only', async () => {
+    const host = await connect();
+    const guest = await connect();
+    const created = await emit(host, 'room:create', { name: 'LB', nickname: 'Host', maxPlayers: 4, hostPlays: true });
+    await emit(guest, 'room:join', { code: created.code, nickname: 'Guest' });
+    expect((await emit(guest, 'room:clear_leaderboard', { code: created.code })).ok).toBe(false);
+    expect((await emit(host, 'room:clear_leaderboard', { code: created.code })).ok).toBe(true);
+    host.close();
+    guest.close();
   });
 
   it('room:clear_by_code lets a browser on the room-LIST page clear a static table without joining it', async () => {
@@ -303,7 +339,6 @@ describe('socket integration', () => {
     const room = rooms.find('TABLE3');
     expect(room?.isStatic).toBe(true);
     expect(room?.members).toHaveLength(0);
-    expect(room?.leaderboard.size).toBe(0);
 
     member.close();
     bystander.close();

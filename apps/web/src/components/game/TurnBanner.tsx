@@ -1,0 +1,71 @@
+'use client';
+
+import { useEffect, useRef } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import { playClip } from '@/lib/sounds';
+
+/** Big, unmistakable "it's YOUR turn" banner (with a ding + vibration the moment it flips to you),
+ *  or a calmer "waiting for X" strip when it's someone else's turn. */
+export function TurnBanner({ isMyTurn, myName, currentName, mustCounter, comboCount }: {
+  isMyTurn: boolean;
+  myName: string;
+  currentName: string;
+  mustCounter?: boolean;
+  comboCount?: number;
+}) {
+  const was = useRef(false);
+  useEffect(() => {
+    if (isMyTurn && !was.current) {
+      playClip('ding-sound-effect-2', 0.8);
+      try { navigator.vibrate?.([120, 60, 120]); } catch { /* ignore */ }
+    }
+    was.current = isMyTurn;
+  }, [isMyTurn]);
+
+  return (
+    <div className="sticky top-2 z-40">
+      <AnimatePresence mode="wait">
+        {isMyTurn ? (
+          <motion.div
+            key="mine"
+            initial={{ y: -40, opacity: 0, scale: 0.9 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: -40, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 18 }}
+            className={`relative overflow-hidden rounded-2xl px-4 py-3 sm:py-4 text-center border-2 shadow-[0_10px_40px_-8px_rgba(16,185,129,0.8)] ${
+              mustCounter ? 'bg-gradient-to-r from-red-600 via-orange-500 to-red-600 border-yellow-300' : 'bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 border-white/70'
+            }`}
+          >
+            <motion.div
+              className="absolute inset-0"
+              style={{ background: 'linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.45) 50%, transparent 70%)' }}
+              animate={{ x: ['-100%', '100%'] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: 'linear' }}
+            />
+            <motion.p
+              className="relative font-black text-2xl sm:text-4xl text-white drop-shadow-[0_2px_0_rgba(0,0,0,0.35)]"
+              animate={{ scale: [1, 1.06, 1] }}
+              transition={{ duration: 0.9, repeat: Infinity }}
+            >
+              🎯 {myName} — ถึงตาคุณแล้ว!
+            </motion.p>
+            <p className="relative text-sm sm:text-base font-bold text-white/95">
+              {mustCounter ? `โดนคอมโบ +${comboCount ?? 0}! ลงไพ่ +2/+4/+8 ต่อ, ใช้ไพ่สะท้อน 🪞 หรือจั่วรับ` : 'เลือกไพ่ด้านล่างเพื่อเล่นได้เลย 👇'}
+            </p>
+          </motion.div>
+        ) : currentName ? (
+          <motion.div
+            key="other"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="rounded-2xl px-4 py-2 text-center bg-zinc-900/85 border border-zinc-700 backdrop-blur"
+          >
+            <span className="text-zinc-400 text-sm">⏳ ตาของ </span>
+            <span className="font-black text-lg text-amber-300">{currentName}</span>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
+}

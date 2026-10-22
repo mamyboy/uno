@@ -18,6 +18,7 @@ export function isWild(card: Card): boolean {
  */
 export function canPlayCard(card: Card, top: Card | null | undefined): boolean {
   if (!top) return false;
+  if (card.kind === 'REFLECT') return false; // only ever playable as a combo counter (engine-side)
   if (isWild(card)) return true;
   if (card.color !== null && card.color === top.color) return true;
   if (card.kind === top.kind) {
@@ -25,6 +26,12 @@ export function canPlayCard(card: Card, top: Card | null | undefined): boolean {
     return true;
   }
   return false;
+}
+
+/** Normalized identity key for a nickname — the leaderboard treats identical names (ignoring
+ * case and extra whitespace) as the same person. */
+export function nameKey(nickname: string): string {
+  return nickname.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
 export function nextSeatIndex(current: number, count: number, direction: Direction): number {

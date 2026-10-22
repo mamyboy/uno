@@ -10,6 +10,7 @@ export const EV = {
   ROOM_KICK: 'room:kick',
   ROOM_CLEAR: 'room:clear',
   ROOM_CLEAR_BY_CODE: 'room:clear_by_code',
+  ROOM_CLEAR_LEADERBOARD: 'room:clear_leaderboard',
   ROOM_SET_HOST_PLAYS: 'room:set_host_plays',
   ROOM_LIST: 'room:list',
   ROOM_SET_AVATAR: 'room:set_avatar',

@@ -37,9 +37,14 @@ export function createWildCards(): Card[] {
   return deck;
 }
 
-/** Standard deck: 76 number + 24 action + 14 wild (4 Wild + 4 Wild Draw Two + 4 Wild Draw Four + 2 Wild Draw Eight) = 114 cards. */
+/** 4 cards: REFLECT (สะท้อนกลับ) — colorless, bounces a pending combo back to its sender. */
+export function createReflectCards(): Card[] {
+  return Array.from({ length: 4 }, () => ({ id: randomUUID().slice(0, 12), kind: 'REFLECT' as const, color: null }));
+}
+
+/** Standard deck: 76 number + 24 action + 14 wild + 4 reflect = 118 cards. */
 export function createDeck(): Card[] {
-  return [...createNumberCards(), ...createActionCards(), ...createWildCards()];
+  return [...createNumberCards(), ...createActionCards(), ...createWildCards(), ...createReflectCards()];
 }
 
 /** @deprecated kept for backward-compat test imports; use createNumberCards(). */

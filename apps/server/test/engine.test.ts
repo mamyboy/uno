@@ -54,9 +54,10 @@ describe('deck', () => {
     expect(wilds.every((c) => c.color === null)).toBe(true);
   });
 
-  it('builds the full 114-card deck (76 number + 24 action + 14 wild)', () => {
+  it('builds the full 118-card deck (76 number + 24 action + 14 wild + 4 reflect)', () => {
     const deck = createDeck();
-    expect(deck).toHaveLength(114);
+    expect(deck).toHaveLength(118);
+    expect(deck.filter((c) => c.kind === 'REFLECT')).toHaveLength(4);
     expect(deck.filter((c) => c.kind === 'NUMBER')).toHaveLength(76);
     expect(deck.filter((c) => ['SKIP', 'REVERSE', 'DRAW_TWO'].includes(c.kind))).toHaveLength(24);
     expect(deck.filter((c) => c.kind === 'WILD' || c.kind === 'WILD_DRAW_TWO' || c.kind === 'WILD_DRAW_FOUR' || c.kind === 'WILD_DRAW_EIGHT')).toHaveLength(14);
@@ -439,7 +440,7 @@ describe('GameEngine', () => {
 
       // The combo doesn't resolve immediately — p2 is now on the hook to respond.
       expect(engine.currentPlayerId).toBe('p2');
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 2, targetId: 'p2' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 2, targetId: 'p2' });
       // p2 holds no Draw Two/Wild Draw Four to stack, so only drawCard() (absorb) is legal.
       expect(engine.getPlayableIds('p2')).toEqual([]);
       expect(engine.getPrivateHand('p2').canDraw).toBe(true);
@@ -489,12 +490,12 @@ describe('GameEngine', () => {
       engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
       engine.playCard('p1', 'p1-d2', engine.turnNumber);
       expect(engine.currentPlayerId).toBe('p2');
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 2, targetId: 'p2' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 2, targetId: 'p2' });
 
       // p2 stacks their own Draw Two instead of absorbing it.
       engine.playCard('p2', 'p2-d2', engine.turnNumber);
       expect(engine.currentPlayerId).toBe('p3');
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p3' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 4, targetId: 'p3' });
       expect(engine.getHand('p2')).toHaveLength(1); // only played the Draw Two, never drew
 
       const p3HandBefore = engine.getHand('p3').length;
@@ -549,7 +550,7 @@ describe('GameEngine', () => {
 
       // p2 is now the pending-combo target, not immediately forced to draw.
       expect(engine.currentPlayerId).toBe('p2');
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p2' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 4, targetId: 'p2' });
       const result = engine.drawCard('p2', engine.turnNumber);
       expect(engine.getHand('p2')).toHaveLength(6); // 2 original + 4 absorbed
       // Absorbing the combo does NOT end the turn — p2 keeps playing.
@@ -588,7 +589,7 @@ describe('GameEngine', () => {
 
       // p2 is now the pending-combo target, not immediately forced to draw.
       expect(engine.currentPlayerId).toBe('p2');
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 2, targetId: 'p2' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 2, targetId: 'p2' });
       const result = engine.drawCard('p2', engine.turnNumber);
       expect(engine.getHand('p2')).toHaveLength(4); // 2 original + 2 absorbed
       expect(result.skipped).toBe(false);
@@ -606,10 +607,10 @@ describe('GameEngine', () => {
       const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
       engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
       engine.playCard('p1', 'p1-0', engine.turnNumber, 'GREEN');
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 2, targetId: 'p2' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 2, targetId: 'p2' });
       // p2 stacks their own DRAW_TWO on top instead of absorbing — combo grows to 4, back onto p1.
       engine.playCard('p2', 'p2-0', engine.turnNumber);
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p1' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 4, targetId: 'p1' });
     });
 
     it('playCards opens a combo with two different-color DRAW_TWO cards together, summing to +4', () => {
@@ -623,7 +624,7 @@ describe('GameEngine', () => {
       engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
 
       engine.playCards('p1', ['p1-0', 'p1-1'], engine.turnNumber);
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p2' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 4, targetId: 'p2' });
       expect(engine.topCard.color).toBe('RED'); // last card in the stack sets the resolved color
     });
 
@@ -640,7 +641,7 @@ describe('GameEngine', () => {
       engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
 
       engine.playCards('p1', ['p1-0', 'p1-1'], engine.turnNumber, 'BLUE');
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 6, targetId: 'p2' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 6, targetId: 'p2' });
       expect(engine.topCard.color).toBe('BLUE'); // last card in the stack (the wild) sets the color
       expect(engine.getHand('p1')).toHaveLength(1); // just the filler left
     });
@@ -656,7 +657,7 @@ describe('GameEngine', () => {
       const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
       engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
       engine.playCard('p1', 'p1-0', engine.turnNumber, 'GREEN');
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p2' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 4, targetId: 'p2' });
 
       expect(engine.getPlayableIds('p2')).not.toContain('p2-0');
       expect(() => engine.playCard('p2', 'p2-0', engine.turnNumber)).toThrow(/MUST_COUNTER_OR_DRAW/);
@@ -673,7 +674,7 @@ describe('GameEngine', () => {
       const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
       engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
       engine.playCard('p1', 'p1-0', engine.turnNumber, 'GREEN');
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p2' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 4, targetId: 'p2' });
 
       expect(engine.getPlayableIds('p2')).not.toContain('p2-0');
       expect(() => engine.playCard('p2', 'p2-0', engine.turnNumber, 'BLUE')).toThrow(/MUST_COUNTER_OR_DRAW/);
@@ -690,9 +691,9 @@ describe('GameEngine', () => {
       const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
       engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
       engine.playCard('p1', 'p1-0', engine.turnNumber, 'GREEN');
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p2' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 4, targetId: 'p2' });
       engine.playCard('p2', 'p2-0', engine.turnNumber, 'BLUE');
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 12, targetId: 'p1' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 12, targetId: 'p1' });
     });
 
     it('WILD_DRAW_FOUR cannot counter a pending WILD_DRAW_EIGHT combo (only another Wild Draw Eight can)', () => {
@@ -706,7 +707,7 @@ describe('GameEngine', () => {
       const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
       engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
       engine.playCard('p1', 'p1-0', engine.turnNumber, 'GREEN');
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 8, targetId: 'p2' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 8, targetId: 'p2' });
 
       expect(engine.getPlayableIds('p2')).not.toContain('p2-0');
       expect(() => engine.playCard('p2', 'p2-0', engine.turnNumber, 'BLUE')).toThrow(/MUST_COUNTER_OR_DRAW/);
@@ -723,11 +724,11 @@ describe('GameEngine', () => {
       const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
       engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
       engine.playCard('p1', 'p1-0', engine.turnNumber);
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 2, targetId: 'p2' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 2, targetId: 'p2' });
 
       expect(engine.getPlayableIds('p2')).toContain('p2-0');
       engine.playCard('p2', 'p2-0', engine.turnNumber);
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p1' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 4, targetId: 'p1' });
       expect(engine.topCard.color).toBe('BLUE');
     });
 
@@ -742,7 +743,7 @@ describe('GameEngine', () => {
       const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
       engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
       engine.playCard('p1', 'p1-0', engine.turnNumber, 'GREEN');
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 2, targetId: 'p2' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 2, targetId: 'p2' });
 
       // Mismatched color (BLUE) cannot counter a GREEN-chosen WILD_DRAW_TWO combo.
       expect(engine.getPlayableIds('p2')).not.toContain('p2-1');
@@ -751,7 +752,7 @@ describe('GameEngine', () => {
       // Matching color (GREEN) can.
       expect(engine.getPlayableIds('p2')).toContain('p2-0');
       engine.playCard('p2', 'p2-0', engine.turnNumber);
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p1' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 4, targetId: 'p1' });
     });
 
     it('reported case: countering a WILD_DRAW_TWO combo with a matching + non-matching DRAW_TWO together (+4)', () => {
@@ -768,12 +769,12 @@ describe('GameEngine', () => {
       const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 3 });
       engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
       engine.playCard('p1', 'p1-0', engine.turnNumber, 'YELLOW');
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 2, targetId: 'p2' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 2, targetId: 'p2' });
 
       // Playing BOTH together (YELLOW matches, BLUE alone wouldn't) must succeed — pendingDraw
       // was 2, plus 2+2 from the two DRAW_TWO cards = 6.
       engine.playCards('p2', ['p2-1', 'p2-0'], engine.turnNumber);
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 6, targetId: 'p1' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 6, targetId: 'p1' });
       expect(engine.getHand('p2')).toHaveLength(1);
     });
 
@@ -793,11 +794,11 @@ describe('GameEngine', () => {
       engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
 
       engine.playCard('p1', 'p1-0', engine.turnNumber);
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 2, targetId: 'p2' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 2, targetId: 'p2' });
 
       // p2 is the combo target and stacks BOTH of their Draw Twos in one move instead of one at a time.
       engine.playCards('p2', ['p2-0', 'p2-1'], engine.turnNumber);
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 6, targetId: 'p1' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 6, targetId: 'p1' });
     });
 
     it('playCards rejects mixing a draw-family card with a NUMBER card in the same stack', () => {
@@ -877,10 +878,10 @@ describe('GameEngine', () => {
       const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
       engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
       engine.playCard('p1', 'p1-d2', engine.turnNumber);
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 2, targetId: 'p2' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 2, targetId: 'p2' });
       // p2 stacks a Wild Draw Four on top of the +2 — the amounts add up (2 + 4 = 6).
       engine.playCard('p2', 'p2-w4', engine.turnNumber, 'BLUE');
-      expect(engine.getPublicState().pendingDraw).toEqual({ count: 6, targetId: 'p1' });
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 6, targetId: 'p1' });
     });
 
     it('still rejects stacking Wild / Wild Draw Four / Draw Two cards via playCards', () => {
@@ -991,12 +992,81 @@ describe('reported case: multi-color DRAW_TWO combo after absorbing a WILD_DRAW_
   it('works when the color-matching card (BLUE) is selected first', () => {
     const engine = buildAbsorbedScenario();
     engine.playCards('p2', ['p2-0', 'p2-1'], engine.turnNumber); // BLUE, then RED
-    expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p1' });
+    expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 4, targetId: 'p1' });
   });
 
   it('ALSO works when the non-matching card (RED) is selected first — fixed order-dependent bug', () => {
     const engine = buildAbsorbedScenario();
     engine.playCards('p2', ['p2-1', 'p2-0'], engine.turnNumber); // RED, then BLUE
-    expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p1' });
+    expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 4, targetId: 'p1' });
+  });
+});
+
+
+describe('REFLECT card (สะท้อนกลับ)', () => {
+  const N = (id: string, color: 'RED' | 'GREEN' | 'BLUE' | 'YELLOW', value: number) => ({ id, kind: 'NUMBER' as const, color, value });
+  const REF = (id: string) => ({ id, kind: 'REFLECT' as const, color: null });
+  const rest = Array.from({ length: 20 }, (_, i) => N(`rest-${i}`, 'GREEN', i % 10));
+
+  it('bounces a pending combo back to the player who sent it, leaving the combo size and top card unchanged', () => {
+    const d2 = { id: 'p1-d2', kind: 'DRAW_TWO' as const, color: 'RED' as const };
+    // deal order (3 players, handSize 2): p1,p2,p3,p1,p2,p3, opening
+    const deck = [d2, REF('p2-ref'), N('p3-a', 'BLUE', 3), N('p1-b', 'GREEN', 1), N('p2-b', 'GREEN', 2), N('p3-b', 'BLUE', 4), N('top', 'RED', 9), ...rest];
+    const engine = new GameEngine('room1', ['p1', 'p2', 'p3'], { deck, handSize: 2 });
+    engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+    engine.playCard('p1', 'p1-d2', engine.turnNumber);
+    expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 2, targetId: 'p2', fromId: 'p1' });
+    expect(engine.getPlayableIds('p2')).toContain('p2-ref');
+
+    engine.playCard('p2', 'p2-ref', engine.turnNumber);
+    const s = engine.getPublicState();
+    expect(s.pendingDraw).toMatchObject({ count: 2, targetId: 'p1', fromId: 'p2' });
+    expect(s.currentPlayerId).toBe('p1');
+    expect(s.topCard.id).toBe('p1-d2'); // reflect slides under the combo card
+    expect(s.history.some((h) => h.action === 'REFLECT' && h.toPlayerId === 'p1')).toBe(true);
+
+    // p1 absorbs the bounced combo
+    engine.drawCard('p1', engine.turnNumber);
+    expect(engine.getHand('p1')).toHaveLength(3);
+    expect(engine.getPublicState().history.some((h) => h.action === 'ABSORB' && h.count === 2)).toBe(true);
+  });
+
+  it('can NOT be played when no combo is pending against you', () => {
+    const deck = [N('p1-a', 'RED', 1), REF('p2-ref'), N('p1-b', 'GREEN', 1), N('p2-b', 'GREEN', 2), N('top', 'BLUE', 9), ...rest];
+    const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
+    engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+    expect(engine.getPlayableIds('p2')).not.toContain('p2-ref');
+    expect(engine.getPlayableIds('p1')).toEqual([]);
+  });
+
+  it('throws REFLECT_ONLY_VS_COMBO if played outside a combo', () => {
+    const deck = [REF('p1-ref'), N('p2-a', 'GREEN', 2), N('p1-b', 'BLUE', 1), N('p2-b', 'GREEN', 3), N('top', 'BLUE', 9), ...rest];
+    const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
+    engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+    expect(() => engine.playCard('p1', 'p1-ref', engine.turnNumber)).toThrow('REFLECT_ONLY_VS_COMBO');
+  });
+
+  it('vanishes from every hand once the draw pile is empty and nobody holds a draw-family card', () => {
+    // 2 players, handSize 2, exactly 5 cards: draw pile starts empty.
+    const deck = [N('p1-a', 'GREEN', 5), REF('p2-ref'), N('p1-b', 'GREEN', 6), N('p2-b', 'GREEN', 7), N('top', 'GREEN', 1)];
+    const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
+    engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+    expect(engine.getHand('p2').map((c) => c.id)).toEqual(['p2-b']);
+    expect(engine.getPublicState().history.some((h) => h.action === 'VANISH' && h.playerId === 'p2')).toBe(true);
+  });
+
+  it('a player whose hand is emptied by vanishing reflects goes out (ranked) like playing their last card', () => {
+    const deck = [N('p1-a', 'GREEN', 5), REF('p2-r1'), N('p1-b', 'GREEN', 6), REF('p2-r2'), N('top', 'GREEN', 1)];
+    const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
+    engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+    expect(engine.status).toBe('FINISHED');
+    expect(engine.winnerId).toBe('p2');
+  });
+
+  it('stays in hand while someone still holds a draw-family card', () => {
+    const deck = [N('p1-a', 'GREEN', 5), REF('p2-ref'), { id: 'p1-d2', kind: 'DRAW_TWO' as const, color: 'GREEN' as const }, N('p2-b', 'GREEN', 7), N('top', 'GREEN', 1)];
+    const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
+    engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+    expect(engine.getHand('p2').map((c) => c.id)).toContain('p2-ref');
   });
 });

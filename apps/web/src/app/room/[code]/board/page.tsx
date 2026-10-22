@@ -10,6 +10,8 @@ import { PlayingCard } from '@/components/game/PlayingCard';
 import { Confetti } from '@/components/game/Confetti';
 import { ActionEffect } from '@/components/game/ActionEffect';
 import { Soundboard } from '@/components/game/Soundboard';
+import { GameFx } from '@/components/game/GameFx';
+import { PlayHistory } from '@/components/game/PlayHistory';
 
 const COLOR_LABEL: Record<string, string> = { RED: 'แดง', YELLOW: 'เหลือง', GREEN: 'เขียว', BLUE: 'น้ำเงิน' };
 const COLOR_SWATCH: Record<string, string> = {
@@ -108,6 +110,7 @@ export default function BoardPage() {
   }
 
   const players = room.players.filter((p: Player) => p.isPlayer);
+  const nameOf = (id: string | null | undefined) => room.players.find((p: Player) => p.id === id)?.nickname ?? 'ผู้เล่น';
 
   return (
     <main
@@ -122,6 +125,7 @@ export default function BoardPage() {
 
       {room.status === 'FINISHED' && result?.winnerId && <Confetti count={100} />}
       <ActionEffect card={effectCard} />
+      <GameFx game={game} result={result} nameOf={nameOf} />
       <Soundboard />
 
       <h1 className="text-xl sm:text-3xl font-black tracking-tight relative z-10 text-center px-2">
@@ -230,11 +234,23 @@ export default function BoardPage() {
             key={game.gameStatus === 'CHOOSING_DIRECTION' ? 'choosing' : game.currentPlayerId}
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center text-2xl font-bold"
+            className="text-center"
           >
-            {game.gameStatus === 'CHOOSING_DIRECTION'
-              ? `${players.find((p) => p.id === game.firstPlayerId)?.nickname ?? ''} กำลังเลือกทิศทาง...`
-              : `ตาของ ${players.find((p) => p.id === game.currentPlayerId)?.nickname ?? '-'}`}
+            {game.gameStatus === 'CHOOSING_DIRECTION' ? (
+              <span className="text-2xl font-bold">{players.find((p) => p.id === game.firstPlayerId)?.nickname ?? ''} กำลังเลือกทิศทาง...</span>
+            ) : (
+              <span className="inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-500/90 via-teal-400/90 to-emerald-500/90 border-2 border-white/60 shadow-[0_10px_40px_-8px_rgba(16,185,129,0.8)]">
+                <span className="text-lg font-bold text-white/90">🎯 ตาของ</span>
+                <motion.span className="text-3xl sm:text-5xl font-black text-white drop-shadow" animate={{ scale: [1, 1.08, 1] }} transition={{ duration: 0.9, repeat: Infinity }}>
+                  {nameOf(game.currentPlayerId)}
+                </motion.span>
+              </span>
+            )}
+            {game.pendingDraw && (
+              <p className="mt-2 text-lg font-bold text-orange-300">
+                💥 คอมโบ +{game.pendingDraw.count} รอ {nameOf(game.pendingDraw.targetId)} ตอบโต้ / สะท้อน 🪞 / จั่วรับ
+              </p>
+            )}
           </motion.div>
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -270,6 +286,8 @@ export default function BoardPage() {
               );
             })}
           </div>
+
+          <PlayHistory game={game} nameOf={nameOf} limit={16} />
         </div>
       )}
 
