@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
-import { Camera, Crown, Loader2, LogOut, RotateCcw, Trophy, Tv, Users, WifiOff } from 'lucide-react';
+import { Camera, Crown, Eraser, Loader2, LogOut, RotateCcw, Trophy, Tv, Users, WifiOff } from 'lucide-react';
 import { socket } from '@/lib/socket';
 import { getSession, setSession, removeSession } from '@/lib/session';
 import { getProfile, saveProfile } from '@/lib/profile';
@@ -239,6 +239,13 @@ export default function RoomPage() {
     });
   };
 
+  const clearSession = () => {
+    if (!window.confirm('เคลียร์ Session จะล้างข้อมูลผู้เล่นในเบราว์เซอร์นี้ (ไม่แจ้งเซิร์ฟเวอร์) แล้วพาไปหน้าแรก ต้องการดำเนินการต่อหรือไม่?')) return;
+    removeSession();
+    reset();
+    router.push('/');
+  };
+
   const startGame = () => socket.emit(EV.GAME_START, {}, (ack: any) => !ack.ok && setActionError(ack.error));
   const restartGame = () => socket.emit(EV.GAME_RESTART, {}, (ack: any) => !ack.ok && setActionError(ack.error));
 
@@ -398,6 +405,9 @@ export default function RoomPage() {
             <LinkButton href={`/room/${code}/board`} target="_blank" rel="noreferrer" variant="ghost" size="md" className="justify-self-stretch">
               <Tv className="w-4 h-4" /> <span className="hidden xs:inline">เปิด</span>กระดานกลาง
             </LinkButton>
+            <Button onClick={clearSession} variant="ghost" size="md">
+              <Eraser className="w-4 h-4" /> เคลียร์ Session
+            </Button>
             <Button onClick={leaveRoom} variant="danger" size="md">
               <LogOut className="w-4 h-4" /> ออกจากห้อง
             </Button>
