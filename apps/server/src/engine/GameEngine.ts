@@ -429,15 +429,14 @@ export class GameEngine {
       // which one happens to be first in `picked`.
       if (!picked.some((c) => canPlayCard(c, this.topCard))) throw new GameError('CARD_NOT_PLAYABLE');
     } else {
-      // Defending against a pending combo — every card in the stack must individually pass
-      // canCounterCombo() against the current top card (tier + color rules, same as a single
-      // countering play).
+      // Defending against a pending combo — AT LEAST ONE card in the stack must legally counter
+      // the pending combo (tier + color rules, same as a single countering play); the rest just
+      // need to be draw-family cards too (any color/tier), their amounts simply add in. E.g. the
+      // top is a WILD_DRAW_TWO chosen YELLOW: a YELLOW DRAW_TWO + a BLUE DRAW_TWO together are a
+      // legal +4 counter, even though the BLUE one alone could never counter it.
       const top = this.topCard;
-      for (const card of picked) {
-        if (!DRAW_FAMILY_KINDS.has(card.kind) || !canCounterCombo(card, top)) {
-          throw new GameError('MUST_COUNTER_OR_DRAW');
-        }
-      }
+      if (!picked.every((c) => DRAW_FAMILY_KINDS.has(c.kind))) throw new GameError('MUST_COUNTER_OR_DRAW');
+      if (!picked.some((c) => canCounterCombo(c, top))) throw new GameError('MUST_COUNTER_OR_DRAW');
     }
 
     const needsColor = picked.some((c) => isWild(c));

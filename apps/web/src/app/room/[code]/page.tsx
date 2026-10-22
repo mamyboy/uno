@@ -308,15 +308,13 @@ export default function RoomPage() {
       if (!firstCard) return prev;
       const DRAW_FAMILY = new Set(['DRAW_TWO', 'WILD_DRAW_TWO', 'WILD_DRAW_FOUR', 'WILD_DRAW_EIGHT']);
       // NUMBER cards stack only by matching value; SKIP/REVERSE stack regardless of color;
-      // DRAW_TWO / WILD_DRAW_TWO / WILD_DRAW_FOUR / WILD_DRAW_EIGHT stack with EACH OTHER in any mix (amounts add up).
-      // EXCEPTION: when defending a combo whose top card is WILD_DRAW_TWO, a plain DRAW_TWO must
-      // match the color that was chosen for that Wild Draw Two (plain DRAW_TWO vs DRAW_TWO: any color).
+      // DRAW_TWO / WILD_DRAW_TWO / WILD_DRAW_FOUR / WILD_DRAW_EIGHT stack with EACH OTHER in any
+      // mix (amounts add up) — the FIRST card selected is already guaranteed legal (it only
+      // appears in hand.playableCardIds if it is), so any additional draw-family card can be
+      // added freely regardless of its own color, same as the server's "at least one must
+      // legally counter/open" rule.
       if (DRAW_FAMILY.has(firstCard.kind)) {
         if (!DRAW_FAMILY.has(card.kind)) return prev;
-        const defendingCombo = game?.pendingDraw?.targetId === session?.playerId;
-        if (defendingCombo && card.kind === 'DRAW_TWO' && game?.topCard?.kind === 'WILD_DRAW_TWO') {
-          if (card.color !== game?.topCard?.color) return prev;
-        }
       } else if (firstCard.kind !== card.kind) {
         return prev;
       } else if (firstCard.kind === 'NUMBER') {

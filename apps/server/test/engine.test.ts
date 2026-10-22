@@ -717,6 +717,29 @@ describe('GameEngine', () => {
       expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p1' });
     });
 
+    it('reported case: countering a WILD_DRAW_TWO combo with a matching + non-matching DRAW_TWO together (+4)', () => {
+      const wild2 = { id: 'p1-0', kind: 'WILD_DRAW_TWO' as const, color: null };
+      const p1FillerA = { id: 'p1-1', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 5 };
+      const p1FillerB = { id: 'p1-2', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 6 };
+      const yellowD2 = { id: 'p2-0', kind: 'DRAW_TWO' as const, color: 'YELLOW' as const }; // matches chosen color
+      const blueD2 = { id: 'p2-1', kind: 'DRAW_TWO' as const, color: 'BLUE' as const }; // does not match alone
+      const p2Filler = { id: 'p2-2', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 7 }; // keeps p2's hand non-empty
+      const top = { id: 'top', kind: 'NUMBER' as const, color: 'RED' as const, value: 9 };
+      const rest = Array.from({ length: 20 }, (_, i) => ({ id: `rest-${i}`, kind: 'NUMBER' as const, color: 'GREEN' as const, value: i % 10 }));
+      // Deal order (handSize=3, 2 players): p1,p2,p1,p2,p1,p2,opening.
+      const deck = [wild2, yellowD2, p1FillerA, blueD2, p1FillerB, p2Filler, top, ...rest];
+      const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 3 });
+      engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+      engine.playCard('p1', 'p1-0', engine.turnNumber, 'YELLOW');
+      expect(engine.getPublicState().pendingDraw).toEqual({ count: 2, targetId: 'p2' });
+
+      // Playing BOTH together (YELLOW matches, BLUE alone wouldn't) must succeed — pendingDraw
+      // was 2, plus 2+2 from the two DRAW_TWO cards = 6.
+      engine.playCards('p2', ['p2-1', 'p2-0'], engine.turnNumber);
+      expect(engine.getPublicState().pendingDraw).toEqual({ count: 6, targetId: 'p1' });
+      expect(engine.getHand('p2')).toHaveLength(1);
+    });
+
     it('playCards lets the combo target counter-stack two matching-color DRAW_TWO cards at once (+4 back)', () => {
       const openingDrawTwo = { id: 'p1-0', kind: 'DRAW_TWO' as const, color: 'RED' as const };
       const p1Filler1 = { id: 'p1-1', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 5 };
