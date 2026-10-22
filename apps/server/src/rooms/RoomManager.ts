@@ -181,6 +181,20 @@ export class RoomManager {
    *  invalidated and the socketIds that need to be kicked off the room channel. */
   clearRoom(room: ServerRoom, requesterId: string) {
     this.assertHost(room, requesterId);
+    return this.doClearRoom(room);
+  }
+
+  /** Same reset as clearRoom(), but callable from OUTSIDE the room (e.g. the room-list/join page,
+   *  before the caller has joined anything) — looked up by code, with no host/membership check.
+   *  Only ever exposed for STATIC rooms (TABLE1-4): there's no sense "clearing by code" a dynamic
+   *  room the caller was never even in, and it would be destroyed anyway. */
+  clearStaticRoomByCode(code: string) {
+    const room = this.get(code);
+    if (!room.isStatic) throw new GameError('NOT_STATIC_ROOM');
+    return this.doClearRoom(room);
+  }
+
+  private doClearRoom(room: ServerRoom) {
     const kicked = room.members.map((m) => ({ playerId: m.id, socketId: m.socketId }));
     room.members.forEach((m) => this.sessions.delete(m.sessionToken));
     if (room.isStatic) {

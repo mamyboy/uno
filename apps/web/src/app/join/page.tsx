@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'motion/react';
-import { ArrowLeft, Loader2, LogIn, Users } from 'lucide-react';
+import { ArrowLeft, Loader2, LogIn, Trash2, Users } from 'lucide-react';
 import { socket } from '@/lib/socket';
 import { setSession } from '@/lib/session';
 import { getProfile, saveProfile } from '@/lib/profile';
@@ -50,6 +50,19 @@ export default function JoinRoomPage() {
       saveProfile({ nickname });
       setSession({ code: ack.code, sessionToken: ack.sessionToken, playerId: ack.playerId });
       router.push(`/room/${ack.code}`);
+    });
+  };
+
+  const clearStaticRoom = (roomCode: string, roomName: string) => {
+    if (!window.confirm(`Clear "${roomName}" (${roomCode})? จะเตะผู้เล่นทุกคนในห้องนี้ออก และล้าง Leaderboard ทั้งหมด`)) return;
+    socket.emit(EV.ROOM_CLEAR_BY_CODE, { code: roomCode }, (ack: any) => {
+      if (!ack.ok) {
+        setError(ack.error);
+        return;
+      }
+      socket.emit(EV.ROOM_LIST, {}, (listAck: any) => {
+        if (listAck.ok) setStaticRooms(listAck.rooms);
+      });
     });
   };
 
@@ -112,27 +125,36 @@ export default function JoinRoomPage() {
               const inGame = r.status === 'PLAYING';
               const disabled = full || inGame || loading;
               return (
-                <button
-                  key={r.code}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => doJoin(r.code)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-left transition ${
-                    disabled
-                      ? 'bg-zinc-800/40 border-zinc-800 text-zinc-500 cursor-not-allowed'
-                      : 'bg-zinc-800/80 border-zinc-700 hover:border-amber-400/70 hover:bg-zinc-800 text-white'
-                  }`}
-                >
-                  <span>
-                    <span className="font-semibold">{r.name}</span>
-                    <span className="block text-xs text-zinc-500 font-mono">{r.code}</span>
-                  </span>
-                  <span className="flex items-center gap-2 text-xs">
-                    <Users className="w-3.5 h-3.5" /> {r.playerCount}/{r.maxPlayers}
-                    {inGame && <span className="text-amber-400">กำลังเล่น</span>}
-                    {full && !inGame && <span className="text-red-400">เต็ม</span>}
-                  </span>
-                </button>
+                <div key={r.code} className="flex items-stretch gap-2">
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => doJoin(r.code)}
+                    className={`flex-1 flex items-center justify-between px-4 py-3 rounded-xl border text-left transition ${
+                      disabled
+                        ? 'bg-zinc-800/40 border-zinc-800 text-zinc-500 cursor-not-allowed'
+                        : 'bg-zinc-800/80 border-zinc-700 hover:border-amber-400/70 hover:bg-zinc-800 text-white'
+                    }`}
+                  >
+                    <span>
+                      <span className="font-semibold">{r.name}</span>
+                      <span className="block text-xs text-zinc-500 font-mono">{r.code}</span>
+                    </span>
+                    <span className="flex items-center gap-2 text-xs">
+                      <Users className="w-3.5 h-3.5" /> {r.playerCount}/{r.maxPlayers}
+                      {inGame && <span className="text-amber-400">กำลังเล่น</span>}
+                      {full && !inGame && <span className="text-red-400">เต็ม</span>}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    title="Clear ห้องนี้ (เตะผู้เล่นทุกคนออก + ล้าง Leaderboard)"
+                    onClick={() => clearStaticRoom(r.code, r.name)}
+                    className="px-3 rounded-xl border border-zinc-700 bg-zinc-800/60 text-zinc-400 hover:border-red-500/60 hover:text-red-400 hover:bg-red-500/10 transition"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               );
             })}
             {staticRooms.length === 0 && (

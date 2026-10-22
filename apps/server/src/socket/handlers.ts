@@ -218,6 +218,25 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
       });
     });
 
+    // Lets the room-LIST/join page clear a static table (TABLE1-4) directly, without first
+    // joining it as host — the caller isn't a member of that room at all, just browsing the list.
+    socket.on(EV.ROOM_CLEAR_BY_CODE, (data: unknown, cb: (ack: Ack<object>) => void) => {
+      handle(socket, cb, () => {
+        const parsed = schemas.clearByCode.parse(data);
+        const kicked = rooms.clearStaticRoomByCode(parsed.code);
+        for (const { playerId, socketId } of kicked) {
+          if (!socketId) continue;
+          io.to(socketId).emit(EV.ROOM_KICKED, { reason: 'ROOM_CLEARED' });
+          const targetSocket = io.sockets.sockets.get(socketId);
+          targetSocket?.leave(roomCh(parsed.code));
+          targetSocket?.leave(playerCh(playerId));
+          if (targetSocket) { sd(targetSocket).code = undefined; sd(targetSocket).playerId = undefined; }
+        }
+        const stillExists = rooms.find(parsed.code);
+        if (stillExists) io.to(roomCh(parsed.code)).emit(EV.ROOM_STATE_UPDATED, rooms.toPublicRoom(stillExists));
+      });
+    });
+
     socket.on(EV.ROOM_LIST, (_data: unknown, cb: (ack: Ack<{ rooms: ReturnType<RoomManager['listStaticRooms']> }>) => void) => {
       handle(socket, cb, () => ({ rooms: rooms.listStaticRooms() }));
     });

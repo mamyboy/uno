@@ -283,4 +283,42 @@ describe('socket integration', () => {
 
     host.close();
   });
+
+  it('room:clear_by_code lets a browser on the room-LIST page clear a static table without joining it', async () => {
+    const member = await connect();
+    const bystander = await connect(); // someone browsing the join page, never joined TABLE3
+    const joinAck = await emit(member, 'room:join', { code: 'TABLE3', nickname: 'ListPageTester' });
+    expect(joinAck.ok).toBe(true);
+
+    let memberKicked: any = null;
+    member.on('room:kicked', (payload: any) => { memberKicked = payload; });
+
+    // bystander isn't in the room at all, isn't the host — but the by-code variant still works.
+    const clearAck = await emit(bystander, 'room:clear_by_code', { code: 'TABLE3' });
+    expect(clearAck.ok).toBe(true);
+
+    await new Promise((r) => setTimeout(r, 30));
+    expect(memberKicked).toEqual({ reason: 'ROOM_CLEARED' });
+
+    const room = rooms.find('TABLE3');
+    expect(room?.isStatic).toBe(true);
+    expect(room?.members).toHaveLength(0);
+    expect(room?.leaderboard.size).toBe(0);
+
+    member.close();
+    bystander.close();
+  });
+
+  it('room:clear_by_code refuses to touch a dynamic (code-joined) room', async () => {
+    const host = await connect();
+    const created = await emit(host, 'room:create', { name: 'Room I', nickname: 'Host', maxPlayers: 4, hostPlays: true });
+    expect(created.ok).toBe(true);
+
+    const ack = await emit(host, 'room:clear_by_code', { code: created.code });
+    expect(ack.ok).toBe(false);
+    expect(ack.error).toBe('NOT_STATIC_ROOM');
+    expect(rooms.find(created.code)).not.toBeNull(); // untouched
+
+    host.close();
+  });
 });
