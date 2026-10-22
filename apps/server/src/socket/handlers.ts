@@ -301,7 +301,7 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
         const room = withRoomOrWatch(socket);
         const parsed = schemas.playSound.parse(data);
         const member = sd(socket).playerId ? rooms.getMember(room, sd(socket).playerId ?? '') : null;
-        io.to(roomCh(room.code)).emit(EV.ROOM_PLAY_SOUND, { soundId: parsed.soundId, byNickname: member?.nickname ?? 'กระดานกลาง' });
+        io.to(roomCh(room.code)).emit(EV.ROOM_PLAY_SOUND, { soundId: parsed.soundId, label: parsed.label, byNickname: member?.nickname ?? 'กระดานกลาง' });
       });
     });
 

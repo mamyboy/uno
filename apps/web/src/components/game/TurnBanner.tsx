@@ -50,7 +50,7 @@ export function TurnBanner({ isMyTurn, myName, currentName, mustCounter, comboCo
               🎯 {myName} — ถึงตาคุณแล้ว!
             </motion.p>
             <p className="relative text-sm sm:text-base font-bold text-white/95">
-              {mustCounter ? `โดนคอมโบ +${comboCount ?? 0}! ลงไพ่ +2/+4/+8 ต่อ, ใช้ไพ่สะท้อน 🪞 หรือจั่วรับ` : 'เลือกไพ่ด้านล่างเพื่อเล่นได้เลย 👇'}
+              {mustCounter ? `โดนคอมโบ +${comboCount ?? 0}! ลงไพ่ +2/+4/+8 ต่อ, สะท้อน 🪞, โล่ 🛡️ ส่งต่อ หรือจั่วรับ` : 'เลือกไพ่ด้านล่างเพื่อเล่นได้เลย 👇'}
             </p>
           </motion.div>
         ) : currentName ? (

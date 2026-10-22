@@ -8,7 +8,9 @@ import { playClip } from '@/lib/sounds';
 type Fx =
   | { key: string; type: 'COMBO'; name: string; count: number }
   | { key: string; type: 'REFLECT'; from: string; to: string; count: number }
-  | { key: string; type: 'VANISH'; name: string; count: number };
+  | { key: string; type: 'VANISH'; name: string; count: number }
+  | { key: string; type: 'SHIELD'; from: string; to: string; count: number }
+  | { key: string; type: 'SHUFFLE'; name: string; order: string[] };
 
 /**
  * Event-driven overlays shared by the player screen and the big board:
@@ -51,6 +53,16 @@ export function GameFx({ game, result, nameOf }: { game: GameState | null; resul
         setTimeout(() => playClip('anime-wow-sound-effect', 0.9), 250);
         return;
       }
+      if (h.action === 'SHIELD') {
+        setFx({ key: `s${h.seq}`, type: 'SHIELD', from: nameRef.current(h.playerId), to: nameRef.current(h.toPlayerId), count: h.count ?? 0 });
+        playClip('bone-crack', 1);
+        return;
+      }
+      if (h.action === 'SHUFFLE_SEATS') {
+        setFx({ key: `f${h.seq}`, type: 'SHUFFLE', name: nameRef.current(h.playerId), order: (h.seatOrder ?? []).map((id) => nameRef.current(id)) });
+        playClip('dun-dun-dun', 1);
+        return;
+      }
       if (h.action === 'VANISH') {
         setFx({ key: `v${h.seq}`, type: 'VANISH', name: nameRef.current(h.playerId), count: h.count ?? 1 });
         playClip('wuued-luuen', 1);
@@ -61,7 +73,7 @@ export function GameFx({ game, result, nameOf }: { game: GameState | null; resul
 
   useEffect(() => {
     if (!fx) return;
-    const t = setTimeout(() => setFx(null), fx.type === 'COMBO' ? 2300 : 2000);
+    const t = setTimeout(() => setFx(null), fx.type === 'COMBO' ? 2300 : fx.type === 'SHUFFLE' ? 3000 : 2000);
     return () => clearTimeout(t);
   }, [fx]);
 
@@ -165,6 +177,55 @@ export function GameFx({ game, result, nameOf }: { game: GameState | null; resul
           </motion.div>
         )}
 
+        {fx?.type === 'SHIELD' && (
+          <motion.div key={fx.key} className="fixed inset-0 z-[80] pointer-events-none flex items-center justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div
+              className="absolute w-[70vmin] h-[70vmin] rounded-full border-[10px] border-cyan-300/80"
+              initial={{ scale: 0.2, opacity: 1 }}
+              animate={{ scale: 1.6, opacity: 0 }}
+              transition={{ duration: 0.9, ease: 'easeOut' }}
+            />
+            <motion.div
+              initial={{ scale: 0.3, y: 40, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 14 }}
+              className="px-8 py-6 rounded-3xl bg-gradient-to-br from-cyan-200 via-sky-500 to-blue-900 border-2 border-white/60 shadow-[0_0_60px_rgba(34,195,230,0.8)] text-center"
+            >
+              <motion.div className="text-6xl" animate={{ rotate: [0, -12, 12, 0] }} transition={{ duration: 0.4, repeat: 2 }}>🛡️</motion.div>
+              <div className="text-3xl font-black text-white drop-shadow">โล่ป้องกัน! +{fx.count}</div>
+              <div className="text-lg font-bold text-white/90 mt-1">{fx.from} ส่งต่อ ➜ {fx.to}</div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {fx?.type === 'SHUFFLE' && (
+          <motion.div key={fx.key} className="fixed inset-0 z-[80] pointer-events-none flex items-center justify-center bg-black/30" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div
+              initial={{ scale: 0.4, rotate: -20, opacity: 0 }}
+              animate={{ scale: 1, rotate: 0, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 220, damping: 13 }}
+              className="max-w-[92vw] px-6 py-5 rounded-3xl bg-gradient-to-br from-pink-300 via-fuchsia-500 to-purple-900 border-2 border-white/60 shadow-[0_0_60px_rgba(236,72,153,0.8)] text-center"
+            >
+              <motion.div className="text-6xl" animate={{ rotate: [0, 360] }} transition={{ duration: 0.8, repeat: 1 }}>🔀</motion.div>
+              <div className="text-3xl font-black text-white drop-shadow">สลับที่นั่ง!</div>
+              <div className="text-sm text-white/80 mb-2">{fx.name} สับลำดับผู้เล่นใหม่</div>
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {fx.order.map((n, i) => (
+                  <motion.span
+                    key={i}
+                    initial={{ y: -30, opacity: 0, rotate: (i % 2 ? 1 : -1) * 30 }}
+                    animate={{ y: 0, opacity: 1, rotate: 0 }}
+                    transition={{ delay: 0.3 + i * 0.08 }}
+                    className="px-2.5 py-1 rounded-full bg-black/40 border border-white/30 text-sm font-bold text-white"
+                  >
+                    {i + 1}. {n}
+                  </motion.span>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
         {fx?.type === 'VANISH' && (
           <motion.div
             key={fx.key}
@@ -174,7 +235,7 @@ export function GameFx({ game, result, nameOf }: { game: GameState | null; resul
             exit={{ opacity: 0, filter: 'blur(8px)' }}
           >
             <div className="px-5 py-3 rounded-2xl bg-violet-950/90 border border-violet-400/50 text-violet-100 font-bold">
-              ✨ ไพ่สะท้อนของ {fx.name} หายไป ({fx.count} ใบ) — ไม่มีคอมโบเหลือแล้ว
+              ✨ ไพ่สะท้อน/โล่ของ {fx.name} หายไป ({fx.count} ใบ) — ไม่มีคอมโบเหลือแล้ว
             </div>
           </motion.div>
         )}

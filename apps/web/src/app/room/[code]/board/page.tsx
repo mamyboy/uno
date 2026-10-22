@@ -248,7 +248,7 @@ export default function BoardPage() {
             )}
             {game.pendingDraw && (
               <p className="mt-2 text-lg font-bold text-orange-300">
-                💥 คอมโบ +{game.pendingDraw.count} รอ {nameOf(game.pendingDraw.targetId)} ตอบโต้ / สะท้อน 🪞 / จั่วรับ
+                💥 คอมโบ +{game.pendingDraw.count} รอ {nameOf(game.pendingDraw.targetId)} ตอบโต้ / สะท้อน 🪞 / โล่ 🛡️ / จั่วรับ
               </p>
             )}
           </motion.div>

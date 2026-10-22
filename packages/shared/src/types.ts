@@ -4,7 +4,11 @@ export type CardColor = (typeof COLORS)[number];
 /** REFLECT (สะท้อนกลับ): colorless; only playable while a +2/+4/+8 combo is pending against you —
  * bounces the whole combo back to the player who sent it. Vanishes from every hand once the draw
  * pile is empty and nobody holds any draw-family card anymore (it could never be used again). */
-export type CardKind = 'NUMBER' | 'SKIP' | 'REVERSE' | 'DRAW_TWO' | 'WILD' | 'WILD_DRAW_FOUR' | 'WILD_DRAW_TWO' | 'WILD_DRAW_EIGHT' | 'REFLECT';
+/** SHIELD (โล่ป้องกัน): colorless; only playable vs a pending combo — passes it on, unchanged, to the
+ *  NEXT player in the current direction. Vanishes like REFLECT once it can never be useful again.
+ *  SHUFFLE (สลับที่นั่ง): colorless; playable on your turn whenever no combo is pending — randomly
+ *  reshuffles the seating order, then play continues with whoever now sits after you. */
+export type CardKind = 'NUMBER' | 'SKIP' | 'REVERSE' | 'DRAW_TWO' | 'WILD' | 'WILD_DRAW_FOUR' | 'WILD_DRAW_TWO' | 'WILD_DRAW_EIGHT' | 'REFLECT' | 'SHIELD' | 'SHUFFLE';
 export const ACTION_KINDS = ['SKIP', 'REVERSE', 'DRAW_TWO'] as const;
 export const WILD_KINDS = ['WILD', 'WILD_DRAW_FOUR', 'WILD_DRAW_TWO', 'WILD_DRAW_EIGHT'] as const;
 /** color is null only for WILD / WILD_DRAW_FOUR / WILD_DRAW_TWO / WILD_DRAW_EIGHT before a color is chosen when played. */
@@ -148,7 +152,7 @@ export interface StaticRoomSummary {
   topPlayer?: { nickname: string; wins: number } | null;
 }
 
-export type HistoryAction = 'DIRECTION' | 'PLAY' | 'DRAW' | 'SKIP' | 'RESHUFFLE' | 'STEAL' | 'ABSORB' | 'REFLECT' | 'VANISH';
+export type HistoryAction = 'DIRECTION' | 'PLAY' | 'DRAW' | 'SKIP' | 'RESHUFFLE' | 'STEAL' | 'ABSORB' | 'REFLECT' | 'SHIELD' | 'SHUFFLE_SEATS' | 'VANISH';
 export interface HistoryEntry {
   seq: number;
   at: number;
@@ -158,6 +162,8 @@ export interface HistoryEntry {
   card?: Card;
   cards?: Card[];
   direction?: Direction;
+  /** For SHUFFLE_SEATS entries: the new seating order (player ids). */
+  seatOrder?: string[];
   /** For STEAL entries: whose hand the card was pulled from. For REFLECT: who the combo came from. */
   fromPlayerId?: string;
   /** For REFLECT entries: who the combo was bounced to. */

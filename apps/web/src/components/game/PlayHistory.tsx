@@ -17,8 +17,12 @@ function describe(h: HistoryEntry, nameOf: (id: string | null | undefined) => st
       return `${who} รับคอมโบ +${h.count ?? 0}`;
     case 'REFLECT':
       return `${who} สะท้อน +${h.count ?? 0} ➜ ${nameOf(h.toPlayerId)}`;
+    case 'SHIELD':
+      return `${who} ใช้โล่ 🛡️ ส่งคอมโบ +${h.count ?? 0} ➜ ${nameOf(h.toPlayerId)}`;
+    case 'SHUFFLE_SEATS':
+      return `${who} สลับที่นั่ง 🔀 ${(h.seatOrder ?? []).map((id) => nameOf(id)).join(' → ')}`;
     case 'VANISH':
-      return `ไพ่สะท้อนของ ${who} หายไป`;
+      return `ไพ่สะท้อน/โล่ของ ${who} หายไป`;
     case 'SKIP':
       return `${who} ถูกข้ามตา`;
     case 'DIRECTION':
@@ -49,7 +53,7 @@ export function PlayHistory({ game, nameOf, limit = 14, compact }: { game: GameS
       <ul className={compact ? 'space-y-1.5 max-h-64 overflow-y-auto pr-1' : 'space-y-2 max-h-[60vh] overflow-y-auto pr-1'}>
         <AnimatePresence initial={false}>
           {list.map((h, i) => {
-            const cards = h.cards ?? (h.card && (h.action === 'PLAY' || h.action === 'REFLECT') ? [h.card] : []);
+            const cards = h.cards ?? (h.card && (h.action === 'PLAY' || h.action === 'REFLECT' || h.action === 'SHIELD' || h.action === 'SHUFFLE_SEATS') ? [h.card] : []);
             return (
               <motion.li
                 key={h.seq}

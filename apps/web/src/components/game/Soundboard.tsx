@@ -1,24 +1,43 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Volume2, X } from 'lucide-react';
+import { Flame, Music, Play, Search, Star, Volume2, X } from 'lucide-react';
 import { socket } from '@/lib/socket';
-import { playClip, soundLabel } from '@/lib/sounds';
-import { EV, SOUND_IDS, type SoundId } from '@cma/shared';
+import { getFavorites, getUsage, loadCatalog, playClip, recordUsage, soundLabel, toggleFavorite, type CatalogItem } from '@/lib/sounds';
+import { EV } from '@cma/shared';
 
-/** Floating soundboard (clips from myinstants.com/en/index/th): trigger a clip for everyone in
- * the room, and play whatever anyone else triggers. Works in the lobby and mid-game alike. */
+type Tab = 'FAV' | 'TOP' | 'ALL';
+const PAGE = 80;
+
+/** Floating soundboard — every clip from myinstants.com/en/index/th (all pages). Tap a clip to
+ * play it for everyone in the room; ⭐ pins it to Favorites, 🔥 lists your most-used, ▶ previews
+ * just for you. Favorites/usage are remembered per device. */
 export function Soundboard() {
   const [open, setOpen] = useState(false);
   const [toast, setToast] = useState('');
   const [q, setQ] = useState('');
+  const [tab, setTab] = useState<Tab>('FAV');
+  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+  const [favs, setFavs] = useState<CatalogItem[]>([]);
+  const [usage, setUsage] = useState<ReturnType<typeof getUsage>>({});
+  const [limit, setLimit] = useState(PAGE);
+
+  useEffect(() => {
+    setFavs(getFavorites());
+    setUsage(getUsage());
+    if (getFavorites().length === 0) setTab('ALL');
+  }, []);
+
+  useEffect(() => {
+    if (open && catalog.length === 0) void loadCatalog().then(setCatalog);
+  }, [open, catalog.length]);
 
   useEffect(() => {
     let t: ReturnType<typeof setTimeout> | undefined;
-    function onPlay({ soundId, byNickname }: { soundId: SoundId; byNickname: string }) {
+    function onPlay({ soundId, label, byNickname }: { soundId: string; label?: string; byNickname: string }) {
       playClip(soundId);
-      setToast(`${byNickname || 'ใครสักคน'} กด "${soundLabel(soundId)}" 🔊`);
+      setToast(`${byNickname || 'ใครสักคน'} กด "${soundLabel(soundId, label)}" 🔊`);
       if (t) clearTimeout(t);
       t = setTimeout(() => setToast(''), 2200);
     }
@@ -29,12 +48,35 @@ export function Soundboard() {
     };
   }, []);
 
-  const list = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    return SOUND_IDS.filter((id) => !needle || soundLabel(id).toLowerCase().includes(needle));
-  }, [q]);
+  useEffect(() => setLimit(PAGE), [q, tab]);
 
-  const trigger = (soundId: SoundId) => socket.emit(EV.ROOM_PLAY_SOUND, { soundId }, () => {});
+  const favSet = useMemo(() => new Set(favs.map((x) => x.f)), [favs]);
+  const top = useMemo(
+    () =>
+      Object.entries(usage)
+        .sort((a, b) => b[1].n - a[1].n || b[1].at - a[1].at)
+        .slice(0, 40)
+        .map(([f, v]) => ({ f, t: v.t, n: v.n })),
+    [usage],
+  );
+
+  const list: (CatalogItem & { n?: number })[] = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const base = tab === 'FAV' ? favs : tab === 'TOP' ? top : catalog;
+    return needle ? base.filter((x) => x.t.toLowerCase().includes(needle) || x.f.includes(needle)) : base;
+  }, [q, tab, favs, top, catalog]);
+
+  const trigger = (item: CatalogItem) => {
+    socket.emit(EV.ROOM_PLAY_SOUND, { soundId: item.f, label: item.t.slice(0, 80) }, () => {});
+    recordUsage(item);
+    setUsage(getUsage());
+  };
+
+  const tabs: { id: Tab; label: string; icon: ReactNode; count: number }[] = [
+    { id: 'FAV', label: 'โปรด', icon: <Star className="w-3.5 h-3.5" />, count: favs.length },
+    { id: 'TOP', label: 'ใช้บ่อย', icon: <Flame className="w-3.5 h-3.5" />, count: top.length },
+    { id: 'ALL', label: 'ทั้งหมด', icon: <Music className="w-3.5 h-3.5" />, count: catalog.length },
+  ];
 
   return (
     <>
@@ -67,25 +109,59 @@ export function Soundboard() {
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-24 right-5 z-[60] w-72 rounded-2xl bg-zinc-900/95 border border-zinc-700 p-3 shadow-2xl backdrop-blur"
+            className="fixed bottom-24 right-3 sm:right-5 z-[60] w-[calc(100vw-1.5rem)] max-w-sm rounded-2xl bg-zinc-900/95 border border-zinc-700 p-3 shadow-2xl backdrop-blur"
           >
-            <p className="text-xs text-zinc-400 mb-2 px-1">เสียงแกล้งทุกคนในห้อง 🔊 · myinstants.com</p>
+            <p className="text-xs text-zinc-400 mb-2 px-1">แตะเพื่อเล่นให้ทุกคนในห้อง 🔊 · ⭐ เพิ่มรายการโปรด · myinstants.com</p>
+            <div className="flex gap-1 mb-2">
+              {tabs.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                    tab === t.id ? 'bg-fuchsia-600/30 border-fuchsia-500 text-white' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  {t.icon} {t.label}
+                  {t.count > 0 && <span className="text-[10px] opacity-70">{t.count.toLocaleString('th-TH')}</span>}
+                </button>
+              ))}
+            </div>
             <label className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700">
               <Search className="w-3.5 h-3.5 text-zinc-500" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ค้นหาเสียง..." className="bg-transparent outline-none text-sm flex-1 min-w-0" />
             </label>
-            <div className="grid grid-cols-2 gap-1.5 max-h-80 overflow-y-auto pr-1">
-              {list.map((id) => (
-                <motion.button
-                  key={id}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => trigger(id)}
-                  className="px-2.5 py-2 rounded-xl bg-zinc-800 hover:bg-fuchsia-600/30 border border-zinc-700 hover:border-fuchsia-500 text-xs text-left transition truncate"
-                  title={soundLabel(id)}
-                >
-                  🔊 {soundLabel(id)}
-                </motion.button>
-              ))}
+
+            <div className="space-y-1 max-h-[50vh] overflow-y-auto pr-1">
+              {tab === 'ALL' && catalog.length === 0 && <p className="text-xs text-zinc-500 p-2">กำลังโหลดรายการเสียง...</p>}
+              {tab === 'FAV' && favs.length === 0 && <p className="text-xs text-zinc-500 p-2">ยังไม่มีรายการโปรด — ไปที่แท็บ "ทั้งหมด" แล้วกด ⭐</p>}
+              {tab === 'TOP' && top.length === 0 && <p className="text-xs text-zinc-500 p-2">ยังไม่มีเสียงที่ใช้บ่อย</p>}
+              {list.slice(0, limit).map((item) => {
+                const fav = favSet.has(item.f);
+                return (
+                  <div key={item.f} className="flex items-center gap-1">
+                    <motion.button
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => trigger(item)}
+                      className="flex-1 min-w-0 px-2.5 py-2 rounded-xl bg-zinc-800 hover:bg-fuchsia-600/30 border border-zinc-700 hover:border-fuchsia-500 text-xs text-left transition truncate"
+                      title={item.t}
+                    >
+                      🔊 {item.t}
+                      {'n' in item && item.n ? <span className="text-[10px] text-zinc-500"> · {item.n}×</span> : null}
+                    </motion.button>
+                    <button onClick={() => playClip(item.f, 0.7)} title="ฟังเฉพาะเรา" className="p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800">
+                      <Play className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => setFavs(toggleFavorite({ f: item.f, t: item.t }))} title={fav ? 'เอาออกจากรายการโปรด' : 'เพิ่มในรายการโปรด'} className="p-2 rounded-lg hover:bg-zinc-800">
+                      <Star className={`w-4 h-4 ${fav ? 'fill-yellow-400 text-yellow-400' : 'text-zinc-500'}`} />
+                    </button>
+                  </div>
+                );
+              })}
+              {list.length > limit && (
+                <button onClick={() => setLimit((l) => l + PAGE)} className="w-full py-2 text-xs text-fuchsia-300 hover:text-white">
+                  แสดงเพิ่ม ({(list.length - limit).toLocaleString('th-TH')} เสียง)
+                </button>
+              )}
             </div>
           </motion.div>
         )}

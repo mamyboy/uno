@@ -54,9 +54,11 @@ describe('deck', () => {
     expect(wilds.every((c) => c.color === null)).toBe(true);
   });
 
-  it('builds the full 118-card deck (76 number + 24 action + 14 wild + 4 reflect)', () => {
+  it('builds the full 124-card deck (76 number + 24 action + 14 wild + 4 reflect + 4 shield + 2 shuffle)', () => {
     const deck = createDeck();
-    expect(deck).toHaveLength(118);
+    expect(deck).toHaveLength(124);
+    expect(deck.filter((c) => c.kind === 'SHIELD')).toHaveLength(4);
+    expect(deck.filter((c) => c.kind === 'SHUFFLE')).toHaveLength(2);
     expect(deck.filter((c) => c.kind === 'REFLECT')).toHaveLength(4);
     expect(deck.filter((c) => c.kind === 'NUMBER')).toHaveLength(76);
     expect(deck.filter((c) => ['SKIP', 'REVERSE', 'DRAW_TWO'].includes(c.kind))).toHaveLength(24);
@@ -1068,5 +1070,79 @@ describe('REFLECT card (สะท้อนกลับ)', () => {
     const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
     engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
     expect(engine.getHand('p2').map((c) => c.id)).toContain('p2-ref');
+  });
+});
+
+describe('SHIELD card (โล่ป้องกัน)', () => {
+  const N = (id: string, color: 'RED' | 'GREEN' | 'BLUE' | 'YELLOW', value: number) => ({ id, kind: 'NUMBER' as const, color, value });
+  const SH = (id: string) => ({ id, kind: 'SHIELD' as const, color: null });
+  const rest = Array.from({ length: 20 }, (_, i) => N(`rest-${i}`, 'GREEN', i % 10));
+
+  it('passes a pending combo on, unchanged, to the NEXT player in the current direction', () => {
+    const d2 = { id: 'p1-d2', kind: 'DRAW_TWO' as const, color: 'RED' as const };
+    const deck = [d2, SH('p2-sh'), N('p3-a', 'BLUE', 3), N('p1-b', 'GREEN', 1), N('p2-b', 'GREEN', 2), N('p3-b', 'BLUE', 4), N('top', 'RED', 9), ...rest];
+    const engine = new GameEngine('room1', ['p1', 'p2', 'p3'], { deck, handSize: 2 });
+    engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+    engine.playCard('p1', 'p1-d2', engine.turnNumber);
+    expect(engine.getPlayableIds('p2')).toContain('p2-sh');
+    engine.playCard('p2', 'p2-sh', engine.turnNumber);
+    const s = engine.getPublicState();
+    expect(s.pendingDraw).toMatchObject({ count: 2, targetId: 'p3', fromId: 'p2' });
+    expect(s.currentPlayerId).toBe('p3');
+    expect(s.topCard.id).toBe('p1-d2');
+    expect(s.history.some((h) => h.action === 'SHIELD' && h.toPlayerId === 'p3')).toBe(true);
+    engine.drawCard('p3', engine.turnNumber);
+    expect(engine.getHand('p3')).toHaveLength(4);
+  });
+
+  it('can NOT be played when no combo is pending (SHIELD_ONLY_VS_COMBO)', () => {
+    const deck = [SH('p1-sh'), N('p2-a', 'GREEN', 2), N('p1-b', 'BLUE', 1), N('p2-b', 'GREEN', 3), N('top', 'BLUE', 9), ...rest];
+    const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
+    engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+    expect(engine.getPlayableIds('p1')).toEqual(['p1-b']);
+    expect(() => engine.playCard('p1', 'p1-sh', engine.turnNumber)).toThrow('SHIELD_ONLY_VS_COMBO');
+  });
+
+  it('vanishes once the draw pile is empty and nobody holds a draw card anymore', () => {
+    const deck = [N('p1-a', 'BLUE', 1), SH('p2-sh'), N('p1-b', 'GREEN', 5), N('p2-b', 'BLUE', 3), N('top', 'BLUE', 9)];
+    const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
+    engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+    expect(engine.getHand('p2').map((c) => c.id)).toEqual(['p2-b']);
+    expect(engine.getPublicState().history.some((h) => h.action === 'VANISH' && h.playerId === 'p2')).toBe(true);
+  });
+});
+
+describe('SHUFFLE card (สลับที่นั่ง)', () => {
+  const N = (id: string, color: 'RED' | 'GREEN' | 'BLUE' | 'YELLOW', value: number) => ({ id, kind: 'NUMBER' as const, color, value });
+  const SF = (id: string) => ({ id, kind: 'SHUFFLE' as const, color: null });
+  const rest = Array.from({ length: 30 }, (_, i) => N(`rest-${i}`, 'GREEN', i % 10));
+
+  it('randomly reshuffles seats, then play continues with whoever now sits after the shuffler', () => {
+    // 4 players, handSize 2: p1,p2,p3,p4,p1,p2,p3,p4, top
+    const deck = [SF('p1-sf'), N('p2-a', 'RED', 1), N('p3-a', 'RED', 2), N('p4-a', 'RED', 3), N('p1-b', 'YELLOW', 1), N('p2-b', 'RED', 4), N('p3-b', 'RED', 5), N('p4-b', 'RED', 6), N('top', 'BLUE', 9), ...rest];
+    let k = 0;
+    const rng = (max: number) => [3, 0, 2, 1, 0][k++ % 5] % max;
+    const engine = new GameEngine('room1', ['p1', 'p2', 'p3', 'p4'], { deck, handSize: 2, rng });
+    engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+    const before = [...engine.getPublicState().seatOrder];
+    expect(engine.getPlayableIds('p1')).toContain('p1-sf'); // colorless, playable on any top card
+    engine.playCard('p1', 'p1-sf', engine.turnNumber);
+    const s = engine.getPublicState();
+    expect([...s.seatOrder].sort()).toEqual([...before].sort());
+    expect(s.seatOrder).not.toEqual(before);
+    const i = s.seatOrder.indexOf('p1');
+    expect(s.currentPlayerId).toBe(s.seatOrder[(i + 1) % 4]);
+    expect(s.topCard.id).toBe('top'); // slides under — color to match unchanged
+    expect(s.history.some((h) => h.action === 'SHUFFLE_SEATS' && h.seatOrder?.length === 4)).toBe(true);
+  });
+
+  it('can not be used to dodge a pending combo', () => {
+    const d2 = { id: 'p1-d2', kind: 'DRAW_TWO' as const, color: 'RED' as const };
+    const deck = [d2, SF('p2-sf'), N('p1-b', 'GREEN', 1), N('p2-b', 'GREEN', 2), N('top', 'RED', 9), ...rest];
+    const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
+    engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+    engine.playCard('p1', 'p1-d2', engine.turnNumber);
+    expect(engine.getPlayableIds('p2')).not.toContain('p2-sf');
+    expect(() => engine.playCard('p2', 'p2-sf', engine.turnNumber)).toThrow('MUST_COUNTER_OR_DRAW');
   });
 });

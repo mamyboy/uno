@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { COLORS, MAX_PLAYERS, MIN_PLAYERS, SOUND_IDS, type SyncPayload } from './types';
+import { COLORS, MAX_PLAYERS, MIN_PLAYERS, type SyncPayload } from './types';
 
 export const EV = {
   ROOM_CREATE: 'room:create',
@@ -64,7 +64,8 @@ export const schemas = {
   playCards: z.object({ cardIds: z.array(z.string().max(64)).min(2).max(10), turnNumber: turn, chosenColor: z.enum(COLORS).optional() }),
   drawCard: z.object({ turnNumber: turn, drawInsteadOfWild: z.boolean().optional() }),
   setAvatar: z.object({ avatar: z.string().max(300_000) }),
-  playSound: z.object({ soundId: z.enum(SOUND_IDS) }),
+  // Any myinstants.com clip slug (the full Thai index is in /sounds/catalog.json) — slug-safe chars only.
+  playSound: z.object({ soundId: z.string().regex(/^[A-Za-z0-9_\-.]{1,120}$/), label: z.string().max(80).optional() }),
 };
 
 export type CreateRoomInput = z.infer<typeof schemas.createRoom>;

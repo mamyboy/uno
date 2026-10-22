@@ -182,7 +182,7 @@ export class GameEngine {
     if (this.pendingDraw?.targetId === playerId) {
       const top = this.topCard;
       return hand
-        .filter((c) => c.kind === 'REFLECT' || (DRAW_FAMILY_KINDS.has(c.kind) && canCounterCombo(c, top)))
+        .filter((c) => c.kind === 'REFLECT' || c.kind === 'SHIELD' || (DRAW_FAMILY_KINDS.has(c.kind) && canCounterCombo(c, top)))
         .map((c) => c.id);
     }
     const top = this.topCard;
@@ -321,6 +321,14 @@ export class GameEngine {
       if (!defendingCombo) throw new GameError('REFLECT_ONLY_VS_COMBO');
       return this.playReflect(playerId, idx, turnNumber);
     }
+    if (card.kind === 'SHIELD') {
+      if (!defendingCombo) throw new GameError('SHIELD_ONLY_VS_COMBO');
+      return this.playShield(playerId, idx, turnNumber);
+    }
+    if (card.kind === 'SHUFFLE') {
+      if (defendingCombo) throw new GameError('MUST_COUNTER_OR_DRAW');
+      return this.playShuffleSeats(playerId, idx, turnNumber);
+    }
     if (defendingCombo) {
       // Responding to a pending +2/+4/+8 combo: only a draw-family card that passes
       // canCounterCombo() is legal — Wild Draw cards need tier >= the combo's current tier,
@@ -378,8 +386,8 @@ export class GameEngine {
       picked.push(card);
     }
 
-    if (picked.some((c) => c.kind === 'REFLECT')) {
-      // A Reflect card always resolves alone — it can't be stacked with anything.
+    if (picked.some((c) => c.kind === 'REFLECT' || c.kind === 'SHIELD' || c.kind === 'SHUFFLE')) {
+      // Reflect / Shield / Shuffle always resolve alone — they can't be stacked with anything.
       if (picked.length === 1) {
         const r = this.playCard(playerId, picked[0].id, turnNumber);
         return { cards: [r.card], finished: r.finished };
@@ -660,6 +668,59 @@ export class GameEngine {
     return { card, finished: this.status === 'FINISHED' };
   }
 
+  /** A player emptied their hand with a colorless special card (Reflect/Shield/Shuffle). */
+  private specialWentOut(playerId: string) {
+    this.finishedOrder.push(playerId);
+    this.removeFinishedSeat(playerId);
+    if (this.status !== 'FINISHED' && this.seatOrder.length <= 1) this.finish(this.finishedOrder[0], 'EMPTY_HAND');
+  }
+
+  /**
+   * SHIELD (โล่ป้องกัน): don't take the pending combo — pass it, unchanged (same size, same top
+   * card), to the NEXT player in the current direction, who must answer it as usual.
+   */
+  private playShield(playerId: string, handIdx: number, turnNumber: number): { card: Card; finished: boolean } {
+    const hand = this.hands.get(playerId)!;
+    const [card] = hand.splice(handIdx, 1);
+    const pd = this.pendingDraw!;
+    const n = this.seatOrder.length;
+    const target = this.seatOrder[nextSeatIndex(this.seatOrder.indexOf(playerId), n, this.direction ?? 'LEFT')];
+    this.discardPile.splice(Math.max(this.discardPile.length - 1, 0), 0, card);
+    this.consecutiveSkips = 0;
+    this.log({ turnNumber, playerId, action: 'SHIELD', card, toPlayerId: target, count: pd.count });
+    this.pendingDraw = { count: pd.count, targetId: target, fromId: playerId };
+    this.currentIndex = this.seatOrder.indexOf(target);
+    this.turnNumber++;
+    if (hand.length === 0) this.specialWentOut(playerId);
+    return { card, finished: this.status === 'FINISHED' };
+  }
+
+  /**
+   * SHUFFLE (สลับที่นั่ง): randomly reshuffle the seating order of everyone still playing, then
+   * play continues with whoever now sits right after the shuffler (in the current direction).
+   * The card slides under the top card, so the color/value to match is unchanged.
+   */
+  private playShuffleSeats(playerId: string, handIdx: number, turnNumber: number): { card: Card; finished: boolean } {
+    const hand = this.hands.get(playerId)!;
+    const [card] = hand.splice(handIdx, 1);
+    const before = this.seatOrder.join(',');
+    let order = shuffle([...this.seatOrder], this.rng);
+    // make sure something visibly changes when there are 3+ players
+    for (let i = 0; i < 5 && order.length > 2 && order.join(',') === before; i++) order = shuffle([...this.seatOrder], this.rng);
+    this.seatOrder = order;
+    this.discardPile.splice(Math.max(this.discardPile.length - 1, 0), 0, card);
+    this.consecutiveSkips = 0;
+    this.log({ turnNumber, playerId, action: 'SHUFFLE_SEATS', card, seatOrder: [...order] });
+    this.currentIndex = order.indexOf(playerId);
+    if (hand.length === 0) {
+      this.advanceTurn();
+      this.specialWentOut(playerId);
+    } else {
+      this.advanceTurn();
+    }
+    return { card, finished: this.status === 'FINISHED' };
+  }
+
   /**
    * Once the draw pile is exhausted and no combo is pending, a REFLECT card is only useful if some
    * player still holds a draw-family card (a future combo it could bounce). When nobody does, every
@@ -673,16 +734,17 @@ export class GameEngine {
     for (const id of this.seatOrder) {
       for (const c of this.hands.get(id) ?? []) {
         if (DRAW_FAMILY_KINDS.has(c.kind)) anyDrawCard = true;
-        if (c.kind === 'REFLECT') anyReflect = true;
+        if (c.kind === 'REFLECT' || c.kind === 'SHIELD') anyReflect = true;
       }
     }
     if (anyDrawCard || !anyReflect) return;
     const emptied: string[] = [];
     for (const id of [...this.seatOrder]) {
       const hand = this.hands.get(id)!;
-      const reflects = hand.filter((c) => c.kind === 'REFLECT');
+      const isDead = (c: Card) => c.kind === 'REFLECT' || c.kind === 'SHIELD';
+      const reflects = hand.filter(isDead);
       if (reflects.length === 0) continue;
-      this.hands.set(id, hand.filter((c) => c.kind !== 'REFLECT'));
+      this.hands.set(id, hand.filter((c) => !isDead(c)));
       this.discardPile.splice(Math.max(this.discardPile.length - 1, 0), 0, ...reflects);
       this.log({ turnNumber: this.turnNumber, playerId: id, action: 'VANISH', count: reflects.length });
       if (this.hands.get(id)!.length === 0) emptied.push(id);

@@ -86,6 +86,29 @@ function ReflectGlyph({ cx, cy, s, color }: { cx: number; cy: number; s: number;
   );
 }
 
+function ShieldGlyph({ cx, cy, s, color }: { cx: number; cy: number; s: number; color: string }) {
+  const k = s / 50;
+  return (
+    <g transform={`translate(${cx - 50 * k} ${cy - 50 * k}) scale(${k})`} strokeLinejoin="round">
+      <path d="M50 4 L88 18 V48 C88 72 70 88 50 96 C30 88 12 72 12 48 V18 Z" fill={color} />
+      <path d="M50 16 L76 26 V48 C76 64 64 76 50 82 Z" fill="rgba(255,255,255,0.45)" />
+    </g>
+  );
+}
+
+function ShuffleGlyph({ cx, cy, s, color }: { cx: number; cy: number; s: number; color: string }) {
+  // two crossing arrows (shuffle / swap seats)
+  const k = s / 50;
+  return (
+    <g transform={`translate(${cx - 50 * k} ${cy - 50 * k}) scale(${k})`} fill="none" stroke={color} strokeWidth="9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 24 H28 C50 24 50 76 72 76 H90" />
+      <path d="M6 76 H28 C50 76 50 24 72 24 H90" />
+      <path d="M78 12 L92 24 L78 36" />
+      <path d="M78 64 L92 76 L78 88" />
+    </g>
+  );
+}
+
 function Pinwheel({ cx, cy, r }: { cx: number; cy: number; r: number }) {
   const k = r / 50;
   return (
@@ -112,6 +135,10 @@ function Corner({ card, color, flip }: { card: Card; color: string; flip?: boole
         <Pinwheel cx={14} cy={17} r={8} />
       ) : card.kind === 'REFLECT' ? (
         <ReflectGlyph cx={14} cy={17} s={8} color="#fff" />
+      ) : card.kind === 'SHIELD' ? (
+        <ShieldGlyph cx={14} cy={17} s={8} color="#fff" />
+      ) : card.kind === 'SHUFFLE' ? (
+        <ShuffleGlyph cx={14} cy={17} s={8} color="#fff" />
       ) : (
         <text
           x={14}
@@ -164,15 +191,21 @@ export function PlayingCard({ card, playable, selected, faceDown, onClick, size 
 
   const wild = isWildKind(card.kind);
   const wildDraw = isWildDrawKind(card.kind);
-  const reflect = card.kind === 'REFLECT';
-  const pal = card.color ? PALETTE[card.color] : null;
+  // Colorless special cards each get their own theme: [light, mid, deep, ink, oval-tint]
+  const SPECIAL: Record<string, [string, string, string, string, string]> = {
+    REFLECT: ['#f0e6ff', '#9f7bff', '#3a1d8f', '#3a1d8f', '#e9ddff'],
+    SHIELD: ['#e0fbff', '#22c3e6', '#0b4f8a', '#0b4f8a', '#dff7ff'],
+    SHUFFLE: ['#ffe9f6', '#ff5fc8', '#7a1fa2', '#7a1fa2', '#ffe1f4'],
+  };
+  const special = SPECIAL[card.kind] ?? null;
+  const pal = card.color && !special ? PALETTE[card.color] : null;
   const ink = pal ? pal[3] : '#111';
   const txt = label(card);
   const isAction = card.kind !== 'NUMBER';
 
   // Card body fill
-  const bodyStops: [string, string, string] = reflect
-    ? ['#f0e6ff', '#9f7bff', '#3a1d8f']
+  const bodyStops: [string, string, string] = special
+    ? [special[0], special[1], special[2]]
     : wild
       ? ['#2a2a35', '#121218', '#000000']
       : [pal![0], pal![1], pal![2]];
@@ -207,7 +240,7 @@ export function PlayingCard({ card, playable, selected, faceDown, onClick, size 
           </linearGradient>
           <radialGradient id={`o-${uid}`} cx="0.4" cy="0.35" r="0.75">
             <stop offset="0" stopColor="#ffffff" />
-            <stop offset="1" stopColor={reflect ? '#e9ddff' : wild ? '#f4f4f5' : '#fff7ec'} />
+            <stop offset="1" stopColor={special ? special[4] : wild ? '#f4f4f5' : '#fff7ec'} />
           </radialGradient>
           <linearGradient id={`g-${uid}`} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stopColor="#fff6c2" />
@@ -277,7 +310,23 @@ export function PlayingCard({ card, playable, selected, faceDown, onClick, size 
             </text>
           </>
         )}
-        {reflect && (
+        {card.kind === 'SHIELD' && (
+          <>
+            <ShieldGlyph cx={50} cy={68} s={20} color="#0b6fb8" />
+            <text x="50" y="98" textAnchor="middle" dominantBaseline="central" fontSize="11" fontWeight={900} fill="#0b4f8a">
+              โล่ป้องกัน
+            </text>
+          </>
+        )}
+        {card.kind === 'SHUFFLE' && (
+          <>
+            <ShuffleGlyph cx={50} cy={68} s={20} color="#c026a3" />
+            <text x="50" y="98" textAnchor="middle" dominantBaseline="central" fontSize="11" fontWeight={900} fill="#7a1fa2">
+              สลับที่นั่ง
+            </text>
+          </>
+        )}
+        {card.kind === 'REFLECT' && (
           <>
             <ReflectGlyph cx={50} cy={68} s={20} color="#5b2bd9" />
             <text x="50" y="98" textAnchor="middle" dominantBaseline="central" fontSize="11" fontWeight={900} fill="#3a1d8f">
@@ -287,8 +336,8 @@ export function PlayingCard({ card, playable, selected, faceDown, onClick, size 
         )}
 
         {/* corners */}
-        <Corner card={card} color={wild ? '#000' : reflect ? '#3a1d8f' : ink} />
-        <Corner card={card} color={wild ? '#000' : reflect ? '#3a1d8f' : ink} flip />
+        <Corner card={card} color={wild ? '#000' : special ? special[3] : ink} />
+        <Corner card={card} color={wild ? '#000' : special ? special[3] : ink} flip />
 
         {/* gloss */}
         <rect width="100" height="70" fill={`url(#h-${uid})`} />

@@ -42,9 +42,17 @@ export function createReflectCards(): Card[] {
   return Array.from({ length: 4 }, () => ({ id: randomUUID().slice(0, 12), kind: 'REFLECT' as const, color: null }));
 }
 
-/** Standard deck: 76 number + 24 action + 14 wild + 4 reflect = 118 cards. */
+/** 4 SHIELD (โล่ป้องกัน) — pass a pending combo on to the next player; 2 SHUFFLE (สลับที่นั่ง). */
+export function createSpecialCards(): Card[] {
+  return [
+    ...Array.from({ length: 4 }, () => ({ id: randomUUID().slice(0, 12), kind: 'SHIELD' as const, color: null })),
+    ...Array.from({ length: 2 }, () => ({ id: randomUUID().slice(0, 12), kind: 'SHUFFLE' as const, color: null })),
+  ];
+}
+
+/** Standard deck: 76 number + 24 action + 14 wild + 4 reflect + 4 shield + 2 shuffle = 124 cards. */
 export function createDeck(): Card[] {
-  return [...createNumberCards(), ...createActionCards(), ...createWildCards(), ...createReflectCards()];
+  return [...createNumberCards(), ...createActionCards(), ...createWildCards(), ...createReflectCards(), ...createSpecialCards()];
 }
 
 /** @deprecated kept for backward-compat test imports; use createNumberCards(). */

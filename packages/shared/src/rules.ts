@@ -18,7 +18,8 @@ export function isWild(card: Card): boolean {
  */
 export function canPlayCard(card: Card, top: Card | null | undefined): boolean {
   if (!top) return false;
-  if (card.kind === 'REFLECT') return false; // only ever playable as a combo counter (engine-side)
+  if (card.kind === 'REFLECT' || card.kind === 'SHIELD') return false; // only ever playable as a combo counter (engine-side)
+  if (card.kind === 'SHUFFLE') return true; // colorless — playable on any top card (no pending combo)
   if (isWild(card)) return true;
   if (card.color !== null && card.color === top.color) return true;
   if (card.kind === top.kind) {

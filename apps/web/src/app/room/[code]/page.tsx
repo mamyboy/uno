@@ -337,7 +337,7 @@ export default function RoomPage() {
     if (!game || !hand) return;
     if (cardIds.length === 1) {
       const card = hand.hand.find((c) => c.id === cardIds[0]);
-      if (card && card.color === null && card.kind !== 'REFLECT') {
+      if (card && card.color === null && !['REFLECT', 'SHIELD', 'SHUFFLE'].includes(card.kind)) {
         // Wild / Wild Draw Four / Wild Draw Two — ask the player to pick a color before sending.
         setPendingWildCardIds(cardIds);
         return;
@@ -374,7 +374,7 @@ export default function RoomPage() {
       if (prev.length === 0) return [cardId];
       const firstCard = hand?.hand.find((c) => c.id === prev[0]);
       if (!firstCard) return prev;
-      if (firstCard.kind === 'REFLECT' || card.kind === 'REFLECT') return [cardId]; // Reflect always plays alone
+      if (['REFLECT', 'SHIELD', 'SHUFFLE'].includes(firstCard.kind) || ['REFLECT', 'SHIELD', 'SHUFFLE'].includes(card.kind)) return [cardId]; // special cards always play alone
       const DRAW_FAMILY = new Set(['DRAW_TWO', 'WILD_DRAW_TWO', 'WILD_DRAW_FOUR', 'WILD_DRAW_EIGHT']);
       // NUMBER cards stack only by matching value; SKIP/REVERSE stack regardless of color;
       // DRAW_TWO / WILD_DRAW_TWO / WILD_DRAW_FOUR / WILD_DRAW_EIGHT stack with EACH OTHER in any
@@ -776,8 +776,8 @@ export default function RoomPage() {
                 className="rounded-2xl bg-orange-500/15 border border-orange-400/30 p-4 text-center font-bold text-orange-200"
               >
                 {game.pendingDraw.targetId === session?.playerId
-                  ? `ถึงตาคุณตอบโต้! เล่น +2/+4/+8 ต่อ, ใช้ไพ่สะท้อน 🪞 หรือจั่วสะสม ${game.pendingDraw.count} ใบ`
-                  : `${players.find((p) => p.id === game.pendingDraw?.targetId)?.nickname ?? ''} ต้องตอบโต้ด้วย +2/+4/+8, สะท้อน 🪞 หรือจั่ว ${game.pendingDraw.count} ใบ`}
+                  ? `ถึงตาคุณตอบโต้! เล่น +2/+4/+8 ต่อ, สะท้อน 🪞, โล่ 🛡️ ส่งต่อ หรือจั่วสะสม ${game.pendingDraw.count} ใบ`
+                  : `${players.find((p) => p.id === game.pendingDraw?.targetId)?.nickname ?? ''} ต้องตอบโต้ด้วย +2/+4/+8, สะท้อน 🪞, โล่ 🛡️ หรือจั่ว ${game.pendingDraw.count} ใบ`}
               </motion.div>
             )}
 
@@ -794,7 +794,7 @@ export default function RoomPage() {
                     {hand.hand
                       .slice()
                       .sort((a, b) => {
-                        const kindOrder: Record<string, number> = { NUMBER: 0, SKIP: 1, REVERSE: 2, DRAW_TWO: 3, WILD: 4, WILD_DRAW_TWO: 5, WILD_DRAW_FOUR: 6, WILD_DRAW_EIGHT: 7, REFLECT: 8 };
+                        const kindOrder: Record<string, number> = { NUMBER: 0, SKIP: 1, REVERSE: 2, DRAW_TWO: 3, WILD: 4, WILD_DRAW_TWO: 5, WILD_DRAW_FOUR: 6, WILD_DRAW_EIGHT: 7, REFLECT: 8, SHIELD: 9, SHUFFLE: 10 };
                         const ka = kindOrder[a.kind] ?? 99;
                         const kb = kindOrder[b.kind] ?? 99;
                         if (ka !== kb) return ka - kb;
