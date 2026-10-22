@@ -417,6 +417,10 @@ export default function RoomPage() {
 
   const players = room.players.filter((p: Player) => p.isPlayer);
   const nameOf = (id: string | null | undefined) => room.players.find((p: Player) => p.id === id)?.nickname ?? 'ผู้เล่น';
+  const avatarOf = (id: string | null | undefined, nickname?: string) =>
+    room.players.find((p: Player) => p.id === id)?.avatar ??
+    (nickname ? (room.leaderboard ?? []).find((e: any) => e.nickname?.trim().toLowerCase() === nickname.trim().toLowerCase())?.avatar : null) ??
+    null;
   const joinUrl = typeof window !== 'undefined' ? `${window.location.origin}/join` : '';
   const meAvatar = room.players.find((p: Player) => p.id === session?.playerId)?.avatar;
 
@@ -445,7 +449,7 @@ export default function RoomPage() {
     <main className="min-h-screen bg-gradient-to-br from-casino-table via-casino-felt to-black text-white p-4 md:p-8 relative overflow-hidden">
       {room.status === 'FINISHED' && result && result.winnerId && <Confetti />}
       <ActionEffect card={effectCard} />
-      <GameFx game={game} result={result} nameOf={nameOf} />
+      <GameFx game={game} result={result} nameOf={nameOf} avatarOf={avatarOf} />
       <Soundboard />
 
       <div className="max-w-3xl mx-auto space-y-6 relative z-10">

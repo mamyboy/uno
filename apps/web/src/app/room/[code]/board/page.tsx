@@ -111,6 +111,10 @@ export default function BoardPage() {
 
   const players = room.players.filter((p: Player) => p.isPlayer);
   const nameOf = (id: string | null | undefined) => room.players.find((p: Player) => p.id === id)?.nickname ?? 'ผู้เล่น';
+  const avatarOf = (id: string | null | undefined, nickname?: string) =>
+    room.players.find((p: Player) => p.id === id)?.avatar ??
+    (nickname ? (room.leaderboard ?? []).find((e: any) => e.nickname?.trim().toLowerCase() === nickname.trim().toLowerCase())?.avatar : null) ??
+    null;
 
   return (
     <main
@@ -125,7 +129,7 @@ export default function BoardPage() {
 
       {room.status === 'FINISHED' && result?.winnerId && <Confetti count={100} />}
       <ActionEffect card={effectCard} />
-      <GameFx game={game} result={result} nameOf={nameOf} />
+      <GameFx game={game} result={result} nameOf={nameOf} avatarOf={avatarOf} />
       <Soundboard />
 
       <h1 className="text-xl sm:text-3xl font-black tracking-tight relative z-10 text-center px-2">
