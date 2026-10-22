@@ -504,6 +504,21 @@ describe('GameEngine', () => {
       expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p1' });
     });
 
+    it('playCards opens a combo with two different-color DRAW_TWO cards together, summing to +4', () => {
+      const drawTwoGreen = { id: 'p1-0', kind: 'DRAW_TWO' as const, color: 'GREEN' as const };
+      const drawTwoRed = { id: 'p1-1', kind: 'DRAW_TWO' as const, color: 'RED' as const };
+      const filler = { id: 'p1-2', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 5 };
+      const top = { id: 'top', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 9 };
+      const rest = Array.from({ length: 20 }, (_, i) => ({ id: `rest-${i}`, kind: 'NUMBER' as const, color: 'YELLOW' as const, value: i % 10 }));
+      const deck = [drawTwoGreen, rest[0], drawTwoRed, rest[1], filler, rest[2], top, ...rest.slice(3)];
+      const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 3 });
+      engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+
+      engine.playCards('p1', ['p1-0', 'p1-1'], engine.turnNumber);
+      expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p2' });
+      expect(engine.topCard.color).toBe('RED'); // last card in the stack sets the resolved color
+    });
+
     it('playCards lays down a DRAW_TWO + WILD_DRAW_FOUR together, summing to +6 in one move', () => {
       const drawTwo = { id: 'p1-0', kind: 'DRAW_TWO' as const, color: 'RED' as const };
       const wild4 = { id: 'p1-1', kind: 'WILD_DRAW_FOUR' as const, color: null };
