@@ -298,12 +298,38 @@ describe('GameEngine', () => {
       expect(() => engine.playCards('p1', ['c1', 'c3'], engine.turnNumber)).toThrow(/CARDS_MUST_MATCH_VALUE/);
     });
 
-    it('rejects the stack if the first card does not match the current top', () => {
+    it('rejects a NUMBER stack if NO card in it matches the current top (by color)', () => {
       const engine = buildStackingEngine();
       engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
-      // c2 (BLUE,5) alone does not match top (RED,9) by color or value, so leading with it is illegal
-      // even though c1 would make a valid pair in the other order.
-      expect(() => engine.playCards('p1', ['c2', 'c1'], engine.turnNumber)).toThrow(/CARD_NOT_PLAYABLE/);
+      // Build a same-value pair where NEITHER card matches top (RED,9) by color or value.
+      const neitherMatches = new GameEngine('room1', ['p1', 'p2'], {
+        deck: [
+          { id: 'x1', kind: 'NUMBER', color: 'BLUE', value: 5 },
+          { id: 'y1', kind: 'NUMBER', color: 'YELLOW', value: 1 },
+          { id: 'x2', kind: 'NUMBER', color: 'GREEN', value: 5 },
+          { id: 'y2', kind: 'NUMBER', color: 'YELLOW', value: 2 },
+          { id: 'x3', kind: 'NUMBER', color: 'YELLOW', value: 3 },
+          { id: 'y3', kind: 'NUMBER', color: 'YELLOW', value: 4 },
+          { id: 'top', kind: 'NUMBER', color: 'RED', value: 9 },
+          ...Array.from({ length: 10 }, (_, i) => ({ id: `r-${i}`, kind: 'NUMBER' as const, color: 'YELLOW' as const, value: i % 10 })),
+        ],
+        handSize: 3,
+      });
+      neitherMatches.selectDirection('p1', 'RIGHT', neitherMatches.turnNumber);
+      // x1 (BLUE,5) and x2 (GREEN,5): same value 5, but neither's color matches top (RED,9) and
+      // neither's value (5) matches top's value (9) — illegal in either order.
+      expect(() => neitherMatches.playCards('p1', ['x1', 'x2'], neitherMatches.turnNumber)).toThrow(/CARD_NOT_PLAYABLE/);
+      expect(() => neitherMatches.playCards('p1', ['x2', 'x1'], neitherMatches.turnNumber)).toThrow(/CARD_NOT_PLAYABLE/);
+    });
+
+    it('allows a NUMBER stack as long as ANY card in it matches the top, regardless of selection order', () => {
+      const engine = buildStackingEngine();
+      engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+      // c1 (RED,5) matches top (RED,9) by color; c2 (BLUE,5) alone would not. Selecting c2 FIRST
+      // must still succeed, since c1 makes the pair legal regardless of array order.
+      const result = engine.playCards('p1', ['c2', 'c1'], engine.turnNumber);
+      expect(result.cards.map((c) => c.id)).toEqual(['c2', 'c1']);
+      expect(engine.topCard.id).toBe('c1'); // last card in the array lands on top
     });
 
     it('finishes the game when stacking empties the hand', () => {
@@ -878,5 +904,39 @@ describe('GameEngine', () => {
       expect(safety).toBeLessThan(200);
       expect(countTotal()).toBe(cards.length);
     });
+  });
+});
+describe('reported case: multi-color DRAW_TWO combo after absorbing a WILD_DRAW_FOUR, regardless of selection order', () => {
+  function buildAbsorbedScenario() {
+    const wild4 = { id: 'p1-0', kind: 'WILD_DRAW_FOUR' as const, color: null };
+    const p1Filler = { id: 'p1-1', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 5 };
+    const d2blue = { id: 'p2-0', kind: 'DRAW_TWO' as const, color: 'BLUE' as const };
+    const d2red = { id: 'p2-1', kind: 'DRAW_TWO' as const, color: 'RED' as const };
+    const top = { id: 'top', kind: 'NUMBER' as const, color: 'RED' as const, value: 9 };
+    const absorbed = [
+      { id: 'abs-0', kind: 'NUMBER' as const, color: 'YELLOW' as const, value: 1 },
+      { id: 'abs-1', kind: 'NUMBER' as const, color: 'YELLOW' as const, value: 2 },
+      { id: 'abs-2', kind: 'NUMBER' as const, color: 'YELLOW' as const, value: 3 },
+      { id: 'abs-3', kind: 'NUMBER' as const, color: 'YELLOW' as const, value: 4 },
+    ];
+    const rest = Array.from({ length: 20 }, (_, i) => ({ id: `rest-${i}`, kind: 'NUMBER' as const, color: 'GREEN' as const, value: i % 10 }));
+    const deck = [wild4, d2blue, p1Filler, d2red, top, ...absorbed, ...rest];
+    const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
+    engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+    engine.playCard('p1', 'p1-0', engine.turnNumber, 'BLUE');
+    engine.drawCard('p2', engine.turnNumber); // absorb the +4 (pendingDraw clears, p2 keeps the turn)
+    return engine;
+  }
+
+  it('works when the color-matching card (BLUE) is selected first', () => {
+    const engine = buildAbsorbedScenario();
+    engine.playCards('p2', ['p2-0', 'p2-1'], engine.turnNumber); // BLUE, then RED
+    expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p1' });
+  });
+
+  it('ALSO works when the non-matching card (RED) is selected first — fixed order-dependent bug', () => {
+    const engine = buildAbsorbedScenario();
+    engine.playCards('p2', ['p2-1', 'p2-0'], engine.turnNumber); // RED, then BLUE
+    expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p1' });
   });
 });

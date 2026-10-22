@@ -382,7 +382,10 @@ export class GameEngine {
       const value = picked[0].value;
       if (!picked.every((c) => c.value === value)) throw new GameError('CARDS_MUST_MATCH_VALUE');
     }
-    if (!canPlayCard(picked[0], this.topCard)) throw new GameError('CARD_NOT_PLAYABLE');
+    // At least one card in the stack must be a legal opening play against the top card — order
+    // doesn't matter (e.g. a RED 5 + GREEN 5 together against a GREEN top card is legal even if
+    // the RED one happens to be selected first).
+    if (!picked.some((c) => canPlayCard(c, this.topCard))) throw new GameError('CARD_NOT_PLAYABLE');
 
     for (const card of picked) {
       const idx = hand.findIndex((c) => c.id === card.id);
@@ -419,9 +422,12 @@ export class GameEngine {
     const hand = this.hands.get(playerId)!;
 
     if (!defendingCombo) {
-      // Not countering a pending combo — this stack has to be a legal opening play against the
-      // current top card, checked using its first card (same rule a lone card would follow).
-      if (!canPlayCard(picked[0], this.topCard)) throw new GameError('CARD_NOT_PLAYABLE');
+      // Not countering a pending combo — opening a new one just needs AT LEAST ONE card in the
+      // stack to be a legal play against the current top card (same rule a lone card would
+      // follow). The order the client selected cards in doesn't matter — e.g. a BLUE DRAW_TWO
+      // plus a RED DRAW_TWO together against a BLUE-chosen top card is legal regardless of
+      // which one happens to be first in `picked`.
+      if (!picked.some((c) => canPlayCard(c, this.topCard))) throw new GameError('CARD_NOT_PLAYABLE');
     } else {
       // Defending against a pending combo — every card in the stack must individually pass
       // canCounterCombo() against the current top card (tier + color rules, same as a single
