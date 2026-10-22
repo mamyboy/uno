@@ -474,6 +474,7 @@ export class GameEngine {
       for (let i = 0; i < count; i++) {
         const drew = this.drawOrStealOne(playerId, turnNumber);
         if (!drew) break; // draw pile AND every other player's hand are both empty
+        if (this.status === 'FINISHED') return { card: null, skipped: false, stolen: false }; // a steal just ended the game
       }
       this.consecutiveSkips = 0; // absorbing a combo is real progress, not a stuck-skip
       this.resolveStuckPlayers(); // covers the rare case they still can't act at all afterward
@@ -493,6 +494,11 @@ export class GameEngine {
         return { card: null, skipped: true, stolen: anyStolen };
       }
       anyStolen = anyStolen || result.stolen;
+      if (this.status === 'FINISHED') {
+        // The steal that just happened emptied the donor's hand and ended the game outright
+        // (only one player left standing) — nothing left to check, just hand back what we got.
+        return { card: result.card, skipped: false, stolen: result.stolen };
+      }
       if (this.isPlayableForPlayer(playerId, result.card)) {
         return { card: result.card, skipped: false, stolen: result.stolen };
       }
@@ -513,6 +519,8 @@ export class GameEngine {
    * direction) who still has at least one card in hand — cascading to the player after that
    * once a donor's hand runs dry. Returns null only when the draw pile AND every other
    * player's hand are completely empty (true stalemate — nothing left anywhere to deal out).
+   * If the steal leaves the donor holding zero cards, THEY are credited as having gone out too
+   * — ranked in finish order right alongside players who empty their hand by playing it out.
    */
   private drawOrStealOne(playerId: string, turnNumber: number): { card: Card; stolen: boolean } | null {
     if (this.drawPile.length > 0) {
@@ -532,7 +540,21 @@ export class GameEngine {
     this.hands.get(playerId)!.push(card);
     this.cardsDrawn[playerId] = (this.cardsDrawn[playerId] ?? 0) + 1;
     this.log({ turnNumber, playerId, action: 'STEAL', card, fromPlayerId: donorId });
+    if (fromHand.length === 0) this.markWentOutByTheft(donorId);
     return { card, stolen: true };
+  }
+
+  /** Being stolen down to zero cards counts as going out, same rank-order as playing your last
+   *  card — the donor never played anything, so there's no card effect to resolve and no turn
+   *  to advance, just: record their finish rank, drop their seat, and check for a game-ending
+   *  last-player-standing state (the stealer might end up alone, right then and there). */
+  private markWentOutByTheft(playerId: string) {
+    this.finishedOrder.push(playerId);
+    if (this.pendingDraw?.targetId === playerId) this.pendingDraw = null; // void rather than soft-lock
+    this.removeFinishedSeat(playerId);
+    if (this.status !== 'FINISHED' && this.seatOrder.length <= 1) {
+      this.finish(this.finishedOrder[0], 'EMPTY_HAND');
+    }
   }
 
   /**

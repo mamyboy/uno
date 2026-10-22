@@ -222,10 +222,42 @@ describe('GameEngine', () => {
     expect(result.skipped).toBe(false);
     expect(result.card?.id).toBe('p2c');
     expect(engine.getHand('p2')).toHaveLength(0);
-    expect(engine.currentPlayerId).toBe('p1'); // stealing doesn't end the turn
+    // Stealing p2's LAST card empties their hand — per the "stolen down to zero counts as going
+    // out too" rule, p2 is credited as finished (rank 1, since they're the first to empty), and
+    // since p1 is now the only one left holding cards, the game ends right here with p2 as winner.
+    expect(engine.status).toBe('FINISHED');
+    expect(engine.getPublicState().finishedOrder).toEqual(['p2']);
+    expect(engine.winnerId).toBe('p2');
+    expect(engine.currentPlayerId).toBeNull(); // game is over
   });
 
-  it('when the draw pile is empty and every other hand gets exhausted while stealing, the turn ends in a skip', () => {
+  it('stealing can cascade through multiple donors, crediting each as finished in order, until the game ends in one call', () => {
+    const top = { id: 'top', kind: 'NUMBER' as const, color: 'RED' as const, value: 9 };
+    const p1Card = { id: 'p1c', kind: 'NUMBER' as const, color: 'BLUE' as const, value: 3 }; // unplayable
+    const p2Card = { id: 'p2c', kind: 'NUMBER' as const, color: 'BLUE' as const, value: 4 }; // unplayable
+    const p3Card = { id: 'p3c', kind: 'NUMBER' as const, color: 'BLUE' as const, value: 5 }; // also unplayable
+    const deck = [p1Card, p2Card, p3Card, top];
+    const engine = new GameEngine('room1', ['p1', 'p2', 'p3'], { deck, handSize: 1 });
+    engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+    expect(engine.currentPlayerId).toBe('p1');
+
+    // p1 draws: steals p2's only (unplayable) card first — p2 empties and goes out (rank 1), but
+    // the game doesn't end yet (p1 + p3 still hold cards), so the SAME draw call cascades onward
+    // and steals p3's only (also unplayable) card next — draining p3 too (rank 2). Now only p1
+    // is left holding any cards at all, so the game ends right there, within this single call.
+    const result = engine.drawCard('p1', engine.turnNumber);
+    expect(engine.getPublicState().finishedOrder).toEqual(['p2', 'p3']);
+    expect(engine.getHand('p2')).toHaveLength(0);
+    expect(engine.getHand('p3')).toHaveLength(0);
+    expect(engine.getHand('p1')).toHaveLength(3); // p1c + both stolen cards
+    expect(result.stolen).toBe(true);
+    expect(result.skipped).toBe(false);
+    expect(engine.status).toBe('FINISHED');
+    expect(engine.winnerId).toBe('p2'); // first to finish, same rank-order rule as playing out
+    expect(engine.currentPlayerId).toBeNull();
+  });
+
+  it('when stealing a donor\'s last card ends the game outright (2 players), the thief is credited the steal and the game stops immediately', () => {
     const top = { id: 'top', kind: 'NUMBER' as const, color: 'RED' as const, value: 9 };
     const p1Card = { id: 'p1c', kind: 'NUMBER' as const, color: 'BLUE' as const, value: 3 }; // unplayable
     const p2Card = { id: 'p2c', kind: 'NUMBER' as const, color: 'BLUE' as const, value: 4 }; // also unplayable
@@ -233,20 +265,21 @@ describe('GameEngine', () => {
     const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 1 });
     engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
 
-    // p2 still holds a card, so p1 isn't flagged as stuck yet — canDraw is true (something to
-    // try), even though it turns out nothing playable is actually found.
     expect(engine.currentPlayerId).toBe('p1');
     expect(engine.getPrivateHand('p1').canDraw).toBe(true);
 
-    // p1 steals p2's only card too — still unplayable, and now there's truly nothing left
-    // anywhere (draw pile empty, p2 empty) — the turn ends in a skip within this single call.
+    // p1 steals p2's only card — empties p2's hand. Per the "stolen down to zero counts as going
+    // out too" rule, p2 is credited as finished, and since p1 is now the only one left holding
+    // cards, the game ends immediately — all within this single drawCard() call.
     const result = engine.drawCard('p1', engine.turnNumber);
     expect(result.stolen).toBe(true);
-    expect(result.skipped).toBe(true);
-    expect(result.card).toBeNull();
+    expect(result.skipped).toBe(false);
     expect(engine.getHand('p1')).toHaveLength(2); // both cards ended up here
     expect(engine.getHand('p2')).toHaveLength(0);
-    expect(engine.currentPlayerId).toBe('p2');
+    expect(engine.status).toBe('FINISHED');
+    expect(engine.getPublicState().finishedOrder).toEqual(['p2']);
+    expect(engine.winnerId).toBe('p2');
+    expect(engine.currentPlayerId).toBeNull();
   });
 
   it('rejects stale turnNumber (prevents duplicate/late submissions)', () => {
@@ -436,8 +469,12 @@ describe('GameEngine', () => {
       expect(result.card?.id).toBe('p2-r5'); // stole p2's only card, which happens to be playable
       expect(engine.getHand('p1')).toHaveLength(2); // original + stolen
       expect(engine.getHand('p2')).toHaveLength(0);
-      expect(engine.currentPlayerId).toBe('p1'); // drawing/stealing never ends the turn by itself
-      expect(engine.getPlayableIds('p1')).toContain('p2-r5');
+      // Stealing p2's only card empties their hand, so p2 is credited as finished (and since p1
+      // is now the sole player left holding cards, the game ends immediately with p2 as winner)
+      // — even though the stolen card happened to be playable, the game-ending takes priority.
+      expect(engine.status).toBe('FINISHED');
+      expect(engine.winnerId).toBe('p2');
+      expect(engine.currentPlayerId).toBeNull();
     });
 
     it('stacking +2 on +2 (3 players) passes a +4 total to the third player', () => {
