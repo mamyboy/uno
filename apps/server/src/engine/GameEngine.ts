@@ -40,15 +40,20 @@ function isWildDrawKind(kind: Card['kind']): boolean {
 /**
  * Can `card` legally be stacked to counter/extend the pending combo currently topped by
  * `topCard`?
- *  - A plain DRAW_TWO counters any combo still at the "+2 family" (DRAW_TWO/WILD_DRAW_TWO,
- *    tier 2) — any color, no color-matching requirement.
+ *  - A plain DRAW_TWO countering a combo started/last-extended by another plain DRAW_TWO: any
+ *    color, no color-matching requirement.
+ *  - A plain DRAW_TWO countering a combo started/last-extended by WILD_DRAW_TWO: must match the
+ *    color that was explicitly CHOSEN for that Wild Draw Two.
+ *  - A plain DRAW_TWO can never counter a WILD_DRAW_FOUR/EIGHT combo, regardless of color.
  *  - A Wild Draw card (Two/Four/Eight) counters any combo whose tier is <= its own tier — e.g.
  *    Wild Draw Four or Eight can answer a Wild Draw Two combo, but Wild Draw Two cannot answer a
  *    Wild Draw Four/Eight combo; Wild Draw Eight can only be answered by another Wild Draw Eight.
  */
 function canCounterCombo(card: Card, topCard: Card): boolean {
   if (card.kind === 'DRAW_TWO') {
-    return drawAmountFor(topCard.kind) <= 2;
+    if (topCard.kind === 'DRAW_TWO') return true;
+    if (topCard.kind === 'WILD_DRAW_TWO') return card.color === topCard.color;
+    return false;
   }
   if (isWildDrawKind(card.kind)) {
     return drawAmountFor(card.kind) >= drawAmountFor(topCard.kind);

@@ -623,6 +623,29 @@ describe('GameEngine', () => {
       expect(engine.topCard.color).toBe('BLUE');
     });
 
+    it('DRAW_TWO can counter a WILD_DRAW_TWO combo ONLY if its color matches the chosen color', () => {
+      const wild2 = { id: 'p1-0', kind: 'WILD_DRAW_TWO' as const, color: null };
+      const p1Filler = { id: 'p1-1', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 5 };
+      const matching = { id: 'p2-0', kind: 'DRAW_TWO' as const, color: 'GREEN' as const };
+      const mismatched = { id: 'p2-1', kind: 'DRAW_TWO' as const, color: 'BLUE' as const };
+      const top = { id: 'top', kind: 'NUMBER' as const, color: 'RED' as const, value: 9 };
+      const rest = Array.from({ length: 20 }, (_, i) => ({ id: `rest-${i}`, kind: 'NUMBER' as const, color: 'YELLOW' as const, value: i % 10 }));
+      const deck = [wild2, matching, p1Filler, mismatched, top, ...rest];
+      const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
+      engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+      engine.playCard('p1', 'p1-0', engine.turnNumber, 'GREEN');
+      expect(engine.getPublicState().pendingDraw).toEqual({ count: 2, targetId: 'p2' });
+
+      // Mismatched color (BLUE) cannot counter a GREEN-chosen WILD_DRAW_TWO combo.
+      expect(engine.getPlayableIds('p2')).not.toContain('p2-1');
+      expect(() => engine.playCard('p2', 'p2-1', engine.turnNumber)).toThrow(/MUST_COUNTER_OR_DRAW/);
+
+      // Matching color (GREEN) can.
+      expect(engine.getPlayableIds('p2')).toContain('p2-0');
+      engine.playCard('p2', 'p2-0', engine.turnNumber);
+      expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p1' });
+    });
+
     it('playCards lets the combo target counter-stack two matching-color DRAW_TWO cards at once (+4 back)', () => {
       const openingDrawTwo = { id: 'p1-0', kind: 'DRAW_TWO' as const, color: 'RED' as const };
       const p1Filler1 = { id: 'p1-1', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 5 };
