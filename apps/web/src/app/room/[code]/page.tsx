@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
-import { Camera, Crown, Eraser, Loader2, LogOut, RotateCcw, Trophy, Tv, Users, WifiOff } from 'lucide-react';
+import { Camera, Crown, Eraser, Loader2, LogOut, RotateCcw, Trash2, Trophy, Tv, Users, WifiOff } from 'lucide-react';
 import { socket } from '@/lib/socket';
 import { getSession, setSession, removeSession } from '@/lib/session';
 import { getProfile, saveProfile } from '@/lib/profile';
@@ -249,6 +249,11 @@ export default function RoomPage() {
   const startGame = () => socket.emit(EV.GAME_START, {}, (ack: any) => !ack.ok && setActionError(ack.error));
   const restartGame = () => socket.emit(EV.GAME_RESTART, {}, (ack: any) => !ack.ok && setActionError(ack.error));
 
+  const clearRoom = () => {
+    if (!window.confirm('Clear ห้องนี้จะเตะผู้เล่นทุกคนออก และล้าง Leaderboard ทั้งหมด เหมือนสร้างห้องใหม่ — ยืนยันหรือไม่?')) return;
+    socket.emit(EV.ROOM_CLEAR, {}, (ack: any) => !ack.ok && setActionError(ack.error));
+  };
+
   const selectDirection = (direction: 'LEFT' | 'RIGHT') => {
     if (!game) return;
     socket.emit(EV.GAME_SELECT_DIRECTION, { direction, turnNumber: game.turnNumber }, (ack: any) => !ack.ok && setActionError(ack.error));
@@ -405,6 +410,11 @@ export default function RoomPage() {
             <LinkButton href={`/room/${code}/board`} target="_blank" rel="noreferrer" variant="ghost" size="md" className="justify-self-stretch">
               <Tv className="w-4 h-4" /> <span className="hidden xs:inline">เปิด</span>กระดานกลาง
             </LinkButton>
+            {isHost && (
+              <Button onClick={clearRoom} variant="ghost" size="md">
+                <Trash2 className="w-4 h-4" /> Clear ห้อง
+              </Button>
+            )}
             <Button onClick={clearSession} variant="ghost" size="md">
               <Eraser className="w-4 h-4" /> เคลียร์ Session
             </Button>

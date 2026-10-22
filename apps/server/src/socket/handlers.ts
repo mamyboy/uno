@@ -189,6 +189,26 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
       });
     });
 
+    socket.on(EV.ROOM_CLEAR, (_data: unknown, cb: (ack: Ack<object>) => void) => {
+      handle(socket, cb, () => {
+        const room = withRoom(socket);
+        const code = room.code;
+        const requesterId = sd(socket).playerId ?? '';
+        const kicked = rooms.clearRoom(room, requesterId);
+        for (const { playerId, socketId } of kicked) {
+          if (!socketId) continue;
+          io.to(socketId).emit(EV.ROOM_KICKED, { reason: 'ROOM_CLEARED' });
+          const targetSocket = io.sockets.sockets.get(socketId);
+          targetSocket?.leave(roomCh(code));
+          targetSocket?.leave(playerCh(playerId));
+        }
+        sd(socket).code = undefined;
+        sd(socket).playerId = undefined;
+        const stillExists = rooms.find(code);
+        if (stillExists) io.to(roomCh(code)).emit(EV.ROOM_STATE_UPDATED, rooms.toPublicRoom(stillExists));
+      });
+    });
+
     socket.on(EV.ROOM_SET_HOST_PLAYS, (data: unknown, cb: (ack: Ack<object>) => void) => {
       handle(socket, cb, () => {
         const room = withRoom(socket);

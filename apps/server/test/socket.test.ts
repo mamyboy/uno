@@ -239,4 +239,48 @@ describe('socket integration', () => {
     host.close();
     guest.close();
   });
+
+  it('room:clear (host-only) kicks everyone and wipes the leaderboard for a dynamic room', async () => {
+    const host = await connect();
+    const guest = await connect();
+    const created = await emit(host, 'room:create', { name: 'Room H', nickname: 'Host', maxPlayers: 4, hostPlays: true });
+    expect(created.ok).toBe(true);
+    const joinGuest = await emit(guest, 'room:join', { code: created.code, nickname: 'Guest' });
+    expect(joinGuest.ok).toBe(true);
+
+    let guestKicked: any = null;
+    guest.on('room:kicked', (payload: any) => { guestKicked = payload; });
+
+    // A non-host cannot clear the room.
+    const deniedAck = await emit(guest, 'room:clear', {});
+    expect(deniedAck.ok).toBe(false);
+
+    const clearAck = await emit(host, 'room:clear', {});
+    expect(clearAck.ok).toBe(true);
+
+    await new Promise((r) => setTimeout(r, 30));
+    expect(guestKicked).toEqual({ reason: 'ROOM_CLEARED' });
+    expect(rooms.find(created.code)).toBeNull(); // dynamic room is fully deleted
+
+    host.close();
+    guest.close();
+  });
+
+  it('room:clear on a static room empties it (members + leaderboard) but keeps the table itself', async () => {
+    const host = await connect();
+    const joinHost = await emit(host, 'room:join', { code: 'TABLE2', nickname: 'ClearHost' });
+    expect(joinHost.ok).toBe(true);
+
+    const clearAck = await emit(host, 'room:clear', {});
+    expect(clearAck.ok).toBe(true);
+
+    const room = rooms.find('TABLE2');
+    expect(room).not.toBeNull();
+    expect(room?.isStatic).toBe(true);
+    expect(room?.members).toHaveLength(0);
+    expect(room?.leaderboard.size).toBe(0);
+    expect(room?.status).toBe('WAITING');
+
+    host.close();
+  });
 });

@@ -174,6 +174,28 @@ export class RoomManager {
     return member;
   }
 
+  /** Full reset of a single room, host-only: kicks every member (including the host), clears the
+   *  leaderboard/stats, and wipes any in-progress game — as if the room had just been created.
+   *  Static rooms (TABLE1-4) stay in place, emptied. Dynamic (code-joined) rooms are deleted
+   *  entirely, same as when the last member normally leaves. Returns the sessionTokens that were
+   *  invalidated and the socketIds that need to be kicked off the room channel. */
+  clearRoom(room: ServerRoom, requesterId: string) {
+    this.assertHost(room, requesterId);
+    const kicked = room.members.map((m) => ({ playerId: m.id, socketId: m.socketId }));
+    room.members.forEach((m) => this.sessions.delete(m.sessionToken));
+    if (room.isStatic) {
+      room.members = [];
+      room.status = 'WAITING';
+      room.engine = null;
+      room.lastResult = null;
+      room.hostId = '';
+      room.leaderboard = new Map();
+    } else {
+      this.rooms.delete(room.code);
+    }
+    return kicked;
+  }
+
   reorder(room: ServerRoom, requesterId: string, playerIds: string[]) {
     this.assertHost(room, requesterId);
     if (room.status === 'PLAYING') throw new GameError('GAME_IN_PROGRESS');

@@ -8,6 +8,7 @@ export const EV = {
   ROOM_WATCH: 'room:watch',
   ROOM_REORDER: 'room:reorder',
   ROOM_KICK: 'room:kick',
+  ROOM_CLEAR: 'room:clear',
   ROOM_SET_HOST_PLAYS: 'room:set_host_plays',
   ROOM_LIST: 'room:list',
   ROOM_SET_AVATAR: 'room:set_avatar',
