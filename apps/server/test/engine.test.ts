@@ -604,6 +604,25 @@ describe('GameEngine', () => {
       expect(() => engine.playCard('p2', 'p2-0', engine.turnNumber, 'BLUE')).toThrow(/MUST_COUNTER_OR_DRAW/);
     });
 
+    it('DRAW_TWO counters a pending +2-family combo regardless of color (color-match requirement removed)', () => {
+      const openingDrawTwo = { id: 'p1-0', kind: 'DRAW_TWO' as const, color: 'RED' as const };
+      const p1Filler = { id: 'p1-1', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 5 };
+      const counterBlue = { id: 'p2-0', kind: 'DRAW_TWO' as const, color: 'BLUE' as const }; // different color — now legal
+      const p2Filler = { id: 'p2-1', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 6 };
+      const top = { id: 'top', kind: 'NUMBER' as const, color: 'RED' as const, value: 9 };
+      const rest = Array.from({ length: 20 }, (_, i) => ({ id: `rest-${i}`, kind: 'NUMBER' as const, color: 'YELLOW' as const, value: i % 10 }));
+      const deck = [openingDrawTwo, counterBlue, p1Filler, p2Filler, top, ...rest];
+      const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
+      engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+      engine.playCard('p1', 'p1-0', engine.turnNumber);
+      expect(engine.getPublicState().pendingDraw).toEqual({ count: 2, targetId: 'p2' });
+
+      expect(engine.getPlayableIds('p2')).toContain('p2-0');
+      engine.playCard('p2', 'p2-0', engine.turnNumber);
+      expect(engine.getPublicState().pendingDraw).toEqual({ count: 4, targetId: 'p1' });
+      expect(engine.topCard.color).toBe('BLUE');
+    });
+
     it('playCards lets the combo target counter-stack two matching-color DRAW_TWO cards at once (+4 back)', () => {
       const openingDrawTwo = { id: 'p1-0', kind: 'DRAW_TWO' as const, color: 'RED' as const };
       const p1Filler1 = { id: 'p1-1', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 5 };

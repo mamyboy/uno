@@ -296,16 +296,10 @@ export default function RoomPage() {
       if (!firstCard) return prev;
       const DRAW_FAMILY = new Set(['DRAW_TWO', 'WILD_DRAW_TWO', 'WILD_DRAW_FOUR', 'WILD_DRAW_EIGHT']);
       // NUMBER cards stack only by matching value; SKIP/REVERSE stack regardless of color;
-      // DRAW_TWO / WILD_DRAW_TWO / WILD_DRAW_FOUR / WILD_DRAW_EIGHT stack with EACH OTHER in any mix (amounts add up).
-      // EXCEPTION: when defending against a pending draw combo, DRAW_TWO cards must match the chosen color.
+      // DRAW_TWO / WILD_DRAW_TWO / WILD_DRAW_FOUR / WILD_DRAW_EIGHT stack with EACH OTHER in any mix (amounts add up),
+      // any color — no color-matching requirement, including a plain DRAW_TWO defending a combo.
       if (DRAW_FAMILY.has(firstCard.kind)) {
         if (!DRAW_FAMILY.has(card.kind)) return prev;
-        // If we're defending a combo and the first card is a plain DRAW_TWO, enforce color match.
-        const defendingCombo = game?.pendingDraw?.targetId === session?.playerId;
-        if (defendingCombo && firstCard.kind === 'DRAW_TWO' && card.kind === 'DRAW_TWO') {
-          const chosenColor = game?.topCard?.color;
-          if (card.color !== chosenColor) return prev;
-        }
       } else if (firstCard.kind !== card.kind) {
         return prev;
       } else if (firstCard.kind === 'NUMBER') {
