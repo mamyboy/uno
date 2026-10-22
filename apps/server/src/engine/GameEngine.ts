@@ -198,10 +198,14 @@ export class GameEngine {
     const onlyWildPlayable = playable.length > 0 &&
       playable.every((id) => WILD_KINDS_SET.has(hand.find((c) => c.id === id)?.kind ?? ''));
 
+    // Can something actually be drawn right now? Either the draw pile still has cards, or — once
+    // it's empty — there's still at least one other player holding cards to steal from.
+    const canDrawSomething = this.drawPile.length > 0 || this.nextDonorFrom(playerId) !== null;
+
     const canDraw = isMyTurn && this.status === 'PLAYING' && (
       mustRespondToDraw ||
-      (playable.length === 0 && this.drawPile.length > 0) ||
-      (onlyWildPlayable && this.drawPile.length > 0)
+      (playable.length === 0 && canDrawSomething) ||
+      (onlyWildPlayable && canDrawSomething)
     );
 
     return {
@@ -700,7 +704,10 @@ export class GameEngine {
     if (this.status !== 'PLAYING') return;
     const pid = this.currentPlayerId!;
     if (this.pendingDraw?.targetId === pid) return; // they must act: stack a Draw card or absorb the combo
-    if (this.getPlayableIds(pid).length > 0 || this.drawPile.length > 0) return;
+    if (this.getPlayableIds(pid).length > 0) return;
+    // Even with an empty draw pile, they can still draw by stealing from the next player with
+    // cards — only truly stuck (and skipped) if BOTH the draw pile and every other hand are empty.
+    if (this.drawPile.length > 0 || this.nextDonorFrom(pid) !== null) return;
     this.skipAndAdvance(pid);
   }
 
