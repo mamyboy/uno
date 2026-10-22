@@ -183,15 +183,34 @@ export default function RoomPage() {
     const onConnect = () => {
       if (!dropped) return;
       dropped = false;
-      removeSession();
-      const name = getProfile()?.nickname;
-      if (!name) { reset(); router.push('/join'); return; }
-      socket.emit(EV.ROOM_JOIN, { code, nickname: name }, (ack: any) => {
-        if (!ack.ok) { reset(); router.push('/join'); return; }
-        setSession({ code: ack.code, sessionToken: ack.sessionToken, playerId: ack.playerId });
-        applySnapshot(ack.snapshot);
-        storeSetSession({ code: ack.code, sessionToken: ack.sessionToken, playerId: ack.playerId });
-      });
+      // Brief drops (phone app-switch) get a grace period server-side — try resuming the exact
+      // same session first; only if that's gone (grace expired / real kick) fall back to a fresh
+      // join under the remembered nickname.
+      const existingToken = getSession();
+      const fallback = () => {
+        removeSession();
+        const name = getProfile()?.nickname;
+        if (!name) { reset(); router.push('/join'); return; }
+        socket.emit(EV.ROOM_JOIN, { code, nickname: name }, (ack: any) => {
+          if (!ack.ok) { reset(); router.push('/join'); return; }
+          setSession({ code: ack.code, sessionToken: ack.sessionToken, playerId: ack.playerId });
+          applySnapshot(ack.snapshot);
+          storeSetSession({ code: ack.code, sessionToken: ack.sessionToken, playerId: ack.playerId });
+        });
+      };
+      if (existingToken && existingToken.code === code) {
+        socket.emit(EV.ROOM_JOIN, { code, nickname: '__rejoin__', sessionToken: existingToken.sessionToken }, (ack: any) => {
+          if (ack.ok) {
+            setSession({ code: ack.code, sessionToken: ack.sessionToken, playerId: ack.playerId });
+            applySnapshot(ack.snapshot);
+            storeSetSession({ code: ack.code, sessionToken: ack.sessionToken, playerId: ack.playerId });
+          } else {
+            fallback();
+          }
+        });
+      } else {
+        fallback();
+      }
     };
     socket.on('disconnect', onDisconnect);
     socket.on('connect', onConnect);

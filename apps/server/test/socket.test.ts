@@ -29,7 +29,7 @@ beforeAll(async () => {
   rooms = new RoomManager();
   rooms.ensureStaticRooms();
   const db = new Persistence(undefined); // no DB in tests
-  registerSocketHandlers(io, rooms, db);
+  registerSocketHandlers(io, rooms, db, 60); // short grace period for fast tests
   await new Promise<void>((resolve) => httpServer.listen(0, resolve));
   const addr = httpServer.address();
   port = typeof addr === 'object' && addr ? addr.port : 0;
@@ -110,24 +110,46 @@ describe('socket integration', () => {
     guest.close();
   });
 
-  it('a disconnected player is kicked out immediately (session invalid) and must join again fresh', async () => {
+  it('a dropped connection is kicked out only after the grace period expires (survives a brief phone app-switch)', async () => {
     const host = await connect();
     const guest = await connect();
     const created = await emit(host, 'room:create', { name: 'Room E', nickname: 'Host', hostPlays: true });
     const g = await emit(guest, 'room:join', { code: created.code, nickname: 'Guest' });
     guest.disconnect();
-    await new Promise((r) => setTimeout(r, 50));
-    const room = rooms.find(created.code)!;
+
+    // Marked disconnected immediately, but NOT removed yet (grace period is 60ms in this test).
+    await new Promise((r) => setTimeout(r, 15));
+    let room = rooms.find(created.code)!;
+    expect(room.members.map((m) => m.nickname)).toEqual(['Host', 'Guest']);
+    expect(room.members.find((m) => m.nickname === 'Guest')?.connected).toBe(false);
+
+    // Reconnecting with the same session token within the grace window cancels the kick.
+    const guest2 = await connect();
+    const rejoinAck = await emit(guest2, 'room:join', { code: created.code, nickname: 'ignored', sessionToken: g.sessionToken });
+    expect(rejoinAck.ok).toBe(true);
+    expect(rejoinAck.playerId).toBe(g.playerId);
+    await new Promise((r) => setTimeout(r, 80)); // past the original grace window — should NOT be kicked now
+    room = rooms.find(created.code)!;
+    expect(room.members.map((m) => m.nickname)).toEqual(['Host', 'Guest']);
+    guest2.close();
+
+    // A second drop, this time with nobody reconnecting — DOES get kicked once the grace expires.
+    const guest3 = await connect();
+    const g3 = await emit(guest3, 'room:join', { code: created.code, nickname: 'ignored', sessionToken: g.sessionToken });
+    expect(g3.ok).toBe(true);
+    guest3.disconnect();
+    await new Promise((r) => setTimeout(r, 90));
+    room = rooms.find(created.code)!;
     expect(room.members.map((m) => m.nickname)).toEqual(['Host']);
 
-    const guest2 = await connect();
-    const stale = await emit(guest2, 'room:join', { code: created.code, nickname: '__rejoin__', sessionToken: g.sessionToken });
+    const guest4 = await connect();
+    const stale = await emit(guest4, 'room:join', { code: created.code, nickname: '__rejoin__', sessionToken: g.sessionToken });
     expect(stale.ok).toBe(false);
     expect(stale.error).toBe('SESSION_INVALID');
-    const fresh = await emit(guest2, 'room:join', { code: created.code, nickname: 'Guest' });
+    const fresh = await emit(guest4, 'room:join', { code: created.code, nickname: 'Guest' });
     expect(fresh.ok).toBe(true);
     host.close();
-    guest2.close();
+    guest4.close();
   });
 
   it('has no player limit before start, and locks the room once the game starts', async () => {

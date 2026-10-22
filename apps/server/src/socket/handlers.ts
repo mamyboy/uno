@@ -17,6 +17,11 @@ const roomCh = (code: string) => `room:${code}`;
 const playerCh = (id: string) => `player:${id}`;
 const RATE_WINDOW_MS = 1000;
 const RATE_LIMIT_PER_WINDOW = 200; // generous cap per socket per second; blocks spam, not normal play
+/** Grace period before a dropped connection actually removes the player — long enough to survive
+ * a phone's "switch app briefly" background-throttling (iOS/Android suspend background tabs'
+ * WebSockets, which fires a normal socket.io 'disconnect'), short enough that an abandoned seat
+ * doesn't linger. Reconnecting with the same nickname/session within this window cancels the kick. */
+const DISCONNECT_GRACE_MS = 18_000;
 
 const sd = (s: Socket) => s.data as SocketData;
 
@@ -27,7 +32,19 @@ function errMessage(err: unknown): string {
   return 'UNKNOWN_ERROR';
 }
 
-export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persistence) {
+export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persistence, graceMs = DISCONNECT_GRACE_MS) {
+  // key: `${roomCode}:${playerId}` — pending "kick after grace period" timers for dropped sockets.
+  const pendingKicks = new Map<string, ReturnType<typeof setTimeout>>();
+  const kickKey = (code: string, playerId: string) => `${code}:${playerId}`;
+  const cancelPendingKick = (code: string, playerId: string) => {
+    const key = kickKey(code, playerId);
+    const t = pendingKicks.get(key);
+    if (t) {
+      clearTimeout(t);
+      pendingKicks.delete(key);
+    }
+  };
+
   const buildSync = (room: ServerRoom, member: ServerMember | null): SyncPayload => ({
     room: rooms.toPublicRoom(room),
     game: room.engine?.getPublicState() ?? null,
@@ -113,6 +130,7 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
         socket.join(roomCh(room.code));
         socket.join(playerCh(member.id));
         rooms.setConnected(room, member.id, true, socket.id);
+        cancelPendingKick(room.code, member.id);
         void db.roomCreated(room);
         return { snapshot: buildSync(room, member), sessionToken: member.sessionToken, playerId: member.id, code: room.code };
       });
@@ -137,6 +155,7 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
         socket.join(roomCh(room.code));
         socket.join(playerCh(member.id));
         rooms.setConnected(room, member.id, true, socket.id);
+        cancelPendingKick(room.code, member.id);
         if (rejoined) {
           io.to(roomCh(room.code)).emit(EV.PLAYER_RECONNECTED, { playerId: member.id });
         } else {
@@ -359,16 +378,31 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
       if (!code || !playerId) return;
       const room = rooms.find(code);
       if (!room) return;
-      // A dropped connection kicks the player out right away (seat + hand removed, game goes on
-      // for the rest) so they simply join again fresh instead of leaving a ghost seat behind.
+      // A dropped connection doesn't kick immediately — phones throttle/suspend a backgrounded
+      // tab's WebSocket the moment you switch apps, which looks identical to a real disconnect.
+      // Give it a grace period to reconnect (same nickname = same seat, see joinRoom) before
+      // actually removing the seat + hand, so a quick app-switch survives but an abandoned one
+      // doesn't linger forever.
       const member = rooms.getMember(room, playerId);
       if (member && member.socketId && member.socketId !== socket.id) return; // seat already taken over by a newer socket
-      rooms.removeMember(room, playerId);
+      rooms.setConnected(room, playerId, false, null);
       io.to(roomCh(room.code)).emit(EV.PLAYER_DISCONNECTED, { playerId });
-      if (rooms.find(room.code)) {
-        io.to(roomCh(room.code)).emit(EV.ROOM_PLAYER_LEFT, rooms.toPublicRoom(room));
-        emitRoom(room);
-      }
+      io.to(roomCh(room.code)).emit(EV.ROOM_STATE_UPDATED, rooms.toPublicRoom(room));
+
+      const key = kickKey(room.code, playerId);
+      const timer = setTimeout(() => {
+        pendingKicks.delete(key);
+        const r = rooms.find(room.code);
+        if (!r) return;
+        const m = rooms.getMember(r, playerId);
+        if (!m || m.connected) return; // reconnected (or already gone) in the meantime
+        rooms.removeMember(r, playerId);
+        if (rooms.find(r.code)) {
+          io.to(roomCh(r.code)).emit(EV.ROOM_PLAYER_LEFT, rooms.toPublicRoom(r));
+          emitRoom(r);
+        }
+      }, graceMs);
+      pendingKicks.set(key, timer);
     });
   });
 
