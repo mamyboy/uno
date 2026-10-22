@@ -1,5 +1,5 @@
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
-import { MIN_PLAYERS, nameKey, type GameResult, type Room, type RoomStatus, type StaticRoomSummary } from '@cma/shared';
+import { MAX_PLAYERS, MIN_PLAYERS, nameKey, type GameResult, type Room, type RoomStatus, type StaticRoomSummary } from '@cma/shared';
 import { GameEngine, GameError } from '../engine/GameEngine';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -41,10 +41,10 @@ export interface ServerRoom {
 }
 
 const STATIC_ROOM_DEFS: { code: string; name: string; maxPlayers: number }[] = [
-  { code: 'TABLE1', name: 'โต๊ะ 1 · เริ่มต้น', maxPlayers: 4 },
-  { code: 'TABLE2', name: 'โต๊ะ 2 · มือใหม่', maxPlayers: 4 },
-  { code: 'TABLE3', name: 'โต๊ะ 3 · สนุกสนาน', maxPlayers: 6 },
-  { code: 'TABLE4', name: 'โต๊ะ 4 · ท้าทาย', maxPlayers: 6 },
+  { code: 'TABLE1', name: 'โต๊ะ 1 · เริ่มต้น', maxPlayers: MAX_PLAYERS },
+  { code: 'TABLE2', name: 'โต๊ะ 2 · มือใหม่', maxPlayers: MAX_PLAYERS },
+  { code: 'TABLE3', name: 'โต๊ะ 3 · สนุกสนาน', maxPlayers: MAX_PLAYERS },
+  { code: 'TABLE4', name: 'โต๊ะ 4 · ท้าทาย', maxPlayers: MAX_PLAYERS },
 ];
 
 export class RoomManager {
@@ -119,11 +119,11 @@ export class RoomManager {
     return best && best.wins > 0 ? { nickname: best.nickname, wins: best.wins } : null;
   }
 
-  createRoom(input: { name: string; nickname: string; maxPlayers: number; hostPlays: boolean }) {
+  createRoom(input: { name: string; nickname: string; maxPlayers?: number; hostPlays: boolean }) {
     const code = this.generateCode();
     const host = this.newMember(input.nickname, true, input.hostPlays);
     const room: ServerRoom = {
-      id: randomUUID(), code, name: input.name, hostId: host.id, maxPlayers: input.maxPlayers,
+      id: randomUUID(), code, name: input.name, hostId: host.id, maxPlayers: MAX_PLAYERS,
       status: 'WAITING', members: [host], createdAt: new Date(), engine: null, lastResult: null,
       isStatic: false, leaderboard: new Map(),
     };
@@ -138,14 +138,17 @@ export class RoomManager {
     if (sessionToken) {
       const existing = this.resolveSession(code, sessionToken);
       if (existing) return { ...existing, rejoined: true };
+      // Stale token (e.g. the player was kicked on disconnect): never silently join as a new
+      // player under a placeholder name — the client falls back to a fresh join by nickname.
+      throw new GameError('SESSION_INVALID');
     }
     const name = nickname.trim().replace(/\s+/g, ' ');
     // Same name = same person: re-claim that member's seat (e.g. a refresh, a new device, or a
     // cleared browser session) instead of creating a duplicate player — works mid-game too.
     const sameName = room.members.find((m) => nameKey(m.nickname) === nameKey(name));
     if (sameName) return { room, member: sameName, rejoined: true, previousSocketId: sameName.socketId };
+    // No player limit — the room only locks once the game has started.
     if (room.status === 'PLAYING') throw new GameError('ROOM_IN_GAME');
-    if (this.players(room).length >= room.maxPlayers) throw new GameError('ROOM_FULL');
     const becomesHost = room.members.length === 0;
     const member = this.newMember(name, becomesHost, true);
     member.seatIndex = this.players(room).length;
@@ -247,7 +250,6 @@ export class RoomManager {
     if (room.status === 'PLAYING') throw new GameError('GAME_IN_PROGRESS');
     const host = room.members.find((m) => m.id === room.hostId)!;
     if (host.isPlayer === hostPlays) return;
-    if (hostPlays && this.players(room).length >= room.maxPlayers) throw new GameError('ROOM_FULL');
     host.isPlayer = hostPlays;
     host.seatIndex = hostPlays ? Number.MAX_SAFE_INTEGER : -1;
     this.reseat(room);

@@ -129,7 +129,7 @@ export default function JoinRoomPage() {
           </label>
           <div className="space-y-2">
             {staticRooms.map((r) => {
-              const full = r.playerCount >= r.maxPlayers;
+              const full = false; // no player limit
               const inGame = r.status === 'PLAYING';
               // Same name = same person: the server lets you re-claim your seat even mid-game/full.
               const disabled = loading;
@@ -151,7 +151,7 @@ export default function JoinRoomPage() {
                       <span className="block text-xs text-zinc-500 font-mono">{r.code}</span>
                     </span>
                     <span className="flex items-center gap-2 text-xs">
-                      <Users className="w-3.5 h-3.5" /> {r.playerCount}/{r.maxPlayers}
+                      <Users className="w-3.5 h-3.5" /> {r.playerCount} คน
                       {inGame && <span className="text-amber-400">กำลังเล่น</span>}
                       {full && !inGame && <span className="text-red-400">เต็ม</span>}
                     </span>

@@ -15,7 +15,6 @@ export default function CreateRoomPage() {
   const router = useRouter();
   const [roomName, setRoomName] = useState('ห้องของฉัน');
   const [nickname, setNickname] = useState('');
-  const [maxPlayers, setMaxPlayers] = useState(4);
   const [hostPlays, setHostPlays] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -37,7 +36,7 @@ export default function CreateRoomPage() {
 
     socket.emit(
       EV.ROOM_CREATE,
-      { name: roomName, nickname, maxPlayers, hostPlays },
+      { name: roomName, nickname, hostPlays },
       (ack: any) => {
         setLoading(false);
         if (!ack.ok) {
@@ -105,19 +104,7 @@ export default function CreateRoomPage() {
               maxLength={16}
             />
           </div>
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
-              จำนวนผู้เล่นสูงสุด ({maxPlayers} คน)
-            </label>
-            <input
-              type="range"
-              min={2}
-              max={10}
-              value={maxPlayers}
-              onChange={(e) => setMaxPlayers(Number(e.target.value))}
-              className="w-full accent-emerald-500"
-            />
-          </div>
+          <p className="text-xs text-zinc-500">👥 ไม่จำกัดจำนวนผู้เล่น — เข้าได้จนกว่าจะกดเริ่มเกม</p>
           <div className="flex items-center justify-between py-2">
             <span className="text-sm font-medium text-zinc-300">เข้าร่วมเล่นด้วย</span>
             <input

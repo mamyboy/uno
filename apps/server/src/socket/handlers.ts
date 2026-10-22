@@ -359,9 +359,16 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
       if (!code || !playerId) return;
       const room = rooms.find(code);
       if (!room) return;
-      rooms.setConnected(room, playerId, false, null);
+      // A dropped connection kicks the player out right away (seat + hand removed, game goes on
+      // for the rest) so they simply join again fresh instead of leaving a ghost seat behind.
+      const member = rooms.getMember(room, playerId);
+      if (member && member.socketId && member.socketId !== socket.id) return; // seat already taken over by a newer socket
+      rooms.removeMember(room, playerId);
       io.to(roomCh(room.code)).emit(EV.PLAYER_DISCONNECTED, { playerId });
-      io.to(roomCh(room.code)).emit(EV.ROOM_STATE_UPDATED, rooms.toPublicRoom(room));
+      if (rooms.find(room.code)) {
+        io.to(roomCh(room.code)).emit(EV.ROOM_PLAYER_LEFT, rooms.toPublicRoom(room));
+        emitRoom(room);
+      }
     });
   });
 

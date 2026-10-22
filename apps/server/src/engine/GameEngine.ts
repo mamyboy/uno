@@ -120,7 +120,10 @@ export class GameEngine {
     this.now = opts.now ?? Date.now;
     const handSize = opts.handSize ?? HAND_SIZE;
 
-    const deck = opts.deck ? [...opts.deck] : shuffle(createDeck(), this.rng);
+    // Unlimited room size: add extra full decks whenever one deck can't comfortably deal everyone
+    // (keep at least ~40% of the cards for the draw pile).
+    const deckCount = Math.max(1, Math.ceil((playerIds.length * handSize) / (createDeck().length * 0.6)));
+    const deck = opts.deck ? [...opts.deck] : shuffle(Array.from({ length: deckCount }, () => createDeck()).flat(), this.rng);
     if (deck.length < playerIds.length * handSize + 1) throw new GameError('DECK_TOO_SMALL');
     this.shuffledDeck = [...deck];
     this.seatOrder = [...playerIds];

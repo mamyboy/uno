@@ -15,7 +15,8 @@ export type RoomStatus = 'WAITING' | 'PLAYING' | 'FINISHED';
 export type GameStatus = 'CHOOSING_DIRECTION' | 'PLAYING' | 'FINISHED';
 
 export const MIN_PLAYERS = 2;
-export const MAX_PLAYERS = 10;
+/** No practical room limit — anyone can join until the game starts (then the room locks). */
+export const MAX_PLAYERS = 100;
 export const HAND_SIZE = 7;
 
 /** Soundboard clips — all from myinstants.com (Thailand index), served from /sounds/mi/<id>.mp3. */

@@ -171,7 +171,7 @@ export default function BoardPage() {
 
       {room.status === 'WAITING' && (
         <div className="text-center space-y-4 relative z-10">
-          <p className="text-xl text-zinc-300">กำลังรอผู้เล่น ({players.length}/{room.maxPlayers})</p>
+          <p className="text-xl text-zinc-300">กำลังรอผู้เล่น ({players.length} คน)</p>
           <div className="flex gap-4 flex-wrap justify-center">
             {players.map((p, i) => (
               <motion.div

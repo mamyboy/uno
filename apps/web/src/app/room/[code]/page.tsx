@@ -123,8 +123,20 @@ export default function RoomPage() {
           applyRememberedAvatarIfNeeded(ack.snapshot, ack.playerId);
           setJoining(false);
         } else {
+          // Kicked on disconnect (or session expired): join again fresh with the remembered name.
           removeSession();
-          setJoining(false);
+          const name = getProfile()?.nickname;
+          if (!name) return setJoining(false);
+          socket.emit(EV.ROOM_JOIN, { code, nickname: name }, (ack2: any) => {
+            if (ack2.ok) {
+              setSession({ code: ack2.code, sessionToken: ack2.sessionToken, playerId: ack2.playerId });
+              applySnapshot(ack2.snapshot);
+              storeSetSession({ code: ack2.code, sessionToken: ack2.sessionToken, playerId: ack2.playerId });
+            } else {
+              setError(ack2.error === 'ROOM_IN_GAME' ? 'หลุดการเชื่อมต่อระหว่างเกม — เกมกำลังเล่นอยู่ รอรอบถัดไปแล้วเข้าใหม่ได้เลย' : ack2.error);
+            }
+            setJoining(false);
+          });
         }
       });
     } else {
@@ -164,6 +176,25 @@ export default function RoomPage() {
     socket.on(EV.GAME_GAME_OVER, onGameOver);
     socket.on(EV.ROOM_KICKED, onKicked);
     socket.on(EV.SESSION_REPLACED, onReplaced);
+    // The server kicks a player the moment their connection drops — so after a live reconnect,
+    // re-enter the room fresh (same name) instead of sitting on a dead session.
+    let dropped = false;
+    const onDisconnect = () => { dropped = true; };
+    const onConnect = () => {
+      if (!dropped) return;
+      dropped = false;
+      removeSession();
+      const name = getProfile()?.nickname;
+      if (!name) { reset(); router.push('/join'); return; }
+      socket.emit(EV.ROOM_JOIN, { code, nickname: name }, (ack: any) => {
+        if (!ack.ok) { reset(); router.push('/join'); return; }
+        setSession({ code: ack.code, sessionToken: ack.sessionToken, playerId: ack.playerId });
+        applySnapshot(ack.snapshot);
+        storeSetSession({ code: ack.code, sessionToken: ack.sessionToken, playerId: ack.playerId });
+      });
+    };
+    socket.on('disconnect', onDisconnect);
+    socket.on('connect', onConnect);
 
     return () => {
       socket.off(EV.ROOM_STATE_UPDATED, onRoomUpdate);
@@ -174,6 +205,8 @@ export default function RoomPage() {
       socket.off(EV.GAME_GAME_OVER, onGameOver);
       socket.off(EV.ROOM_KICKED, onKicked);
       socket.off(EV.SESSION_REPLACED, onReplaced);
+      socket.off('disconnect', onDisconnect);
+      socket.off('connect', onConnect);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
@@ -560,7 +593,7 @@ export default function RoomPage() {
         {room.status === 'WAITING' && (
           <section className="rounded-2xl bg-zinc-900/80 backdrop-blur border border-zinc-800 p-4 sm:p-6 space-y-4 shadow-xl">
             <div className="flex items-center gap-2 text-zinc-300">
-              <Users className="w-5 h-5" /> ผู้เล่นในห้อง ({players.length}/{room.maxPlayers})
+              <Users className="w-5 h-5" /> ผู้เล่นในห้อง ({players.length} คน · ไม่จำกัด)
             </div>
             <ul className="space-y-2">
               {room.players.map((p: Player, i: number) => (

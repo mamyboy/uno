@@ -110,18 +110,38 @@ describe('socket integration', () => {
     guest.close();
   });
 
-  it('supports reconnect with the same session token after disconnect', async () => {
+  it('a disconnected player is kicked out immediately (session invalid) and must join again fresh', async () => {
     const host = await connect();
-    const created = await emit(host, 'room:create', { name: 'Room E', nickname: 'Host', maxPlayers: 4, hostPlays: true });
-    host.disconnect();
-
+    const guest = await connect();
+    const created = await emit(host, 'room:create', { name: 'Room E', nickname: 'Host', hostPlays: true });
+    const g = await emit(guest, 'room:join', { code: created.code, nickname: 'Guest' });
+    guest.disconnect();
     await new Promise((r) => setTimeout(r, 50));
+    const room = rooms.find(created.code)!;
+    expect(room.members.map((m) => m.nickname)).toEqual(['Host']);
 
-    const host2 = await connect();
-    const rejoinAck = await emit(host2, 'room:join', { code: created.code, nickname: 'ignored', sessionToken: created.sessionToken });
-    expect(rejoinAck.ok).toBe(true);
-    expect(rejoinAck.playerId).toBe(created.playerId);
-    host2.close();
+    const guest2 = await connect();
+    const stale = await emit(guest2, 'room:join', { code: created.code, nickname: '__rejoin__', sessionToken: g.sessionToken });
+    expect(stale.ok).toBe(false);
+    expect(stale.error).toBe('SESSION_INVALID');
+    const fresh = await emit(guest2, 'room:join', { code: created.code, nickname: 'Guest' });
+    expect(fresh.ok).toBe(true);
+    host.close();
+    guest2.close();
+  });
+
+  it('has no player limit before start, and locks the room once the game starts', async () => {
+    const sockets = await Promise.all(Array.from({ length: 14 }, () => connect()));
+    const created = await emit(sockets[0], 'room:create', { name: 'Big', nickname: 'P0', hostPlays: true });
+    for (let i = 1; i < 14; i++) {
+      expect((await emit(sockets[i], 'room:join', { code: created.code, nickname: `P${i}` })).ok).toBe(true);
+    }
+    expect((await emit(sockets[0], 'game:start', {})).ok).toBe(true); // 14 players → engine adds a 2nd deck
+    const late = await connect();
+    const lateAck = await emit(late, 'room:join', { code: created.code, nickname: 'Late' });
+    expect(lateAck.ok).toBe(false);
+    expect(lateAck.error).toBe('ROOM_IN_GAME');
+    [...sockets, late].forEach((s) => s.close());
   });
 
   it('game:play_cards rejects a stack with duplicate card ids', async () => {

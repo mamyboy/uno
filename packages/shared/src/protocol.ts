@@ -49,7 +49,7 @@ export const schemas = {
   createRoom: z.object({
     name: z.string().trim().min(1).max(40),
     nickname,
-    maxPlayers: z.number().int().min(MIN_PLAYERS).max(MAX_PLAYERS),
+    maxPlayers: z.number().int().min(MIN_PLAYERS).max(MAX_PLAYERS).optional(),
     hostPlays: z.boolean(),
   }),
   joinRoom: z.object({ code, nickname, sessionToken: z.string().max(100).optional() }),
