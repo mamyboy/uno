@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
 import { Camera, Crown, Eraser, Loader2, LogOut, RotateCcw, Trash2, Trophy, Tv, Users, WifiOff } from 'lucide-react';
@@ -17,6 +17,7 @@ import { Soundboard } from '@/components/game/Soundboard';
 import { GameFx } from '@/components/game/GameFx';
 import { PlayHistory } from '@/components/game/PlayHistory';
 import { TurnBanner } from '@/components/game/TurnBanner';
+import { SeatArrow, SeatWrap } from '@/components/game/SeatArrow';
 import { Button, LinkButton } from '@/components/ui/Button';
 
 const COLOR_LABEL: Record<string, string> = { RED: 'แดง', YELLOW: 'เหลือง', GREEN: 'เขียว', BLUE: 'น้ำเงิน' };
@@ -384,6 +385,8 @@ export default function RoomPage() {
       // legally counter/open" rule.
       if (DRAW_FAMILY.has(firstCard.kind)) {
         if (!DRAW_FAMILY.has(card.kind)) return prev;
+        // Answering a combo: Wild Draws and Draw Twos can't be mixed in one move.
+        if (game?.pendingDraw?.targetId === session?.playerId && (firstCard.kind === 'DRAW_TWO') !== (card.kind === 'DRAW_TWO')) return prev;
       } else if (firstCard.kind !== card.kind) {
         return prev;
       } else if (firstCard.kind === 'NUMBER') {
@@ -739,13 +742,18 @@ export default function RoomPage() {
               )}
 
               {/* player ring */}
-              <div className="flex flex-wrap gap-3 justify-center pt-2">
+              <div className="flex flex-wrap gap-x-1.5 gap-y-3 items-start justify-center pt-2">
                 {seated.map((p: Player, seatNo: number) => {
                   const isCurrent = p.id === game.currentPlayerId;
                   const finishRank = game.finishedOrder.indexOf(p.id);
                   const hasFinished = finishRank >= 0;
+                  const activeN = game.seatOrder.length;
+                  const isActive = seatNo < activeN;
+                  const dir = game.direction;
                   return (
-                    <motion.div key={p.id} layout transition={{ type: 'spring', stiffness: 300, damping: 26 }} className="flex flex-col items-center gap-1">
+                    <Fragment key={p.id}>
+                    {seatNo === 0 && dir === 'LEFT' && activeN > 1 && <SeatWrap direction={dir} toName={nameOf(game.seatOrder[activeN - 1])} />}
+                    <motion.div layout transition={{ type: 'spring', stiffness: 300, damping: 26 }} className="flex flex-col items-center gap-1">
                       <motion.div
                         className={`relative rounded-full border-2 ${
                           hasFinished ? 'border-yellow-400' : isCurrent ? 'border-emerald-300 animate-turn-ring' : 'border-zinc-600'
@@ -765,6 +773,9 @@ export default function RoomPage() {
                         {hasFinished ? `ชนะอันดับที่ ${finishRank + 1}` : `${p.cardCount} ใบ`}
                       </span>
                     </motion.div>
+                    {isActive && seatNo < activeN - 1 && <SeatArrow direction={dir} />}
+                    {isActive && seatNo === activeN - 1 && dir === 'RIGHT' && activeN > 1 && <SeatWrap direction={dir} toName={nameOf(game.seatOrder[0])} />}
+                    </Fragment>
                   );
                 })}
               </div>
@@ -843,7 +854,10 @@ export default function RoomPage() {
                           ? firstSelected.value === c.value
                           : firstSelected.kind === 'SKIP' || firstSelected.kind === 'REVERSE');
                       const DRAW_FAM = ['DRAW_TWO', 'WILD_DRAW_TWO', 'WILD_DRAW_FOUR', 'WILD_DRAW_EIGHT'];
-                      const canStackDraw = !!firstSelected && DRAW_FAM.includes(firstSelected.kind) && DRAW_FAM.includes(c.kind);
+                      const defendingNow = game?.pendingDraw?.targetId === session?.playerId;
+                      const canStackDraw =
+                        !!firstSelected && DRAW_FAM.includes(firstSelected.kind) && DRAW_FAM.includes(c.kind) &&
+                        (!defendingNow || (firstSelected.kind === 'DRAW_TWO') === (c.kind === 'DRAW_TWO'));
                       const clickable = hand.isMyTurn && (hand.playableCardIds.includes(c.id) || canStack || canStackDraw);
                       return (
                         <motion.div key={c.id} layout className="relative" exit={{ opacity: 0, y: 30, scale: 0.6 }}>

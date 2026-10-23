@@ -5,9 +5,17 @@ import { AnimatePresence, motion } from 'motion/react';
 import type { GameResult, GameState } from '@cma/shared';
 import { playClip } from '@/lib/sounds';
 
+type ComboVariant = 'D2' | 'WD2' | 'WD4' | 'WD8';
+const COMBO_STYLE: Record<ComboVariant, { label: string; ring: string; flash: string; grad: string; border: string; emojis: string[]; sound: string; sound2?: string }> = {
+  D2: { label: '🔥 คอมโบไฟ', ring: 'border-orange-400/80', flash: 'bg-orange-500', grad: 'from-yellow-100 via-orange-400 to-red-600', border: 'border-orange-300', emojis: ['🔥', '🔥', '💥'], sound: 'vine-boom' },
+  WD2: { label: '🌈 คอมโบสายรุ้ง', ring: 'border-fuchsia-300/80', flash: 'bg-fuchsia-500', grad: 'from-pink-200 via-fuchsia-400 to-indigo-500', border: 'border-fuchsia-300', emojis: ['🌈', '✨', '💫'], sound: 'faaah' },
+  WD4: { label: '⚡ คอมโบสายฟ้า', ring: 'border-violet-300/90', flash: 'bg-violet-700', grad: 'from-white via-violet-300 to-violet-700', border: 'border-violet-300', emojis: ['⚡', '⚡', '🌩️'], sound: 'among-us-role-reveal-sound' },
+  WD8: { label: '☢️ คอมโบนิวเคลียร์', ring: 'border-yellow-200/90', flash: 'bg-white', grad: 'from-white via-yellow-300 to-red-700', border: 'border-yellow-300', emojis: ['💣', '☢️', '💥'], sound: 'mlg-airhorn', sound2: 'fahhhhhhhhhhhhhh' },
+};
+
 type Fx =
   | { key: string; type: 'COMBO'; name: string; count: number }
-  | { key: string; type: 'COMBO_UP'; from: string; to: string; count: number; added: number }
+  | { key: string; type: 'COMBO_UP'; from: string; to: string; count: number; added: number; variant: ComboVariant }
   | { key: string; type: 'REFLECT'; from: string; to: string; count: number }
   | { key: string; type: 'VANISH'; name: string; count: number }
   | { key: string; type: 'SHIELD'; from: string; to: string; count: number }
@@ -63,8 +71,12 @@ export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | n
         const added = cards.reduce((n, c) => n + (c.kind === 'DRAW_TWO' || c.kind === 'WILD_DRAW_TWO' ? 2 : c.kind === 'WILD_DRAW_FOUR' ? 4 : c.kind === 'WILD_DRAW_EIGHT' ? 8 : 0), 0);
         if (added > 0) {
           const total = game.pendingDraw.count;
-          setFx({ key: `u${h.seq}`, type: 'COMBO_UP', from: nameRef.current(h.playerId), to: nameRef.current(game.pendingDraw.targetId), count: total, added });
-          playClip(total >= 8 ? 'fahhhhhhhhhhhhhh' : 'vine-boom', 1);
+          const kinds = cards.map((c) => c.kind);
+          const variant: ComboVariant = kinds.includes('WILD_DRAW_EIGHT') ? 'WD8' : kinds.includes('WILD_DRAW_FOUR') ? 'WD4' : kinds.includes('WILD_DRAW_TWO') ? 'WD2' : 'D2';
+          setFx({ key: `u${h.seq}`, type: 'COMBO_UP', from: nameRef.current(h.playerId), to: nameRef.current(game.pendingDraw.targetId), count: total, added, variant });
+          const st = COMBO_STYLE[variant];
+          playClip(st.sound, 1);
+          if (st.sound2) setTimeout(() => playClip(st.sound2!, 1), 350);
           return;
         }
       }
@@ -95,7 +107,7 @@ export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | n
 
   useEffect(() => {
     if (!fx) return;
-    const t = setTimeout(() => setFx(null), fx.type === 'COMBO' ? 2300 : fx.type === 'COMBO_UP' ? 1600 : fx.type === 'SHUFFLE' ? 3000 : 2000);
+    const t = setTimeout(() => setFx(null), fx.type === 'COMBO' ? 2300 : fx.type === 'COMBO_UP' ? (fx.variant === 'WD8' ? 2200 : 1700) : fx.type === 'SHUFFLE' ? 3000 : 2000);
     return () => clearTimeout(t);
   }, [fx]);
 
@@ -117,40 +129,103 @@ export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | n
   return (
     <>
       <AnimatePresence>
-        {fx?.type === 'COMBO_UP' && (
-          <motion.div
-            key={fx.key}
-            className="fixed inset-0 z-[80] pointer-events-none flex items-center justify-center overflow-hidden"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1, x: [0, -8, 7, -5, 3, 0] }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
-          >
-            <motion.div className="absolute inset-0 bg-orange-500" initial={{ opacity: 0.35 }} animate={{ opacity: 0 }} transition={{ duration: 0.5 }} />
+        {fx?.type === 'COMBO_UP' && (() => {
+          const st = COMBO_STYLE[fx.variant];
+          const v = fx.variant;
+          return (
             <motion.div
-              className="absolute w-[60vmin] h-[60vmin] rounded-full border-[12px] border-orange-400/80"
-              initial={{ scale: 0.1, opacity: 1 }}
-              animate={{ scale: 1.8, opacity: 0 }}
-              transition={{ duration: 0.8, ease: 'easeOut' }}
-            />
-            <motion.div
-              className="relative text-center"
-              initial={{ scale: 2.4, rotate: 10, opacity: 0 }}
-              animate={{ scale: [2.4, 0.95, 1.05, 1], rotate: [10, -3, 1, 0], opacity: 1 }}
-              transition={{ duration: 0.45, ease: 'easeOut' }}
+              key={fx.key}
+              className="fixed inset-0 z-[80] pointer-events-none flex items-center justify-center overflow-hidden"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1, x: v === 'WD8' ? [0, -22, 20, -16, 12, -8, 4, 0] : [0, -8, 7, -5, 3, 0], y: v === 'WD8' ? [0, 12, -14, 8, -4, 0] : 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: v === 'WD8' ? 0.8 : 0.4 }}
             >
-              <div
-                className="font-black leading-none text-[18vw] sm:text-[8rem] bg-gradient-to-b from-yellow-100 via-orange-400 to-red-600 bg-clip-text text-transparent"
-                style={{ WebkitTextStroke: '3px #3b0a00', filter: 'drop-shadow(0 6px 0 rgba(0,0,0,0.5))' }}
+              {/* flash */}
+              {v === 'WD4' ? (
+                <motion.div className={`absolute inset-0 ${st.flash}`} initial={{ opacity: 0 }} animate={{ opacity: [0, 0.75, 0.1, 0.65, 0, 0.4, 0] }} transition={{ duration: 0.9 }} />
+              ) : (
+                <motion.div className={`absolute inset-0 ${st.flash}`} initial={{ opacity: v === 'WD8' ? 0.95 : 0.35 }} animate={{ opacity: 0 }} transition={{ duration: v === 'WD8' ? 0.9 : 0.5 }} />
+              )}
+
+              {/* variant background */}
+              {v === 'D2' && (
+                <motion.div className={`absolute w-[60vmin] h-[60vmin] rounded-full border-[12px] ${st.ring}`} initial={{ scale: 0.1, opacity: 1 }} animate={{ scale: 1.8, opacity: 0 }} transition={{ duration: 0.8, ease: 'easeOut' }} />
+              )}
+              {v === 'WD2' && (
+                <motion.div
+                  className="absolute w-[90vmin] h-[90vmin] rounded-full opacity-60"
+                  style={{ background: 'conic-gradient(#ff2d55, #ffc800, #14d97c, #2f7bff, #b388ff, #ff2d55)', maskImage: 'radial-gradient(circle, transparent 30%, black 31%, black 45%, transparent 46%)', WebkitMaskImage: 'radial-gradient(circle, transparent 30%, black 31%, black 45%, transparent 46%)' }}
+                  initial={{ scale: 0.2, rotate: 0 }}
+                  animate={{ scale: 1.4, rotate: 360, opacity: [0.8, 0.8, 0] }}
+                  transition={{ duration: 1.3, ease: 'easeOut' }}
+                />
+              )}
+              {v === 'WD4' &&
+                [12, 38, 64, 86].map((left, i) => (
+                  <motion.svg
+                    key={i}
+                    viewBox="0 0 40 100"
+                    className="absolute top-0 w-10 h-[55vh]"
+                    style={{ left: `${left}%` }}
+                    initial={{ opacity: 0, y: -40 }}
+                    animate={{ opacity: [0, 1, 0, 1, 0], y: 0 }}
+                    transition={{ duration: 0.7, delay: i * 0.08 }}
+                  >
+                    <polygon points="22,0 6,55 20,55 12,100 36,38 22,38 30,0" fill="#fff" stroke="#a78bfa" strokeWidth="2" />
+                  </motion.svg>
+                ))}
+              {v === 'WD8' &&
+                [0, 0.12, 0.24].map((d, i) => (
+                  <motion.div
+                    key={i}
+                    className={`absolute w-[50vmin] h-[50vmin] rounded-full border-[16px] ${st.ring}`}
+                    initial={{ scale: 0.1, opacity: 1 }}
+                    animate={{ scale: 2.6, opacity: 0 }}
+                    transition={{ duration: 1.1, delay: d, ease: 'easeOut' }}
+                  />
+                ))}
+
+              {/* flying emojis */}
+              {Array.from({ length: v === 'WD8' ? 18 : 10 }).map((_, i, arr) => (
+                <motion.span
+                  key={i}
+                  className="absolute text-3xl sm:text-4xl"
+                  initial={{ x: 0, y: v === 'D2' ? 120 : 0, scale: 0.4, opacity: 1 }}
+                  animate={
+                    v === 'D2'
+                      ? { x: (i - arr.length / 2) * 38, y: -260 - (i % 3) * 40, scale: 1.2, opacity: 0 }
+                      : { x: Math.cos((i / arr.length) * Math.PI * 2) * (v === 'WD8' ? 420 : 280), y: Math.sin((i / arr.length) * Math.PI * 2) * (v === 'WD8' ? 320 : 220), scale: 1.3, opacity: 0, rotate: 180 }
+                  }
+                  transition={{ duration: v === 'WD8' ? 1.3 : 1, ease: 'easeOut' }}
+                >
+                  {st.emojis[i % st.emojis.length]}
+                </motion.span>
+              ))}
+
+              {/* number + caption */}
+              <motion.div
+                className="relative text-center"
+                initial={{ scale: v === 'WD8' ? 4 : 2.4, rotate: v === 'WD4' ? -15 : 10, opacity: 0 }}
+                animate={{ scale: [v === 'WD8' ? 4 : 2.4, 0.92, 1.06, 1], rotate: [v === 'WD4' ? -15 : 10, -3, 1, 0], opacity: 1 }}
+                transition={{ duration: 0.5, ease: 'easeOut' }}
               >
-                +{fx.count}
-              </div>
-              <div className="mt-1 inline-block px-4 py-1.5 rounded-2xl bg-black/80 border-2 border-orange-300 text-lg sm:text-2xl font-black text-white">
-                🔥 {fx.from} ส่งคอมโบ{fx.added !== fx.count ? ` (+${fx.added})` : ''} ➜ {fx.to}
-              </div>
+                <div className="text-sm sm:text-base font-black tracking-wide text-white drop-shadow mb-1">{st.label}</div>
+                <motion.div
+                  className={`font-black leading-none ${v === 'WD8' ? 'text-[24vw] sm:text-[11rem]' : 'text-[18vw] sm:text-[8rem]'} bg-gradient-to-b ${st.grad} bg-clip-text text-transparent`}
+                  style={{ WebkitTextStroke: '3px #2a0a00', filter: 'drop-shadow(0 6px 0 rgba(0,0,0,0.5))' }}
+                  animate={v === 'WD2' ? { filter: ['hue-rotate(0deg) drop-shadow(0 6px 0 rgba(0,0,0,0.5))', 'hue-rotate(360deg) drop-shadow(0 6px 0 rgba(0,0,0,0.5))'] } : undefined}
+                  transition={v === 'WD2' ? { duration: 1.2, repeat: 1 } : undefined}
+                >
+                  +{fx.count}
+                </motion.div>
+                <div className={`mt-1 inline-block px-4 py-1.5 rounded-2xl bg-black/80 border-2 ${st.border} text-lg sm:text-2xl font-black text-white`}>
+                  {fx.from} ส่งคอมโบ{fx.added !== fx.count ? ` (+${fx.added})` : ''} ➜ {fx.to}
+                </div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
+          );
+        })()}
 
         {fx?.type === 'COMBO' && (
           <motion.div

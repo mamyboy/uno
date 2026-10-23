@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
 import { Trophy } from 'lucide-react';
@@ -11,6 +11,7 @@ import { Confetti } from '@/components/game/Confetti';
 import { ActionEffect } from '@/components/game/ActionEffect';
 import { Soundboard } from '@/components/game/Soundboard';
 import { GameFx } from '@/components/game/GameFx';
+import { SeatArrow, SeatWrap } from '@/components/game/SeatArrow';
 import { PlayHistory } from '@/components/game/PlayHistory';
 
 const COLOR_LABEL: Record<string, string> = { RED: 'แดง', YELLOW: 'เหลือง', GREEN: 'เขียว', BLUE: 'น้ำเงิน' };
@@ -278,19 +279,23 @@ export default function BoardPage() {
             )}
           </motion.div>
 
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-4">
             {seated.map((p, seatNo) => {
               const isCurrent = p.id === game.currentPlayerId;
               const finishRank = game.finishedOrder.indexOf(p.id);
               const hasFinished = finishRank >= 0;
+              const activeN = game.seatOrder.length;
+              const isActive = seatNo < activeN;
+              const dir = game.direction;
               return (
+                <Fragment key={p.id}>
+                {seatNo === 0 && dir === 'LEFT' && activeN > 1 && <SeatWrap direction={dir} toName={nameOf(game.seatOrder[activeN - 1])} size="lg" />}
                 <motion.div
-                  key={p.id}
                   layout
                   data-seat={seatNo + 1}
                   animate={isCurrent && !hasFinished ? { scale: [1, 1.04, 1] } : {}}
                   transition={{ duration: 1.3, repeat: isCurrent && !hasFinished ? Infinity : 0 }}
-                  className={`rounded-2xl p-4 text-center border-2 ${
+                  className={`w-32 sm:w-36 rounded-2xl p-4 text-center border-2 ${
                     hasFinished
                       ? 'border-yellow-400 bg-yellow-400/10'
                       : isCurrent ? 'border-emerald-400 bg-emerald-400/10 animate-turn-ring' : 'border-white/10 bg-white/5'
@@ -310,6 +315,9 @@ export default function BoardPage() {
                   </p>
                   {!p.connected && <p className="text-xs text-red-400">หลุดการเชื่อมต่อ</p>}
                 </motion.div>
+                {isActive && seatNo < activeN - 1 && <SeatArrow direction={dir} size="lg" />}
+                {isActive && seatNo === activeN - 1 && dir === 'RIGHT' && activeN > 1 && <SeatWrap direction={dir} toName={nameOf(game.seatOrder[0])} size="lg" />}
+                </Fragment>
               );
             })}
           </div>

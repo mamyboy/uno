@@ -715,23 +715,46 @@ describe('GameEngine', () => {
       expect(() => engine.playCard('p2', 'p2-0', engine.turnNumber, 'BLUE')).toThrow(/MUST_COUNTER_OR_DRAW/);
     });
 
-    it('DRAW_TWO counters a pending +2-family combo regardless of color (color-match requirement removed)', () => {
+    it('DRAW_TWO continues a DRAW_TWO combo only in the SAME color', () => {
       const openingDrawTwo = { id: 'p1-0', kind: 'DRAW_TWO' as const, color: 'RED' as const };
       const p1Filler = { id: 'p1-1', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 5 };
-      const counterBlue = { id: 'p2-0', kind: 'DRAW_TWO' as const, color: 'BLUE' as const }; // different color — now legal
-      const p2Filler = { id: 'p2-1', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 6 };
+      const counterBlue = { id: 'p2-0', kind: 'DRAW_TWO' as const, color: 'BLUE' as const };
+      const counterRed = { id: 'p2-1', kind: 'DRAW_TWO' as const, color: 'RED' as const };
+      const p2Filler = { id: 'p2-2', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 6 };
+      const p1Filler2 = { id: 'p1-2', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 7 };
       const top = { id: 'top', kind: 'NUMBER' as const, color: 'RED' as const, value: 9 };
       const rest = Array.from({ length: 20 }, (_, i) => ({ id: `rest-${i}`, kind: 'NUMBER' as const, color: 'YELLOW' as const, value: i % 10 }));
-      const deck = [openingDrawTwo, counterBlue, p1Filler, p2Filler, top, ...rest];
-      const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
+      // deal (2p, hand 3): p1,p2,p1,p2,p1,p2
+      const deck = [openingDrawTwo, counterBlue, p1Filler, counterRed, p1Filler2, p2Filler, top, ...rest];
+      const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 3 });
       engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
       engine.playCard('p1', 'p1-0', engine.turnNumber);
       expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 2, targetId: 'p2' });
 
-      expect(engine.getPlayableIds('p2')).toContain('p2-0');
-      engine.playCard('p2', 'p2-0', engine.turnNumber);
+      expect(engine.getPlayableIds('p2')).not.toContain('p2-0'); // blue can't answer a red +2
+      expect(engine.getPlayableIds('p2')).toContain('p2-1');
+      expect(() => engine.playCard('p2', 'p2-0', engine.turnNumber)).toThrow('MUST_COUNTER_OR_DRAW');
+      engine.playCard('p2', 'p2-1', engine.turnNumber);
       expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 4, targetId: 'p1' });
-      expect(engine.topCard.color).toBe('BLUE');
+    });
+
+    it('answering a DRAW_TWO combo with a Wild Draw cannot add Draw Two cards in the same move', () => {
+      const openingDrawTwo = { id: 'p1-0', kind: 'DRAW_TWO' as const, color: 'RED' as const };
+      const p1Filler = { id: 'p1-1', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 5 };
+      const wd4 = { id: 'p2-0', kind: 'WILD_DRAW_FOUR' as const, color: null };
+      const redD2 = { id: 'p2-1', kind: 'DRAW_TWO' as const, color: 'RED' as const };
+      const p2Filler = { id: 'p2-2', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 6 };
+      const p1Filler2 = { id: 'p1-2', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 7 };
+      const top = { id: 'top', kind: 'NUMBER' as const, color: 'RED' as const, value: 9 };
+      const rest = Array.from({ length: 20 }, (_, i) => ({ id: `rest-${i}`, kind: 'NUMBER' as const, color: 'YELLOW' as const, value: i % 10 }));
+      const deck = [openingDrawTwo, wd4, p1Filler, redD2, p1Filler2, p2Filler, top, ...rest];
+      const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 3 });
+      engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+      engine.playCard('p1', 'p1-0', engine.turnNumber);
+      expect(() => engine.playCards('p2', ['p2-0', 'p2-1'], engine.turnNumber, 'BLUE')).toThrow('WILD_DRAW_NO_DRAW_TWO');
+      // either one alone is fine
+      engine.playCards('p2', ['p2-0'], engine.turnNumber, 'BLUE');
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 6, targetId: 'p1' });
     });
 
     it('DRAW_TWO can counter a WILD_DRAW_TWO combo ONLY if its color matches the chosen color', () => {
@@ -1161,5 +1184,59 @@ describe('SHUFFLE card (สลับที่นั่ง)', () => {
     engine.playCard('p1', 'p1-d2', engine.turnNumber);
     expect(engine.getPlayableIds('p2')).not.toContain('p2-sf');
     expect(() => engine.playCard('p2', 'p2-sf', engine.turnNumber)).toThrow('MUST_COUNTER_OR_DRAW');
+  });
+});
+
+describe('stacked SKIP / REVERSE never wrap past the player who laid them', () => {
+  const N = (id: string, color: 'RED' | 'GREEN' | 'BLUE' | 'YELLOW', value: number) => ({ id, kind: 'NUMBER' as const, color, value });
+  const SK = (id: string, color: 'RED' | 'GREEN' | 'BLUE' | 'YELLOW') => ({ id, kind: 'SKIP' as const, color });
+  const RV = (id: string, color: 'RED' | 'GREEN' | 'BLUE' | 'YELLOW') => ({ id, kind: 'REVERSE' as const, color });
+  const rest = Array.from({ length: 30 }, (_, i) => N(`rest-${i}`, 'GREEN', i % 10));
+
+  it('2 players: two Skips at once come straight back to the player who laid them', () => {
+    // deal (2p, hand 3): p1,p2,p1,p2,p1,p2, top
+    const deck = [SK('p1-a', 'RED'), N('p2-a', 'BLUE', 1), SK('p1-b', 'BLUE'), N('p2-b', 'BLUE', 2), N('p1-c', 'YELLOW', 3), N('p2-c', 'BLUE', 3), N('top', 'RED', 9), ...rest];
+    const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 3 });
+    engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+    engine.playCards('p1', ['p1-a', 'p1-b'], engine.turnNumber);
+    expect(engine.getPublicState().currentPlayerId).toBe('p1');
+  });
+
+  it('2 players: two Reverses at once come straight back to the player who laid them', () => {
+    const deck = [RV('p1-a', 'RED'), N('p2-a', 'BLUE', 1), RV('p1-b', 'BLUE'), N('p2-b', 'BLUE', 2), N('p1-c', 'YELLOW', 3), N('p2-c', 'BLUE', 3), N('top', 'RED', 9), ...rest];
+    const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 3 });
+    engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+    engine.playCards('p1', ['p1-a', 'p1-b'], engine.turnNumber);
+    expect(engine.getPublicState().currentPlayerId).toBe('p1');
+  });
+
+  it('4 players: two Skips skip the next two players', () => {
+    // deal (4p, hand 3): p1,p2,p3,p4 x3, top
+    const deck = [
+      SK('p1-a', 'RED'), N('p2-a', 'BLUE', 1), N('p3-a', 'BLUE', 2), N('p4-a', 'BLUE', 3),
+      SK('p1-b', 'BLUE'), N('p2-b', 'BLUE', 4), N('p3-b', 'BLUE', 5), N('p4-b', 'BLUE', 6),
+      N('p1-c', 'YELLOW', 3), N('p2-c', 'BLUE', 7), N('p3-c', 'BLUE', 8), N('p4-c', 'BLUE', 0),
+      N('top', 'RED', 9), ...rest,
+    ];
+    const engine = new GameEngine('room1', ['p1', 'p2', 'p3', 'p4'], { deck, handSize: 3 });
+    engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+    const order = engine.getPublicState().seatOrder;
+    const i = order.indexOf('p1');
+    engine.playCards('p1', ['p1-a', 'p1-b'], engine.turnNumber);
+    expect(engine.getPublicState().currentPlayerId).toBe(order[(i + 3) % 4]);
+  });
+
+  it('3 players: three Skips cap at skipping everyone else → back to the player', () => {
+    const deck = [
+      SK('p1-a', 'RED'), N('p2-a', 'BLUE', 1), N('p3-a', 'BLUE', 2),
+      SK('p1-b', 'BLUE'), N('p2-b', 'BLUE', 4), N('p3-b', 'BLUE', 5),
+      SK('p1-c', 'GREEN'), N('p2-c', 'BLUE', 7), N('p3-c', 'BLUE', 8),
+      N('p1-d', 'YELLOW', 3), N('p2-d', 'BLUE', 6), N('p3-d', 'BLUE', 0),
+      N('top', 'RED', 9), ...rest,
+    ];
+    const engine = new GameEngine('room1', ['p1', 'p2', 'p3'], { deck, handSize: 4 });
+    engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+    engine.playCards('p1', ['p1-a', 'p1-b', 'p1-c'], engine.turnNumber);
+    expect(engine.getPublicState().currentPlayerId).toBe('p1');
   });
 });

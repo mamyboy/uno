@@ -51,8 +51,9 @@ function isWildDrawKind(kind: Card['kind']): boolean {
  */
 function canCounterCombo(card: Card, topCard: Card): boolean {
   if (card.kind === 'DRAW_TWO') {
-    if (topCard.kind === 'DRAW_TWO') return true;
-    if (topCard.kind === 'WILD_DRAW_TWO') return card.color === topCard.color;
+    // A Draw Two only continues a +2-tier combo in the SAME color as the card it answers
+    // (the previous Draw Two's color, or the color chosen on a Wild Draw Two).
+    if (topCard.kind === 'DRAW_TWO' || topCard.kind === 'WILD_DRAW_TWO') return card.color === topCard.color;
     return false;
   }
   if (isWildDrawKind(card.kind)) {
@@ -462,7 +463,15 @@ export class GameEngine {
       // legal +4 counter, even though the BLUE one alone could never counter it.
       const top = this.topCard;
       if (!picked.every((c) => DRAW_FAMILY_KINDS.has(c.kind))) throw new GameError('MUST_COUNTER_OR_DRAW');
-      if (!picked.some((c) => canCounterCombo(c, top))) throw new GameError('MUST_COUNTER_OR_DRAW');
+      const hasWildDraw = picked.some((c) => isWildDrawKind(c.kind));
+      const hasDrawTwo = picked.some((c) => c.kind === 'DRAW_TWO');
+      // Counter with Wild Draw cards OR with Draw Two cards — never both in one move.
+      if (hasWildDraw && hasDrawTwo) throw new GameError('WILD_DRAW_NO_DRAW_TWO');
+      // At least one card must legally counter: a Wild Draw of high-enough tier, or a Draw Two in
+      // the SAME color as the card being answered (extra Draw Twos may ride along, amounts add).
+      if (!picked.some((c) => canCounterCombo(c, top))) {
+        throw new GameError(hasDrawTwo ? 'DRAW_TWO_COLOR_MISMATCH' : 'MUST_COUNTER_OR_DRAW');
+      }
     }
 
     const needsColor = picked.some((c) => isWild(c));
@@ -859,17 +868,20 @@ export class GameEngine {
     }
 
     let skipCount = 0;
+    const others = this.seatOrder.length - 1;
     switch (card.kind) {
       case 'SKIP':
-        skipCount = count;
+        // N Skips skip the next N players — but never wrap past yourself: skipping everyone else
+        // (always the case with 2 players, however many Skips) brings the turn back to you.
+        skipCount = Math.min(count, others);
         break;
       case 'REVERSE':
-        if (this.seatOrder.length > 2) {
-          if (count % 2 === 1) this.direction = this.direction === 'LEFT' ? 'RIGHT' : 'LEFT';
-          // No one is skipped — direction may have flipped, but play just moves on normally.
-        } else {
-          skipCount = count; // 2-player game: each Reverse plays like a Skip
+        if (count % 2 === 1) this.direction = this.direction === 'LEFT' ? 'RIGHT' : 'LEFT';
+        if (this.seatOrder.length <= 2) {
+          // 2 players: any number of Reverses plays like a Skip → straight back to you.
+          skipCount = others;
         }
+        // 3+ players: no one is skipped — direction may have flipped, play just moves on.
         break;
       default:
         break;
