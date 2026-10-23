@@ -34,12 +34,66 @@ export function loadCatalog(): Promise<CatalogItem[]> {
 export const soundLabel = (id: string, fallback?: string) =>
   titles.get(id) ?? (SOUND_LABELS as Record<string, string>)[id] ?? fallback ?? id;
 
+// iOS/Safari (and some Android browsers) only allow audio started from a user gesture. Event-driven
+// FX sounds (combo hits, other players' soundboard taps) aren't gestures, so on the first tap we
+// "unlock" a small pool of <audio> elements by playing a silent clip; later clips reuse them.
+/** Tiny valid silent WAV (8 kHz mono, 100 samples) built at runtime. */
+function silentWav(): string {
+  const n = 100, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+  const w = (o: number, t: string) => [...t].forEach((ch, i) => v.setUint8(o + i, ch.charCodeAt(0)));
+  w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVE'); w(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+  w(36, 'data'); v.setUint32(40, n, true);
+  for (let i = 0; i < n; i++) v.setUint8(44 + i, 128);
+  let bin = '';
+  new Uint8Array(buf).forEach((b) => (bin += String.fromCharCode(b)));
+  return 'data:audio/wav;base64,' + btoa(bin);
+}
+const POOL_SIZE = 6;
+let pool: HTMLAudioElement[] = [];
+let poolIdx = 0;
+let unlocked = false;
+function unlockAudio() {
+  if (unlocked || typeof window === 'undefined') return;
+  unlocked = true;
+  pool = Array.from({ length: POOL_SIZE }, () => {
+    const a = new Audio(silentWav());
+    a.preload = 'auto';
+    void a.play().then(() => a.pause()).catch(() => {});
+    return a;
+  });
+  try {
+    const Ctx = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | undefined;
+    if (Ctx) void new Ctx().resume().catch(() => {});
+  } catch { /* ignore */ }
+}
+if (typeof window !== 'undefined') {
+  const once = () => {
+    unlockAudio();
+    window.removeEventListener('pointerdown', once, true);
+    window.removeEventListener('keydown', once, true);
+    window.removeEventListener('touchend', once, true);
+  };
+  window.addEventListener('pointerdown', once, true);
+  window.addEventListener('keydown', once, true);
+  window.addEventListener('touchend', once, true);
+}
+
 /** Fire-and-forget clip playback — never throws (autoplay policy, missing file, etc.). */
 export function playClip(id: string, volume = 0.9) {
   if (typeof window === 'undefined') return;
   try {
-    const a = new Audio(soundUrl(id));
+    let a: HTMLAudioElement;
+    if (pool.length) {
+      a = pool[poolIdx++ % pool.length];
+      a.pause();
+      a.src = soundUrl(id);
+    } else {
+      a = new Audio(soundUrl(id));
+    }
     a.volume = volume;
+    a.currentTime = 0;
     void a.play().catch(() => {});
   } catch {
     /* ignore */

@@ -7,6 +7,7 @@ import { playClip } from '@/lib/sounds';
 
 type Fx =
   | { key: string; type: 'COMBO'; name: string; count: number }
+  | { key: string; type: 'COMBO_UP'; from: string; to: string; count: number; added: number }
   | { key: string; type: 'REFLECT'; from: string; to: string; count: number }
   | { key: string; type: 'VANISH'; name: string; count: number }
   | { key: string; type: 'SHIELD'; from: string; to: string; count: number }
@@ -26,6 +27,7 @@ export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | n
   const avatarRef = useRef(avatarOf);
   avatarRef.current = avatarOf;
   const lastSeq = useRef<number | null>(null);
+  const lastGameId = useRef<string | null>(null);
   const lastResultId = useRef<string | null>(null);
   const nameRef = useRef(nameOf);
   nameRef.current = nameOf;
@@ -33,10 +35,17 @@ export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | n
   useEffect(() => {
     const hist = game?.history ?? [];
     const maxSeq = hist.length ? hist[hist.length - 1].seq : 0;
-    if (lastSeq.current === null) {
-      lastSeq.current = maxSeq;
-      return;
+    if (!game) return;
+    // Each new match restarts history seq at 1 — without this reset, every match after the first
+    // played NO effects until its seq passed the previous match's last seq.
+    if (lastGameId.current !== game.gameId) {
+      const firstSight = lastGameId.current === null;
+      lastGameId.current = game.gameId;
+      // joined/reloaded mid-match → don't replay old history; a brand-new match → watch from 0
+      lastSeq.current = firstSight && hist.length > 3 ? maxSeq : 0;
+      if (firstSight && hist.length > 3) return;
     }
+    if (lastSeq.current === null) lastSeq.current = 0;
     const fresh = hist.filter((h) => h.seq > (lastSeq.current ?? 0));
     lastSeq.current = Math.max(lastSeq.current, maxSeq);
     // newest interesting event wins
@@ -48,6 +57,16 @@ export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | n
         playClip('punch', 1);
         setTimeout(() => playClip(count >= 8 ? 'mlg-airhorn' : count >= 6 ? 'fahhhhhhhhhhhhhh' : 'vine-boom', 1), 180);
         return;
+      }
+      if (h.action === 'PLAY' && h.cards?.length !== 0 && game.pendingDraw) {
+        const cards = h.cards ?? (h.card ? [h.card] : []);
+        const added = cards.reduce((n, c) => n + (c.kind === 'DRAW_TWO' || c.kind === 'WILD_DRAW_TWO' ? 2 : c.kind === 'WILD_DRAW_FOUR' ? 4 : c.kind === 'WILD_DRAW_EIGHT' ? 8 : 0), 0);
+        if (added > 0) {
+          const total = game.pendingDraw.count;
+          setFx({ key: `u${h.seq}`, type: 'COMBO_UP', from: nameRef.current(h.playerId), to: nameRef.current(game.pendingDraw.targetId), count: total, added });
+          playClip(total >= 8 ? 'fahhhhhhhhhhhhhh' : 'vine-boom', 1);
+          return;
+        }
       }
       if (h.action === 'REFLECT') {
         setFx({ key: `r${h.seq}`, type: 'REFLECT', from: nameRef.current(h.playerId), to: nameRef.current(h.toPlayerId), count: h.count ?? 0 });
@@ -71,11 +90,12 @@ export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | n
         return;
       }
     }
-  }, [game?.history]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [game?.history, game?.gameId]);
 
   useEffect(() => {
     if (!fx) return;
-    const t = setTimeout(() => setFx(null), fx.type === 'COMBO' ? 2300 : fx.type === 'SHUFFLE' ? 3000 : 2000);
+    const t = setTimeout(() => setFx(null), fx.type === 'COMBO' ? 2300 : fx.type === 'COMBO_UP' ? 1600 : fx.type === 'SHUFFLE' ? 3000 : 2000);
     return () => clearTimeout(t);
   }, [fx]);
 
@@ -97,6 +117,41 @@ export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | n
   return (
     <>
       <AnimatePresence>
+        {fx?.type === 'COMBO_UP' && (
+          <motion.div
+            key={fx.key}
+            className="fixed inset-0 z-[80] pointer-events-none flex items-center justify-center overflow-hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, x: [0, -8, 7, -5, 3, 0] }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4 }}
+          >
+            <motion.div className="absolute inset-0 bg-orange-500" initial={{ opacity: 0.35 }} animate={{ opacity: 0 }} transition={{ duration: 0.5 }} />
+            <motion.div
+              className="absolute w-[60vmin] h-[60vmin] rounded-full border-[12px] border-orange-400/80"
+              initial={{ scale: 0.1, opacity: 1 }}
+              animate={{ scale: 1.8, opacity: 0 }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+            />
+            <motion.div
+              className="relative text-center"
+              initial={{ scale: 2.4, rotate: 10, opacity: 0 }}
+              animate={{ scale: [2.4, 0.95, 1.05, 1], rotate: [10, -3, 1, 0], opacity: 1 }}
+              transition={{ duration: 0.45, ease: 'easeOut' }}
+            >
+              <div
+                className="font-black leading-none text-[18vw] sm:text-[8rem] bg-gradient-to-b from-yellow-100 via-orange-400 to-red-600 bg-clip-text text-transparent"
+                style={{ WebkitTextStroke: '3px #3b0a00', filter: 'drop-shadow(0 6px 0 rgba(0,0,0,0.5))' }}
+              >
+                +{fx.count}
+              </div>
+              <div className="mt-1 inline-block px-4 py-1.5 rounded-2xl bg-black/80 border-2 border-orange-300 text-lg sm:text-2xl font-black text-white">
+                🔥 {fx.from} ส่งคอมโบ{fx.added !== fx.count ? ` (+${fx.added})` : ''} ➜ {fx.to}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
         {fx?.type === 'COMBO' && (
           <motion.div
             key={fx.key}
@@ -210,7 +265,7 @@ export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | n
             >
               <motion.div className="text-6xl" animate={{ rotate: [0, 360] }} transition={{ duration: 0.8, repeat: 1 }}>🔀</motion.div>
               <div className="text-3xl font-black text-white drop-shadow">สลับที่นั่ง!</div>
-              <div className="text-sm text-white/80 mb-2">{fx.name} สับลำดับผู้เล่นใหม่</div>
+              <div className="text-sm text-white/80 mb-2">{fx.name} สับลำดับผู้เล่นใหม่ — แล้วลงไพ่ต่อ</div>
               <div className="flex flex-wrap justify-center gap-1.5">
                 {fx.order.map((n, i) => (
                   <motion.span

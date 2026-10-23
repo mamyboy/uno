@@ -159,7 +159,7 @@ const SPECIAL_THEME: Record<SpecialKind, {
     metal: ['#ffe4f1', '#ff9bd2', '#b23c8a', '#fff0f8'],
     ink: '#4a044e',
     title: 'สลับที่นั่ง',
-    tag: 'สุ่มลำดับผู้เล่น',
+    tag: 'สุ่มที่นั่ง แล้วลงต่อ',
   },
 };
 

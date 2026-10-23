@@ -20,7 +20,7 @@ function describe(h: HistoryEntry, nameOf: (id: string | null | undefined) => st
     case 'SHIELD':
       return `${who} ใช้โล่ 🛡️ ส่งคอมโบ +${h.count ?? 0} ➜ ${nameOf(h.toPlayerId)}`;
     case 'SHUFFLE_SEATS':
-      return `${who} สลับที่นั่ง 🔀 ${(h.seatOrder ?? []).map((id) => nameOf(id)).join(' → ')}`;
+      return `${who} สลับที่นั่ง 🔀 ${(h.seatOrder ?? []).map((id) => nameOf(id)).join(' → ')} (ลงไพ่ต่อ)`;
     case 'VANISH':
       return `ไพ่สะท้อน/โล่ของ ${who} หายไป`;
     case 'SKIP':

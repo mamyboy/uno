@@ -7,7 +7,8 @@ export type CardColor = (typeof COLORS)[number];
 /** SHIELD (โล่ป้องกัน): colorless; only playable vs a pending combo — passes it on, unchanged, to the
  *  NEXT player in the current direction. Vanishes like REFLECT once it can never be useful again.
  *  SHUFFLE (สลับที่นั่ง): colorless; playable on your turn whenever no combo is pending — randomly
- *  reshuffles the seating order, then play continues with whoever now sits after you. */
+ *  reshuffles the seating order; you then still play a card, and play continues with whoever now
+ *  sits after you. */
 export type CardKind = 'NUMBER' | 'SKIP' | 'REVERSE' | 'DRAW_TWO' | 'WILD' | 'WILD_DRAW_FOUR' | 'WILD_DRAW_TWO' | 'WILD_DRAW_EIGHT' | 'REFLECT' | 'SHIELD' | 'SHUFFLE';
 export const ACTION_KINDS = ['SKIP', 'REVERSE', 'DRAW_TWO'] as const;
 export const WILD_KINDS = ['WILD', 'WILD_DRAW_FOUR', 'WILD_DRAW_TWO', 'WILD_DRAW_EIGHT'] as const;

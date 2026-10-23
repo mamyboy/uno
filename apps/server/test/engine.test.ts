@@ -1117,9 +1117,9 @@ describe('SHUFFLE card (สลับที่นั่ง)', () => {
   const SF = (id: string) => ({ id, kind: 'SHUFFLE' as const, color: null });
   const rest = Array.from({ length: 30 }, (_, i) => N(`rest-${i}`, 'GREEN', i % 10));
 
-  it('randomly reshuffles seats, then play continues with whoever now sits after the shuffler', () => {
+  it('randomly reshuffles seats; the shuffler still plays a card, THEN whoever now sits after them goes', () => {
     // 4 players, handSize 2: p1,p2,p3,p4,p1,p2,p3,p4, top
-    const deck = [SF('p1-sf'), N('p2-a', 'RED', 1), N('p3-a', 'RED', 2), N('p4-a', 'RED', 3), N('p1-b', 'YELLOW', 1), N('p2-b', 'RED', 4), N('p3-b', 'RED', 5), N('p4-b', 'RED', 6), N('top', 'BLUE', 9), ...rest];
+    const deck = [SF('p1-sf'), N('p2-a', 'RED', 1), N('p3-a', 'RED', 2), N('p4-a', 'RED', 3), N('p1-b', 'BLUE', 1), N('p2-b', 'RED', 4), N('p3-b', 'RED', 5), N('p4-b', 'RED', 6), N('top', 'BLUE', 9), ...rest];
     let k = 0;
     const rng = (max: number) => [3, 0, 2, 1, 0][k++ % 5] % max;
     const engine = new GameEngine('room1', ['p1', 'p2', 'p3', 'p4'], { deck, handSize: 2, rng });
@@ -1130,10 +1130,27 @@ describe('SHUFFLE card (สลับที่นั่ง)', () => {
     const s = engine.getPublicState();
     expect([...s.seatOrder].sort()).toEqual([...before].sort());
     expect(s.seatOrder).not.toEqual(before);
-    const i = s.seatOrder.indexOf('p1');
-    expect(s.currentPlayerId).toBe(s.seatOrder[(i + 1) % 4]);
+    expect(s.currentPlayerId).toBe('p1'); // shuffler keeps the turn
     expect(s.topCard.id).toBe('top'); // slides under — color to match unchanged
     expect(s.history.some((h) => h.action === 'SHUFFLE_SEATS' && h.seatOrder?.length === 4)).toBe(true);
+    expect(engine.getPrivateHand('p1').isMyTurn).toBe(true);
+    // p1 now plays a normal card; only then does play pass to the player after p1 in the NEW order
+    engine.playCard('p1', 'p1-b', engine.turnNumber);
+    // (p1 just emptied their hand and went out, so compare against the post-shuffle order)
+    const s2 = engine.getPublicState();
+    const i = s.seatOrder.indexOf('p1');
+    expect(s2.currentPlayerId).toBe(s.seatOrder[(i + 1) % 4]);
+  });
+
+  it('playing Shuffle as your last card goes out and passes play to whoever now sits after you', () => {
+    const deck = [SF('p1-sf'), N('p2-a', 'RED', 1), N('p3-a', 'RED', 2), N('top', 'BLUE', 9), ...rest];
+    const engine = new GameEngine('room1', ['p1', 'p2', 'p3'], { deck, handSize: 1 });
+    engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
+    engine.playCard('p1', 'p1-sf', engine.turnNumber);
+    const s = engine.getPublicState();
+    expect(s.finishedOrder).toEqual(['p1']);
+    expect(s.seatOrder).not.toContain('p1');
+    expect(['p2', 'p3']).toContain(s.currentPlayerId);
   });
 
   it('can not be used to dodge a pending combo', () => {

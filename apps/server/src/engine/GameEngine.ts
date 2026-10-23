@@ -696,8 +696,9 @@ export class GameEngine {
   }
 
   /**
-   * SHUFFLE (สลับที่นั่ง): randomly reshuffle the seating order of everyone still playing, then
-   * play continues with whoever now sits right after the shuffler (in the current direction).
+   * SHUFFLE (สลับที่นั่ง): randomly reshuffle the seating order of everyone still playing. The
+   * shuffler keeps the turn and must still play a card (or draw if they can't); after that, play
+   * continues with whoever now sits right after them (in the current direction).
    * The card slides under the top card, so the color/value to match is unchanged.
    */
   private playShuffleSeats(playerId: string, handIdx: number, turnNumber: number): { card: Card; finished: boolean } {
@@ -713,10 +714,14 @@ export class GameEngine {
     this.log({ turnNumber, playerId, action: 'SHUFFLE_SEATS', card, seatOrder: [...order] });
     this.currentIndex = order.indexOf(playerId);
     if (hand.length === 0) {
+      // Shuffle was their last card: they go out, play moves on to whoever now sits after them.
       this.advanceTurn();
       this.specialWentOut(playerId);
     } else {
-      this.advanceTurn();
+      // The shuffler KEEPS the turn and must still lay down a card (or draw as usual if they
+      // can't) — only then does play pass to whoever now sits after them in the new order.
+      this.turnNumber++;
+      this.resolveStuckPlayers();
     }
     return { card, finished: this.status === 'FINISHED' };
   }
