@@ -671,6 +671,10 @@ export default function RoomPage() {
                 currentName={nameOf(game.currentPlayerId)}
                 mustCounter={game.pendingDraw?.targetId === session?.playerId}
                 comboCount={game.pendingDraw?.count}
+                myFinishRank={(() => {
+                  const i = game.finishedOrder.indexOf(session?.playerId ?? '');
+                  return i >= 0 ? i + 1 : null;
+                })()}
               />
             )}
             {/* casino table */}

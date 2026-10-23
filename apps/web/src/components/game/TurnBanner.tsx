@@ -6,12 +6,14 @@ import { playClip } from '@/lib/sounds';
 
 /** Big, unmistakable "it's YOUR turn" banner (with a ding + vibration the moment it flips to you),
  *  or a calmer "waiting for X" strip when it's someone else's turn. */
-export function TurnBanner({ isMyTurn, myName, currentName, mustCounter, comboCount }: {
+export function TurnBanner({ isMyTurn, myName, currentName, mustCounter, comboCount, myFinishRank }: {
   isMyTurn: boolean;
   myName: string;
   currentName: string;
   mustCounter?: boolean;
   comboCount?: number;
+  /** 1-based finish rank once I've gone out this match (null/undefined while still playing). */
+  myFinishRank?: number | null;
 }) {
   const was = useRef(false);
   useEffect(() => {
@@ -25,7 +27,27 @@ export function TurnBanner({ isMyTurn, myName, currentName, mustCounter, comboCo
   return (
     <div className="sticky top-2 z-40">
       <AnimatePresence mode="wait">
-        {isMyTurn ? (
+        {myFinishRank ? (
+          <motion.div
+            key="finished"
+            initial={{ y: -40, opacity: 0, scale: 0.9 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: -40, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 18 }}
+            className="relative overflow-hidden rounded-2xl px-4 py-3 sm:py-4 text-center border-2 border-yellow-300 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 shadow-[0_10px_40px_-8px_rgba(250,204,21,0.8)]"
+          >
+            <motion.p
+              className="relative font-black text-2xl sm:text-4xl text-white drop-shadow-[0_2px_0_rgba(0,0,0,0.35)]"
+              animate={{ scale: [1, 1.05, 1] }}
+              transition={{ duration: 1.1, repeat: Infinity }}
+            >
+              {myFinishRank === 1 ? '🏆' : '🎉'} {myName} — ชนะอันดับที่ {myFinishRank}!
+            </motion.p>
+            <p className="relative text-sm sm:text-base font-bold text-white/95">
+              {currentName ? `รออีกฝั่งเล่นต่อ — ตอนนี้เป็นตาของ ${currentName}` : 'รอจบรอบนี้...'}
+            </p>
+          </motion.div>
+        ) : isMyTurn ? (
           <motion.div
             key="mine"
             initial={{ y: -40, opacity: 0, scale: 0.9 }}

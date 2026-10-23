@@ -77,7 +77,12 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
     const engine = room.engine;
     if (!engine) return;
     io.to(roomCh(room.code)).emit(EV.GAME_STATE, engine.getPublicState());
-    for (const pid of engine.players) {
+    // Include players who already finished (went out) this game, not just the still-active
+    // seatOrder — otherwise a winner's LAST hand update stays stuck at whatever it was the
+    // instant they played their final card (often isMyTurn: true), since no further
+    // GAME_HAND_UPDATED ever arrives to correct it once their seat leaves the rotation.
+    const allPids = new Set([...engine.players, ...engine.getPublicState().finishedOrder]);
+    for (const pid of allPids) {
       io.to(playerCh(pid)).emit(EV.GAME_HAND_UPDATED, engine.getPrivateHand(pid));
     }
     finishIfOver(room);
