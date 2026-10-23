@@ -8,6 +8,7 @@ const ROOM_TTL_MS = 30 * 60 * 1000;
 export interface LeaderboardRecord {
   nickname: string;
   wins: number;
+  losses: number;
   gamesPlayed: number;
   avatar?: string | null;
 }
@@ -260,7 +261,7 @@ export class RoomManager {
     if (!member) throw new GameError('NOT_IN_ROOM');
     member.avatar = avatar;
     const key = nameKey(member.nickname);
-    const entry = room.leaderboard.get(key) ?? { nickname: member.nickname, wins: 0, gamesPlayed: 0 };
+    const entry = room.leaderboard.get(key) ?? { nickname: member.nickname, wins: 0, losses: 0, gamesPlayed: 0 };
     entry.nickname = member.nickname;
     entry.avatar = avatar;
     room.leaderboard.set(key, entry);
@@ -268,12 +269,16 @@ export class RoomManager {
 
   /** Roll a finished match's ranking into the room's persistent by-name leaderboard. */
   recordMatchResult(room: ServerRoom, result: GameResult) {
+    // Dead last in the ranking is the single "ดุ่ยดุ้ย" loser of the match (only counted when
+    // there were at least 2 ranked players — a 1-player test/edge case has no loser to blame).
+    const lastRank = result.ranking.length > 1 ? Math.max(...result.ranking.map((r) => r.rank)) : -1;
     for (const r of result.ranking) {
       const key = nameKey(r.nickname);
-      const entry = room.leaderboard.get(key) ?? { nickname: r.nickname, wins: 0, gamesPlayed: 0 };
+      const entry = room.leaderboard.get(key) ?? { nickname: r.nickname, wins: 0, losses: 0, gamesPlayed: 0 };
       entry.nickname = r.nickname;
       entry.gamesPlayed += 1;
       if (result.winnerId && r.playerId === result.winnerId) entry.wins += 1;
+      if (r.rank === lastRank) entry.losses += 1;
       const member = room.members.find((m) => m.id === r.playerId);
       if (member?.avatar) entry.avatar = member.avatar;
       room.leaderboard.set(key, entry);
@@ -296,7 +301,7 @@ export class RoomManager {
     const counts = room.engine?.getCardCounts() ?? {};
     const leaderboard = [...room.leaderboard.values()]
       .sort((a, b) => b.wins - a.wins || b.gamesPlayed - a.gamesPlayed || a.nickname.localeCompare(b.nickname))
-      .map((e) => ({ nickname: e.nickname, wins: e.wins, gamesPlayed: e.gamesPlayed, avatar: e.avatar ?? null }));
+      .map((e) => ({ nickname: e.nickname, wins: e.wins, losses: e.losses ?? 0, gamesPlayed: e.gamesPlayed, avatar: e.avatar ?? null }));
     return {
       id: room.id, code: room.code, name: room.name, hostId: room.hostId, status: room.status,
       maxPlayers: room.maxPlayers, createdAt: room.createdAt.toISOString(), isStatic: room.isStatic,

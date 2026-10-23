@@ -125,6 +125,8 @@ export interface Player {
 export interface LeaderboardEntry {
   nickname: string;
   wins: number;
+  /** Times this player finished dead last (the "ดุ่ยดุ้ย" loser) in a match. */
+  losses: number;
   gamesPlayed: number;
   avatar?: string | null;
 }

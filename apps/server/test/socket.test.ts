@@ -313,7 +313,7 @@ describe('socket integration', () => {
     const host = await connect();
     const joinHost = await emit(host, 'room:join', { code: 'TABLE2', nickname: 'ClearHost' });
     expect(joinHost.ok).toBe(true);
-    rooms.find('TABLE2')!.leaderboard.set('someone', { nickname: 'Someone', wins: 2, gamesPlayed: 3 });
+    rooms.find('TABLE2')!.leaderboard.set('someone', { nickname: 'Someone', wins: 2, losses: 1, gamesPlayed: 3 });
 
     const clearAck = await emit(host, 'room:clear', {});
     expect(clearAck.ok).toBe(true);
@@ -397,5 +397,55 @@ describe('socket integration', () => {
     expect(rooms.find(created.code)).not.toBeNull(); // untouched
 
     host.close();
+  });
+});
+describe('RoomManager.recordMatchResult — leaderboard tracks losses too', () => {
+  function fakeResult(ranking: { playerId: string; nickname: string; rank: number }[], winnerId: string | null) {
+    return {
+      gameId: 'g1',
+      winnerId,
+      reason: 'EMPTY_HAND' as const,
+      ranking: ranking.map((r) => ({ ...r, cardsLeft: 0, cardsDrawn: 0 })),
+      turns: 10,
+      durationMs: 1000,
+      totalCardsDrawn: 0,
+      startedAt: 0,
+      endedAt: 1000,
+    };
+  }
+
+  it('credits a win for the winner and a loss for whoever finished dead last', () => {
+    const rm = new RoomManager();
+    const room = rm.createRoom({ name: 'LB Room', nickname: 'Alice', hostPlays: true }).room;
+    const result = fakeResult(
+      [
+        { playerId: 'p1', nickname: 'Alice', rank: 1 },
+        { playerId: 'p2', nickname: 'Bob', rank: 2 },
+        { playerId: 'p3', nickname: 'Carol', rank: 3 },
+      ],
+      'p1',
+    );
+    rm.recordMatchResult(room, result);
+    const lb = rm.toPublicRoom(room).leaderboard;
+    expect(lb.find((e) => e.nickname === 'Alice')).toMatchObject({ wins: 1, losses: 0, gamesPlayed: 1 });
+    expect(lb.find((e) => e.nickname === 'Bob')).toMatchObject({ wins: 0, losses: 0, gamesPlayed: 1 });
+    expect(lb.find((e) => e.nickname === 'Carol')).toMatchObject({ wins: 0, losses: 1, gamesPlayed: 1 });
+  });
+
+  it('accumulates wins and losses across repeated matches for the same (by-name) player', () => {
+    const rm = new RoomManager();
+    const room = rm.createRoom({ name: 'LB Room 2', nickname: 'Alice', hostPlays: true }).room;
+    rm.recordMatchResult(
+      room,
+      fakeResult([{ playerId: 'p1', nickname: 'alice', rank: 1 }, { playerId: 'p2', nickname: 'Bob', rank: 2 }], 'p1'),
+    );
+    rm.recordMatchResult(
+      room,
+      fakeResult([{ playerId: 'p1', nickname: 'ALICE', rank: 2 }, { playerId: 'p2', nickname: 'Bob', rank: 1 }], 'p2'),
+    );
+    const lb = rm.toPublicRoom(room).leaderboard;
+    // 'alice' / 'ALICE' / 'Alice' are all the same person by name-key.
+    expect(lb.find((e) => e.nickname.toLowerCase() === 'alice')).toMatchObject({ wins: 1, losses: 1, gamesPlayed: 2 });
+    expect(lb.find((e) => e.nickname === 'Bob')).toMatchObject({ wins: 1, losses: 1, gamesPlayed: 2 });
   });
 });

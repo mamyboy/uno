@@ -172,7 +172,8 @@ export default function BoardPage() {
                     <span className="text-sm">{e.nickname}</span>
                   </span>
                   <span className="text-xs text-zinc-400">
-                    <span className="text-yellow-400 font-bold">{e.wins}</span> ชนะ · {e.gamesPlayed} เกม
+                    <span className="text-yellow-400 font-bold">{e.wins}</span> ชนะ ·{' '}
+                    <span className="text-red-400 font-bold">{e.losses}</span> แพ้ · {e.gamesPlayed} เกม
                   </span>
                 </li>
               ))}
