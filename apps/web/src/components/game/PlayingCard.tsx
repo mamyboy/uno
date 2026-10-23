@@ -121,6 +121,221 @@ function Pinwheel({ cx, cy, r }: { cx: number; cy: number; r: number }) {
   );
 }
 
+
+/* ---------- premium face for colorless special cards (Reflect / Shield / Shuffle) ---------- */
+
+type SpecialKind = 'REFLECT' | 'SHIELD' | 'SHUFFLE';
+const SPECIAL_THEME: Record<SpecialKind, {
+  body: [string, string, string];
+  accent: string;
+  glow: string;
+  metal: [string, string, string, string];
+  ink: string;
+  title: string;
+  tag: string;
+}> = {
+  REFLECT: {
+    body: ['#2e1065', '#5b21b6', '#0c0420'],
+    accent: '#ddd6fe',
+    glow: '#a78bfa',
+    metal: ['#ffffff', '#d4d4f7', '#8b8fb8', '#f4f3ff'],
+    ink: '#2e1065',
+    title: 'สะท้อนกลับ',
+    tag: 'COMBO ↩ คืนคนส่ง',
+  },
+  SHIELD: {
+    body: ['#04253f', '#0e6aa8', '#020f1f'],
+    accent: '#a5f3fc',
+    glow: '#22d3ee',
+    metal: ['#fff7c2', '#ffd34d', '#b77900', '#fff1a8'],
+    ink: '#3b2200',
+    title: 'โล่ป้องกัน',
+    tag: 'COMBO ➜ คนถัดไป',
+  },
+  SHUFFLE: {
+    body: ['#4a044e', '#c026d3', '#1a0420'],
+    accent: '#fbcfe8',
+    glow: '#f472b6',
+    metal: ['#ffe4f1', '#ff9bd2', '#b23c8a', '#fff0f8'],
+    ink: '#4a044e',
+    title: 'สลับที่นั่ง',
+    tag: 'สุ่มลำดับผู้เล่น',
+  },
+};
+
+function MirrorEmblem({ accent, uid }: { accent: string; uid: string }) {
+  // a faceted diamond mirror; an arrow strikes it and bounces back
+  return (
+    <g>
+      <polygon points="50,44 70,66 50,88 30,66" fill={`url(#sxm-${uid})`} stroke="#fff" strokeWidth="1.6" />
+      <polygon points="50,49 65,66 50,83 35,66" fill={`url(#sxr-${uid})`} />
+      <polygon points="41,58 47,52 56,74 50,80" fill="rgba(255,255,255,0.55)" />
+      <path d="M14 52 L44 66" stroke={accent} strokeWidth="4.2" strokeLinecap="round" />
+      <path d="M44 66 L16 82" stroke="#fff" strokeWidth="4.2" strokeLinecap="round" strokeDasharray="5 3" />
+      <path d="M16 82 l3 -8 M16 82 l8 1" stroke="#fff" strokeWidth="3.6" strokeLinecap="round" />
+      <circle cx="44" cy="66" r="3.2" fill="#fff" />
+    </g>
+  );
+}
+
+function ShieldEmblem({ accent, uid }: { accent: string; uid: string }) {
+  return (
+    <g strokeLinejoin="round">
+      <circle cx="50" cy="66" r="24" fill="none" stroke={accent} strokeWidth="1.2" strokeDasharray="2 3" opacity="0.8">
+        <animateTransform attributeName="transform" type="rotate" from="0 50 66" to="360 50 66" dur="9s" repeatCount="indefinite" />
+      </circle>
+      <path d="M50 44 L68 51 V65 C68 77 60 85 50 89 C40 85 32 77 32 65 V51 Z" fill={`url(#sxc-${uid})`} stroke={`url(#sxm-${uid})`} strokeWidth="3.2" />
+      <path d="M50 50 L62 55 V65 C62 73 57 79 50 82 Z" fill="rgba(255,255,255,0.35)" />
+      <path d="M50 56 l3 6.5 7 .6 -5.3 4.6 1.7 6.9 -6.4 -3.8 -6.4 3.8 1.7 -6.9 -5.3 -4.6 7 -.6 z" fill="#fff7c2" stroke="#b77900" strokeWidth="0.8" />
+    </g>
+  );
+}
+
+function ShuffleEmblem({ accent }: { accent: string }) {
+  // four seats (player dots) around a ring, chased by arrows; a "?" in the middle
+  const seats = [
+    { a: -90, c: '#ff2d55' },
+    { a: 0, c: '#ffc800' },
+    { a: 90, c: '#14d97c' },
+    { a: 180, c: '#2f7bff' },
+  ];
+  return (
+    <g>
+      <g>
+        <animateTransform attributeName="transform" type="rotate" from="0 50 66" to="360 50 66" dur="6s" repeatCount="indefinite" />
+        {seats.map(({ a, c }) => {
+          const r = 17;
+          const x = 50 + r * Math.cos((a * Math.PI) / 180);
+          const y = 66 + r * Math.sin((a * Math.PI) / 180);
+          const a2 = ((a + 62) * Math.PI) / 180;
+          const a1 = ((a + 22) * Math.PI) / 180;
+          return (
+            <g key={a}>
+              <path
+                d={`M ${50 + r * Math.cos(a1)} ${66 + r * Math.sin(a1)} A ${r} ${r} 0 0 1 ${50 + r * Math.cos(a2)} ${66 + r * Math.sin(a2)}`}
+                fill="none" stroke={accent} strokeWidth="2.6" strokeLinecap="round"
+              />
+              <circle cx={x} cy={y} r="5.6" fill={c} stroke="#fff" strokeWidth="1.6" />
+            </g>
+          );
+        })}
+      </g>
+      <text x="50" y="67" textAnchor="middle" dominantBaseline="central" fontSize="17" fontWeight={900} fill="#fff" stroke="#4a044e" strokeWidth="2.5" paintOrder="stroke">?</text>
+    </g>
+  );
+}
+
+function Sparkle({ x, y, s, delay }: { x: number; y: number; s: number; delay: string }) {
+  return (
+    <path d={`M ${x} ${y - s} Q ${x} ${y} ${x + s} ${y} Q ${x} ${y} ${x} ${y + s} Q ${x} ${y} ${x - s} ${y} Q ${x} ${y} ${x} ${y - s} Z`} fill="#fff">
+      <animate attributeName="opacity" values="0;1;0" dur="2.2s" begin={delay} repeatCount="indefinite" />
+    </path>
+  );
+}
+
+function SpecialFace({ kind, uid, compact }: { kind: SpecialKind; uid: string; compact: boolean }) {
+  const t = SPECIAL_THEME[kind];
+  const id = (n: string) => `${n}-${uid}`;
+  return (
+    <g>
+      <defs>
+        <linearGradient id={id('sb')} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor={t.body[1]} />
+          <stop offset="0.55" stopColor={t.body[0]} />
+          <stop offset="1" stopColor={t.body[2]} />
+        </linearGradient>
+        <linearGradient id={id('holo')} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#ff6ad5" stopOpacity="0" />
+          <stop offset="0.3" stopColor="#ff6ad5" stopOpacity="0.28" />
+          <stop offset="0.45" stopColor="#8ef6ff" stopOpacity="0.3" />
+          <stop offset="0.6" stopColor="#fff38a" stopOpacity="0.25" />
+          <stop offset="0.75" stopColor="#b388ff" stopOpacity="0" />
+          <animateTransform attributeName="gradientTransform" type="translate" values="-1 -1; 1 1; -1 -1" dur="5s" repeatCount="indefinite" />
+        </linearGradient>
+        <linearGradient id={`sxm-${uid}`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor={t.metal[0]} />
+          <stop offset="0.35" stopColor={t.metal[1]} />
+          <stop offset="0.65" stopColor={t.metal[2]} />
+          <stop offset="1" stopColor={t.metal[3]} />
+        </linearGradient>
+        <linearGradient id={`sxr-${uid}`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#f5f3ff" />
+          <stop offset="0.5" stopColor="#a78bfa" />
+          <stop offset="1" stopColor="#3b0764" />
+        </linearGradient>
+        <linearGradient id={`sxc-${uid}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#a5f3fc" />
+          <stop offset="0.5" stopColor="#0ea5e9" />
+          <stop offset="1" stopColor="#0c4a6e" />
+        </linearGradient>
+        <radialGradient id={id('glow')} cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stopColor={t.glow} stopOpacity="0.95" />
+          <stop offset="0.55" stopColor={t.glow} stopOpacity="0.35" />
+          <stop offset="1" stopColor={t.glow} stopOpacity="0" />
+        </radialGradient>
+      </defs>
+
+      {/* body + holographic foil */}
+      <rect width="100" height="150" fill={`url(#${id('sb')})`} />
+      <rect width="100" height="150" fill={`url(#${id('holo')})`} />
+
+      {/* rotating light rays */}
+      <g opacity="0.22">
+        <animateTransform attributeName="transform" type="rotate" from="0 50 66" to="360 50 66" dur="24s" repeatCount="indefinite" />
+        {Array.from({ length: 12 }).map((_, i) => (
+          <polygon key={i} points="50,66 46,-10 54,-10" fill={t.accent} transform={`rotate(${i * 30} 50 66)`} />
+        ))}
+      </g>
+
+      {/* frames */}
+      <rect x="3.5" y="3.5" width="93" height="143" rx="11" fill="none" stroke={`url(#sxm-${uid})`} strokeWidth="3.5" />
+      <rect x="8.5" y="8.5" width="83" height="133" rx="8" fill="none" stroke={t.accent} strokeOpacity="0.55" strokeWidth="0.8" strokeDasharray="3 2" />
+
+      {/* tag pill */}
+      {!compact && (
+        <g>
+          <rect x="24" y="12.5" width="52" height="12" rx="6" fill="rgba(0,0,0,0.45)" stroke={t.accent} strokeOpacity="0.7" strokeWidth="0.7" />
+          <text x="50" y="18.7" textAnchor="middle" dominantBaseline="central" fontSize="5.1" fontWeight={800} fill={t.accent} textLength={t.tag.length > 14 ? 46 : undefined} lengthAdjust="spacingAndGlyphs">{t.tag}</text>
+        </g>
+      )}
+
+      {/* medallion */}
+      <circle cx="50" cy="66" r="36" fill={`url(#${id('glow')})`}>
+        <animate attributeName="r" values="31;37;31" dur="2.4s" repeatCount="indefinite" />
+      </circle>
+      <circle cx="50" cy="66" r="27" fill="rgba(0,0,0,0.38)" stroke={`url(#sxm-${uid})`} strokeWidth="2.6" />
+      {kind === 'REFLECT' && <MirrorEmblem accent={t.accent} uid={uid} />}
+      {kind === 'SHIELD' && <ShieldEmblem accent={t.accent} uid={uid} />}
+      {kind === 'SHUFFLE' && <ShuffleEmblem accent={t.accent} />}
+
+      {/* sparkles */}
+      <Sparkle x={22} y={44} s={3.2} delay="0s" />
+      <Sparkle x={79} y={50} s={2.6} delay="0.7s" />
+      <Sparkle x={74} y={92} s={3} delay="1.4s" />
+      <Sparkle x={26} y={90} s={2.2} delay="1.9s" />
+
+      {/* title ribbon */}
+      <g>
+        <path d="M6 104 H94 L89 111.5 L94 119 H6 L11 111.5 Z" fill="rgba(0,0,0,0.35)" transform="translate(0 1.6)" />
+        <path d="M6 104 H94 L89 111.5 L94 119 H6 L11 111.5 Z" fill={`url(#sxm-${uid})`} stroke="rgba(255,255,255,0.8)" strokeWidth="0.7" />
+        <text x="50" y="111.8" textAnchor="middle" dominantBaseline="central" fontSize={compact ? 10 : 11.5} fontWeight={900} fill={t.ink}>
+          {t.title}
+        </text>
+      </g>
+
+      {/* corner badges */}
+      {[false, true].map((flip) => (
+        <g key={String(flip)} transform={flip ? 'rotate(180 50 75)' : undefined}>
+          <circle cx="14" cy="17" r="8.4" fill={t.body[2]} stroke={`url(#sxm-${uid})`} strokeWidth="1.6" />
+          {kind === 'REFLECT' && <ReflectGlyph cx={14} cy={17} s={5.4} color="#fff" />}
+          {kind === 'SHIELD' && <ShieldGlyph cx={14} cy={17} s={5.4} color="#fff" />}
+          {kind === 'SHUFFLE' && <ShuffleGlyph cx={14} cy={17} s={5.4} color="#fff" />}
+        </g>
+      ))}
+    </g>
+  );
+}
+
 /** Corner pip: small, always inside the top-left 22x30 box — never touches the center oval. */
 function Corner({ card, color, flip }: { card: Card; color: string; flip?: boolean }) {
   const t = flip ? 'rotate(180 50 75)' : undefined;
@@ -223,6 +438,9 @@ export function PlayingCard({ card, playable, selected, faceDown, onClick, size 
       className={cn(
         box,
         'relative rounded-[14%/10%] select-none overflow-hidden shadow-[0_6px_14px_-4px_rgba(0,0,0,0.65)]',
+        card.kind === 'REFLECT' && 'shadow-[0_0_18px_-2px_rgba(167,139,250,0.85)]',
+        card.kind === 'SHIELD' && 'shadow-[0_0_18px_-2px_rgba(34,211,238,0.85)]',
+        card.kind === 'SHUFFLE' && 'shadow-[0_0_18px_-2px_rgba(244,114,182,0.85)]',
         playable && !selected && 'ring-2 ring-white/80 cursor-pointer animate-glow-pulse',
         selected && 'ring-4 ring-yellow-300 cursor-pointer shadow-[0_0_24px_4px_rgba(253,224,71,0.6)]',
         onClick && !playable && !selected ? 'opacity-45 saturate-50 cursor-not-allowed' : '',
@@ -256,6 +474,10 @@ export function PlayingCard({ card, playable, selected, faceDown, onClick, size 
           </pattern>
         </defs>
 
+        {special ? (
+          <SpecialFace kind={card.kind as SpecialKind} uid={uid} compact={size === 'xs'} />
+        ) : (
+        <>
         {/* body */}
         <rect width="100" height="150" fill={`url(#b-${uid})`} />
         <rect width="100" height="150" fill={`url(#p-${uid})`} />
@@ -310,30 +532,6 @@ export function PlayingCard({ card, playable, selected, faceDown, onClick, size 
             </text>
           </>
         )}
-        {card.kind === 'SHIELD' && (
-          <>
-            <ShieldGlyph cx={50} cy={68} s={20} color="#0b6fb8" />
-            <text x="50" y="98" textAnchor="middle" dominantBaseline="central" fontSize="11" fontWeight={900} fill="#0b4f8a">
-              โล่ป้องกัน
-            </text>
-          </>
-        )}
-        {card.kind === 'SHUFFLE' && (
-          <>
-            <ShuffleGlyph cx={50} cy={68} s={20} color="#c026a3" />
-            <text x="50" y="98" textAnchor="middle" dominantBaseline="central" fontSize="11" fontWeight={900} fill="#7a1fa2">
-              สลับที่นั่ง
-            </text>
-          </>
-        )}
-        {card.kind === 'REFLECT' && (
-          <>
-            <ReflectGlyph cx={50} cy={68} s={20} color="#5b2bd9" />
-            <text x="50" y="98" textAnchor="middle" dominantBaseline="central" fontSize="11" fontWeight={900} fill="#3a1d8f">
-              สะท้อน
-            </text>
-          </>
-        )}
 
         {/* corners */}
         <Corner card={card} color={wild ? '#000' : special ? special[3] : ink} />
@@ -341,13 +539,15 @@ export function PlayingCard({ card, playable, selected, faceDown, onClick, size 
 
         {/* gloss */}
         <rect width="100" height="70" fill={`url(#h-${uid})`} />
+        </>
+        )}
       </svg>
 
       {/* moving sheen on action / wild / reflect cards */}
       {isAction && (
         <motion.div
           className="absolute inset-0 pointer-events-none"
-          style={{ background: 'linear-gradient(115deg, transparent 35%, rgba(255,255,255,0.5) 50%, transparent 65%)' }}
+          style={{ background: special ? 'linear-gradient(115deg, transparent 30%, rgba(255,120,220,0.35) 42%, rgba(140,246,255,0.45) 50%, rgba(255,243,138,0.35) 58%, transparent 70%)' : 'linear-gradient(115deg, transparent 35%, rgba(255,255,255,0.5) 50%, transparent 65%)' }}
           initial={{ x: '-130%' }}
           animate={{ x: '130%' }}
           transition={{ duration: 2.4, repeat: Infinity, repeatDelay: 1.6, ease: 'easeInOut' }}
