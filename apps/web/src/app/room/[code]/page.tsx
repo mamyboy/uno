@@ -417,6 +417,14 @@ export default function RoomPage() {
 
   const players = room.players.filter((p: Player) => p.isPlayer);
   const nameOf = (id: string | null | undefined) => room.players.find((p: Player) => p.id === id)?.nickname ?? 'ผู้เล่น';
+  // Seats in the CURRENT turn order (follows a Shuffle card), finished players appended after.
+  const seated: Player[] = game
+    ? [
+        ...game.seatOrder.map((id) => players.find((p) => p.id === id)).filter((p): p is Player => !!p),
+        ...game.finishedOrder.map((id) => players.find((p) => p.id === id)).filter((p): p is Player => !!p && !game.seatOrder.includes(p.id)),
+        ...players.filter((p) => !game.seatOrder.includes(p.id) && !game.finishedOrder.includes(p.id)),
+      ]
+    : players;
   const avatarOf = (id: string | null | undefined, nickname?: string) =>
     room.players.find((p: Player) => p.id === id)?.avatar ??
     (nickname ? (room.leaderboard ?? []).find((e: any) => e.nickname?.trim().toLowerCase() === nickname.trim().toLowerCase())?.avatar : null) ??
@@ -675,8 +683,20 @@ export default function RoomPage() {
               <div className="flex items-center justify-center gap-2 sm:gap-6 flex-wrap">
                 <div className="text-center space-y-1">
                   <p className="text-xs text-zinc-400">กองจั่ว</p>
-                  <PlayingCard card={game.topCard} faceDown size="md" />
-                  <p className="text-xs text-zinc-500">{game.drawPileCount} ใบ</p>
+                  <div className="relative inline-block">
+                    <PlayingCard card={game.topCard} faceDown size="md" />
+                    <motion.span
+                      key={game.drawPileCount}
+                      initial={{ scale: 1.5 }}
+                      animate={{ scale: 1 }}
+                      className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                    >
+                      <span className={`min-w-[2.6em] px-2 py-1 rounded-xl font-black tabular-nums text-center bg-black/75 border-2 shadow-lg text-2xl sm:text-3xl ${game.drawPileCount === 0 ? 'border-red-400 text-red-300' : game.drawPileCount <= 10 ? 'border-orange-400 text-orange-200' : 'border-white/70 text-white'}`}>
+                        {game.drawPileCount}
+                      </span>
+                    </motion.span>
+                  </div>
+                  <p className="text-xs text-zinc-300 font-semibold">{game.drawPileCount === 0 ? 'หมดกอง — ขโมยไพ่' : `เหลือ ${game.drawPileCount} ใบ`}</p>
                 </div>
                 <div className="text-center space-y-1">
                   <p className="text-xs text-zinc-400">ไพ่กลาง</p>
@@ -715,12 +735,12 @@ export default function RoomPage() {
 
               {/* player ring */}
               <div className="flex flex-wrap gap-3 justify-center pt-2">
-                {players.map((p: Player) => {
+                {seated.map((p: Player, seatNo: number) => {
                   const isCurrent = p.id === game.currentPlayerId;
                   const finishRank = game.finishedOrder.indexOf(p.id);
                   const hasFinished = finishRank >= 0;
                   return (
-                    <div key={p.id} className="flex flex-col items-center gap-1">
+                    <motion.div key={p.id} layout transition={{ type: 'spring', stiffness: 300, damping: 26 }} className="flex flex-col items-center gap-1">
                       <motion.div
                         className={`relative rounded-full border-2 ${
                           hasFinished ? 'border-yellow-400' : isCurrent ? 'border-emerald-300 animate-turn-ring' : 'border-zinc-600'
@@ -735,11 +755,11 @@ export default function RoomPage() {
                           </span>
                         )}
                       </motion.div>
-                      <span className="text-[11px] text-zinc-300">{p.nickname}</span>
+                      <span className="text-[11px] text-zinc-300">{!hasFinished && <span className="text-zinc-500">{seatNo + 1}. </span>}{p.nickname}</span>
                       <span className="text-[10px] text-zinc-500">
                         {hasFinished ? `ชนะอันดับที่ ${finishRank + 1}` : `${p.cardCount} ใบ`}
                       </span>
-                    </div>
+                    </motion.div>
                   );
                 })}
               </div>

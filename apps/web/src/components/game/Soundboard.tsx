@@ -22,6 +22,7 @@ export function Soundboard() {
   const [favs, setFavs] = useState<CatalogItem[]>([]);
   const [usage, setUsage] = useState<ReturnType<typeof getUsage>>({});
   const [limit, setLimit] = useState(PAGE);
+  const [seed, setSeed] = useState(0); // bumps every time the 'ทั้งหมด' tab is opened → new random order
 
   useEffect(() => {
     setFavs(getFavorites());
@@ -60,11 +61,21 @@ export function Soundboard() {
     [usage],
   );
 
+  const shuffled = useMemo(() => {
+    void seed;
+    const a = [...catalog];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }, [catalog, seed]);
+
   const list: (CatalogItem & { n?: number })[] = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const base = tab === 'FAV' ? favs : tab === 'TOP' ? top : catalog;
+    const base = tab === 'FAV' ? favs : tab === 'TOP' ? top : shuffled;
     return needle ? base.filter((x) => x.t.toLowerCase().includes(needle) || x.f.includes(needle)) : base;
-  }, [q, tab, favs, top, catalog]);
+  }, [q, tab, favs, top, shuffled]);
 
   const trigger = (item: CatalogItem) => {
     socket.emit(EV.ROOM_PLAY_SOUND, { soundId: item.f, label: item.t.slice(0, 80) }, () => {});
@@ -75,7 +86,7 @@ export function Soundboard() {
   const tabs: { id: Tab; label: string; icon: ReactNode; count: number }[] = [
     { id: 'FAV', label: 'โปรด', icon: <Star className="w-3.5 h-3.5" />, count: favs.length },
     { id: 'TOP', label: 'ใช้บ่อย', icon: <Flame className="w-3.5 h-3.5" />, count: top.length },
-    { id: 'ALL', label: 'ทั้งหมด', icon: <Music className="w-3.5 h-3.5" />, count: catalog.length },
+    { id: 'ALL', label: 'สุ่มทั้งหมด', icon: <Music className="w-3.5 h-3.5" />, count: catalog.length },
   ];
 
   return (
@@ -96,7 +107,10 @@ export function Soundboard() {
       <motion.button
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.92 }}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setOpen((v) => !v);
+          setSeed((s) => s + 1);
+        }}
         className="fixed bottom-5 right-5 z-[60] w-14 h-14 rounded-full bg-gradient-to-b from-fuchsia-500 to-fuchsia-700 border border-fuchsia-300/40 flex items-center justify-center shadow-[0_3px_0_0_rgba(90,10,95,0.6),0_8px_20px_-4px_rgba(192,38,211,0.5)]"
         title="กดเสียงแกล้งเพื่อนในห้อง"
       >
@@ -116,7 +130,10 @@ export function Soundboard() {
               {tabs.map((t) => (
                 <button
                   key={t.id}
-                  onClick={() => setTab(t.id)}
+                  onClick={() => {
+                    setTab(t.id);
+                    if (t.id === 'ALL') setSeed((s) => s + 1);
+                  }}
                   className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold border transition ${
                     tab === t.id ? 'bg-fuchsia-600/30 border-fuchsia-500 text-white' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white'
                   }`}

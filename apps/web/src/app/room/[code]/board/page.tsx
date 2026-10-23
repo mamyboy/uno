@@ -111,6 +111,14 @@ export default function BoardPage() {
 
   const players = room.players.filter((p: Player) => p.isPlayer);
   const nameOf = (id: string | null | undefined) => room.players.find((p: Player) => p.id === id)?.nickname ?? 'ผู้เล่น';
+  // Seats in the CURRENT turn order (follows a Shuffle card), finished players appended after.
+  const seated: Player[] = game
+    ? [
+        ...game.seatOrder.map((id) => players.find((p) => p.id === id)).filter((p): p is Player => !!p),
+        ...game.finishedOrder.map((id) => players.find((p) => p.id === id)).filter((p): p is Player => !!p && !game.seatOrder.includes(p.id)),
+        ...players.filter((p) => !game.seatOrder.includes(p.id) && !game.finishedOrder.includes(p.id)),
+      ]
+    : players;
   const avatarOf = (id: string | null | undefined, nickname?: string) =>
     room.players.find((p: Player) => p.id === id)?.avatar ??
     (nickname ? (room.leaderboard ?? []).find((e: any) => e.nickname?.trim().toLowerCase() === nickname.trim().toLowerCase())?.avatar : null) ??
@@ -198,8 +206,20 @@ export default function BoardPage() {
           <div className="flex items-center justify-center gap-3 sm:gap-8 flex-wrap">
             <div className="text-center space-y-2">
               <p className="text-sm text-zinc-400">กองจั่ว</p>
-              <PlayingCard card={game.topCard} faceDown size="lg" />
-              <p className="text-xs text-zinc-500">{game.drawPileCount} ใบ</p>
+              <div className="relative inline-block">
+                    <PlayingCard card={game.topCard} faceDown size="lg" />
+                    <motion.span
+                      key={game.drawPileCount}
+                      initial={{ scale: 1.5 }}
+                      animate={{ scale: 1 }}
+                      className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                    >
+                      <span className={`min-w-[2.6em] px-2 py-1 rounded-xl font-black tabular-nums text-center bg-black/75 border-2 shadow-lg text-3xl sm:text-4xl ${game.drawPileCount === 0 ? 'border-red-400 text-red-300' : game.drawPileCount <= 10 ? 'border-orange-400 text-orange-200' : 'border-white/70 text-white'}`}>
+                        {game.drawPileCount}
+                      </span>
+                    </motion.span>
+                  </div>
+              <p className="text-xs text-zinc-300 font-semibold">{game.drawPileCount === 0 ? 'หมดกอง — ขโมยไพ่' : `เหลือ ${game.drawPileCount} ใบ`}</p>
             </div>
             <div className="text-center space-y-2">
               <p className="text-sm text-zinc-400">ไพ่กลาง</p>
@@ -258,13 +278,15 @@ export default function BoardPage() {
           </motion.div>
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {players.map((p) => {
+            {seated.map((p, seatNo) => {
               const isCurrent = p.id === game.currentPlayerId;
               const finishRank = game.finishedOrder.indexOf(p.id);
               const hasFinished = finishRank >= 0;
               return (
                 <motion.div
                   key={p.id}
+                  layout
+                  data-seat={seatNo + 1}
                   animate={isCurrent && !hasFinished ? { scale: [1, 1.04, 1] } : {}}
                   transition={{ duration: 1.3, repeat: isCurrent && !hasFinished ? Infinity : 0 }}
                   className={`rounded-2xl p-4 text-center border-2 ${
