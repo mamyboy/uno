@@ -7,7 +7,7 @@ import { SOUND_IDS, SOUND_LABELS } from '@cma/shared';
  * /public/sounds/catalog.json as {f: slug, t: title}). A core set used by game FX is bundled
  * locally under /sounds/mi; anything else streams straight from myinstants' media URL.
  */
-const LOCAL = new Set<string>(SOUND_IDS as readonly string[]);
+const LOCAL = new Set<string>([...(SOUND_IDS as readonly string[]), 'emotional-damage-meme', 'roblox-death-sound-1', 'sound-fail-fallo', 'cat-laugh-meme-1']);
 export type CatalogItem = { f: string; t: string };
 
 export const soundUrl = (id: string) =>
