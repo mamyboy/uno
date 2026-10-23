@@ -715,26 +715,19 @@ describe('GameEngine', () => {
       expect(() => engine.playCard('p2', 'p2-0', engine.turnNumber, 'BLUE')).toThrow(/MUST_COUNTER_OR_DRAW/);
     });
 
-    it('DRAW_TWO continues a DRAW_TWO combo only in the SAME color', () => {
+    it('DRAW_TWO counters a pending DRAW_TWO combo regardless of color', () => {
       const openingDrawTwo = { id: 'p1-0', kind: 'DRAW_TWO' as const, color: 'RED' as const };
       const p1Filler = { id: 'p1-1', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 5 };
       const counterBlue = { id: 'p2-0', kind: 'DRAW_TWO' as const, color: 'BLUE' as const };
-      const counterRed = { id: 'p2-1', kind: 'DRAW_TWO' as const, color: 'RED' as const };
-      const p2Filler = { id: 'p2-2', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 6 };
-      const p1Filler2 = { id: 'p1-2', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 7 };
+      const p2Filler = { id: 'p2-1', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 6 };
       const top = { id: 'top', kind: 'NUMBER' as const, color: 'RED' as const, value: 9 };
       const rest = Array.from({ length: 20 }, (_, i) => ({ id: `rest-${i}`, kind: 'NUMBER' as const, color: 'YELLOW' as const, value: i % 10 }));
-      // deal (2p, hand 3): p1,p2,p1,p2,p1,p2
-      const deck = [openingDrawTwo, counterBlue, p1Filler, counterRed, p1Filler2, p2Filler, top, ...rest];
-      const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 3 });
+      const deck = [openingDrawTwo, counterBlue, p1Filler, p2Filler, top, ...rest];
+      const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
       engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
       engine.playCard('p1', 'p1-0', engine.turnNumber);
-      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 2, targetId: 'p2' });
-
-      expect(engine.getPlayableIds('p2')).not.toContain('p2-0'); // blue can't answer a red +2
-      expect(engine.getPlayableIds('p2')).toContain('p2-1');
-      expect(() => engine.playCard('p2', 'p2-0', engine.turnNumber)).toThrow('MUST_COUNTER_OR_DRAW');
-      engine.playCard('p2', 'p2-1', engine.turnNumber);
+      expect(engine.getPlayableIds('p2')).toContain('p2-0');
+      engine.playCard('p2', 'p2-0', engine.turnNumber);
       expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 4, targetId: 'p1' });
     });
 

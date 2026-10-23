@@ -51,9 +51,9 @@ function isWildDrawKind(kind: Card['kind']): boolean {
  */
 function canCounterCombo(card: Card, topCard: Card): boolean {
   if (card.kind === 'DRAW_TWO') {
-    // A Draw Two only continues a +2-tier combo in the SAME color as the card it answers
-    // (the previous Draw Two's color, or the color chosen on a Wild Draw Two).
-    if (topCard.kind === 'DRAW_TWO' || topCard.kind === 'WILD_DRAW_TWO') return card.color === topCard.color;
+    // Draw Two on Draw Two: any color. Draw Two on a Wild Draw Two: must match the chosen color.
+    if (topCard.kind === 'DRAW_TWO') return true;
+    if (topCard.kind === 'WILD_DRAW_TWO') return card.color === topCard.color;
     return false;
   }
   if (isWildDrawKind(card.kind)) {
@@ -467,8 +467,8 @@ export class GameEngine {
       const hasDrawTwo = picked.some((c) => c.kind === 'DRAW_TWO');
       // Counter with Wild Draw cards OR with Draw Two cards — never both in one move.
       if (hasWildDraw && hasDrawTwo) throw new GameError('WILD_DRAW_NO_DRAW_TWO');
-      // At least one card must legally counter: a Wild Draw of high-enough tier, or a Draw Two in
-      // the SAME color as the card being answered (extra Draw Twos may ride along, amounts add).
+      // At least one card must legally counter: a Wild Draw of high-enough tier, or a Draw Two
+      // (any color vs a Draw Two; matching color vs a Wild Draw Two) — extra Draw Twos ride along.
       if (!picked.some((c) => canCounterCombo(c, top))) {
         throw new GameError(hasDrawTwo ? 'DRAW_TWO_COLOR_MISMATCH' : 'MUST_COUNTER_OR_DRAW');
       }
