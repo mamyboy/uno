@@ -75,6 +75,12 @@ export default function RoomPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [pendingWildCardIds, setPendingWildCardIds] = useState<string[] | null>(null);
   const [effectCard, setEffectCard] = useState<Card | null>(null);
+  // Optimistic play: cards leave the hand and land on the pile immediately; the server's answer
+  // either confirms it (next hand update) or we pull them back.
+  const [optimistic, setOptimistic] = useState<{ ids: string[]; top: Card | null; at: number } | null>(null);
+  const [returningIds, setReturningIds] = useState<string[]>([]);
+  const optimisticRef = useRef<{ ids: string[] } | null>(null);
+  optimisticRef.current = optimistic;
   const [stealNotice, setStealNotice] = useState('');
   const [stolenCardId, setStolenCardId] = useState<string | null>(null);
   const [finishNotice, setFinishNotice] = useState('');
@@ -118,14 +124,21 @@ export default function RoomPage() {
 
   // Flash a big banner whenever an Action/Wild card lands on top of the discard pile.
   useEffect(() => {
-    const top = game?.topCard;
+    const top = optimistic?.top ?? game?.topCard;
     if (!top || top.id === lastTopCardId.current) return;
     lastTopCardId.current = top.id;
     if (top.kind === 'NUMBER') return;
     setEffectCard(top);
     const t = setTimeout(() => setEffectCard(null), 1300);
     return () => clearTimeout(t);
-  }, [game?.topCard?.id]);
+  }, [game?.topCard?.id, optimistic?.top?.id]);
+
+  // Safety net: if no confirmation ever arrives, stop pretending after a few seconds.
+  useEffect(() => {
+    if (!optimistic) return;
+    const t = setTimeout(() => setOptimistic(null), 4000);
+    return () => clearTimeout(t);
+  }, [optimistic]);
 
   useEffect(() => {
     const existing = getSession();
@@ -177,6 +190,7 @@ export default function RoomPage() {
       inFrame(() => {
         setHand(h);
         setSelectedIds([]);
+        setOptimistic(null); // authoritative hand arrived
       });
     }
     function onGameOver(res: any) {
@@ -353,9 +367,33 @@ export default function RoomPage() {
     socket.emit(EV.GAME_SELECT_DIRECTION, { direction, turnNumber: game.turnNumber }, (ack: any) => !ack.ok && setActionError(ack.error));
   };
 
+  /** Show the play right away; roll back if the server says no. */
+  const beginOptimistic = (cardIds: string[], chosenColor?: 'RED' | 'YELLOW' | 'GREEN' | 'BLUE') => {
+    const cards = cardIds.map((id) => hand?.hand.find((c) => c.id === id)).filter(Boolean) as Card[];
+    const last = cards[cards.length - 1];
+    // Reflect / Shield / Shuffle slide UNDER the top card, so the pile's top doesn't change.
+    const slidesUnder = !!last && ['REFLECT', 'SHIELD', 'SHUFFLE'].includes(last.kind);
+    const top = last && !slidesUnder ? ({ ...last, color: last.color ?? chosenColor ?? null } as Card) : null;
+    const o = { ids: cardIds, top, at: Date.now() };
+    optimisticRef.current = o;
+    setOptimistic(o);
+  };
+  const rollback = (error: string) => {
+    setReturningIds(optimisticRef.current?.ids ?? []);
+    optimisticRef.current = null;
+    setOptimistic(null);
+    setTimeout(() => setReturningIds([]), 800);
+    setActionError(error);
+    try { navigator.vibrate?.([60, 40, 60]); } catch { /* ignore */ }
+  };
+
   const playCard = (cardId: string, chosenColor?: 'RED' | 'YELLOW' | 'GREEN' | 'BLUE') => {
-    if (!game) return;
-    socket.emit(EV.GAME_PLAY_CARD, { cardId, turnNumber: game.turnNumber, chosenColor }, (ack: any) => !ack.ok && setActionError(ack.error));
+    if (!game || optimistic) return;
+    beginOptimistic([cardId], chosenColor);
+    socket.emit(EV.GAME_PLAY_CARD, { cardId, turnNumber: game.turnNumber, chosenColor }, (ack: any) => {
+      if (!ack.ok) rollback(ack.error);
+    });
+    setSelectedIds([]);
     setPendingWildCardIds(null);
   };
 
@@ -377,8 +415,10 @@ export default function RoomPage() {
       setPendingWildCardIds(cardIds);
       return;
     }
+    if (optimistic) return;
+    beginOptimistic(cardIds, chosenColor);
     socket.emit(EV.GAME_PLAY_CARDS, { cardIds, turnNumber: game.turnNumber, chosenColor }, (ack: any) => {
-      if (!ack.ok) setActionError(ack.error);
+      if (!ack.ok) rollback(ack.error);
     });
     setSelectedIds([]);
     setPendingWildCardIds(null);
@@ -752,13 +792,13 @@ export default function RoomPage() {
                   <p className="text-xs text-zinc-400">ไพ่กลาง</p>
                   <AnimatePresence mode="popLayout">
                     <m.div
-                      key={game.topCard.id}
-                      initial={{ opacity: 0, scale: 0.4, rotate: -25, y: -20 }}
+                      key={(optimistic?.top ?? game.topCard).id}
+                      initial={{ opacity: 0, scale: 0.4, rotate: -25, y: optimistic?.top ? 160 : -20 }}
                       animate={{ opacity: 1, scale: 1, rotate: 0, y: 0 }}
                       exit={{ opacity: 0, scale: 0.6, rotate: 15 }}
                       transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                     >
-                      <PlayingCard card={game.topCard} size="lg" />
+                      <PlayingCard card={optimistic?.top ?? game.topCard} size="lg" />
                     </m.div>
                   </AnimatePresence>
                 </div>
@@ -874,7 +914,7 @@ export default function RoomPage() {
                 <div className="flex flex-wrap gap-2 justify-center">
                   <AnimatePresence>
                     {hand.hand
-                      .slice()
+                      .filter((c) => !optimistic?.ids.includes(c.id))
                       .sort((a, b) => {
                         const kindOrder: Record<string, number> = { NUMBER: 0, SKIP: 1, REVERSE: 2, DRAW_TWO: 3, WILD: 4, WILD_DRAW_TWO: 5, WILD_DRAW_FOUR: 6, WILD_DRAW_EIGHT: 7, REFLECT: 8, SHIELD: 9, SHUFFLE: 10 };
                         const ka = kindOrder[a.kind] ?? 99;
@@ -899,9 +939,16 @@ export default function RoomPage() {
                       const canStackDraw =
                         !!firstSelected && DRAW_FAM.includes(firstSelected.kind) && DRAW_FAM.includes(c.kind) &&
                         (firstSelected.kind === 'DRAW_TWO') === (c.kind === 'DRAW_TWO');
-                      const clickable = hand.isMyTurn && (hand.playableCardIds.includes(c.id) || canStack || canStackDraw);
+                      const clickable = hand.isMyTurn && !optimistic && (hand.playableCardIds.includes(c.id) || canStack || canStackDraw);
                       return (
-                        <m.div key={c.id} layout className="relative" exit={{ opacity: 0, y: 30, scale: 0.6 }}>
+                        <m.div
+                          key={c.id}
+                          layout
+                          className="relative"
+                          initial={returningIds.includes(c.id) ? { opacity: 0, y: -110, scale: 0.7, rotate: -8 } : false}
+                          animate={{ opacity: 1, y: 0, scale: 1, rotate: 0 }}
+                          exit={{ opacity: 0, y: -160, scale: 0.75, transition: { duration: 0.22, ease: 'easeOut' } }}
+                        >
                           <PlayingCard
                             card={c}
                             playable={clickable}
