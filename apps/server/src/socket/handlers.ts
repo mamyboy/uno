@@ -1,6 +1,6 @@
 import type { Server, Socket } from 'socket.io';
 import { z } from 'zod';
-import { EV, schemas, type Ack, type Card, type SyncPayload } from '@cma/shared';
+import { EV, MASCOTS, schemas, TAUNT_COOLDOWN_MS, TAUNT_IDS, type Ack, type Card, type SyncPayload } from '@cma/shared';
 import { GameError } from '../engine/GameEngine';
 import type { RoomManager, ServerMember, ServerRoom } from '../rooms/RoomManager';
 import type { Persistence } from '../db/persistence';
@@ -35,6 +35,7 @@ function errMessage(err: unknown): string {
 export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persistence, graceMs = DISCONNECT_GRACE_MS) {
   // key: `${roomCode}:${playerId}` — pending "kick after grace period" timers for dropped sockets.
   const pendingKicks = new Map<string, ReturnType<typeof setTimeout>>();
+  const tauntAt = new Map<string, number>();
   const kickKey = (code: string, playerId: string) => `${code}:${playerId}`;
   const cancelPendingKick = (code: string, playerId: string) => {
     const key = kickKey(code, playerId);
@@ -307,6 +308,23 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
         const parsed = schemas.playSound.parse(data);
         const member = sd(socket).playerId ? rooms.getMember(room, sd(socket).playerId ?? '') : null;
         io.to(roomCh(room.code)).emit(EV.ROOM_PLAY_SOUND, { soundId: parsed.soundId, label: parsed.label, byNickname: member?.nickname ?? 'กระดานกลาง' });
+      });
+    });
+
+    socket.on(EV.ROOM_TAUNT, (data: unknown, cb: (ack: Ack<object>) => void) => {
+      handle(socket, cb, () => {
+        const room = withRoom(socket);
+        const parsed = schemas.taunt.parse(data);
+        if (!TAUNT_IDS.includes(parsed.tauntId)) throw new GameError('INVALID_TAUNT');
+        const mascot = (MASCOTS as readonly string[]).includes(parsed.mascot) ? parsed.mascot : MASCOTS[0];
+        const pid = sd(socket).playerId ?? '';
+        const member = rooms.getMember(room, pid);
+        if (!member) throw new GameError('NOT_IN_ROOM');
+        const key = `${room.code}:${pid}`;
+        const now = Date.now();
+        if (now - (tauntAt.get(key) ?? 0) < TAUNT_COOLDOWN_MS) throw new GameError('TAUNT_COOLDOWN');
+        tauntAt.set(key, now);
+        io.to(roomCh(room.code)).emit(EV.ROOM_TAUNT, { playerId: pid, nickname: member.nickname, mascot, tauntId: parsed.tauntId, at: now });
       });
     });
 

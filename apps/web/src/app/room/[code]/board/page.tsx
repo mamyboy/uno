@@ -12,6 +12,7 @@ import { ActionEffect } from '@/components/game/ActionEffect';
 import { Soundboard } from '@/components/game/Soundboard';
 import { GameFx } from '@/components/game/GameFx';
 import { useCollapse } from '@/components/game/useCollapse';
+import { TauntButton, TauntLayer } from '@/components/game/Taunts';
 import { DirectionFlipFlash, NextBadge, SeatArrow, SeatRow, SeatWrap, TurnFlow } from '@/components/game/SeatArrow';
 import { nextSeatIndex } from '@cma/shared';
 import { PlayHistory } from '@/components/game/PlayHistory';
@@ -151,6 +152,7 @@ export default function BoardPage() {
       <ActionEffect card={effectCard} />
       <GameFx game={game} result={result} nameOf={nameOf} avatarOf={avatarOf} />
       <Soundboard />
+      <TauntLayer big />
 
       <h1 className="text-xl sm:text-3xl font-black tracking-tight relative z-10 text-center px-2">
         Color Match Arena · <span className="text-emerald-400 font-mono">{room.code}</span>

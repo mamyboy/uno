@@ -18,6 +18,7 @@ import { GameFx } from '@/components/game/GameFx';
 import { PlayHistory } from '@/components/game/PlayHistory';
 import { TurnBanner } from '@/components/game/TurnBanner';
 import { useCollapse } from '@/components/game/useCollapse';
+import { TauntButton, TauntLayer } from '@/components/game/Taunts';
 import { DirectionFlipFlash, NextBadge, SeatArrow, SeatRow, SeatWrap, TurnFlow } from '@/components/game/SeatArrow';
 import { nextSeatIndex } from '@cma/shared';
 import { Button, LinkButton } from '@/components/ui/Button';
@@ -473,6 +474,8 @@ export default function RoomPage() {
       <ActionEffect card={effectCard} />
       <GameFx game={game} result={result} nameOf={nameOf} avatarOf={avatarOf} />
       <Soundboard />
+      <TauntButton />
+      <TauntLayer />
 
       <div className="max-w-3xl mx-auto space-y-6 relative z-10">
         <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

@@ -61,6 +61,24 @@ describe('socket integration', () => {
     guest.close();
   });
 
+  it('room:taunt is broadcast to everyone in the room, with a per-player cooldown', async () => {
+    const host = await connect();
+    const guest = await connect();
+    const created = await emit(host, 'room:create', { name: 'Taunt', nickname: 'Tom', hostPlays: true });
+    await emit(guest, 'room:join', { code: created.code, nickname: 'Jerry' });
+    const got = new Promise<any>((resolve) => guest.once('room:taunt', resolve));
+    const ack = await emit(host, 'room:taunt', { tauntId: 'laugh', mascot: '🦊' });
+    expect(ack.ok).toBe(true);
+    const ev = await got;
+    expect(ev).toMatchObject({ nickname: 'Tom', mascot: '🦊', tauntId: 'laugh' });
+    const again = await emit(host, 'room:taunt', { tauntId: 'cry', mascot: '🦊' });
+    expect(again).toMatchObject({ ok: false, error: 'TAUNT_COOLDOWN' });
+    const bad = await emit(guest, 'room:taunt', { tauntId: 'nope', mascot: '🦊' });
+    expect(bad).toMatchObject({ ok: false, error: 'INVALID_TAUNT' });
+    host.disconnect();
+    guest.disconnect();
+  });
+
   it('keeps private hands isolated between players', async () => {
     const host = await connect();
     const guest = await connect();
