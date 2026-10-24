@@ -12,7 +12,8 @@ import { ActionEffect } from '@/components/game/ActionEffect';
 import { Soundboard } from '@/components/game/Soundboard';
 import { GameFx } from '@/components/game/GameFx';
 import { useCollapse } from '@/components/game/useCollapse';
-import { DirectionFlipFlash, SeatArrow, SeatRow, SeatWrap } from '@/components/game/SeatArrow';
+import { DirectionFlipFlash, NextBadge, SeatArrow, SeatRow, SeatWrap, TurnFlow } from '@/components/game/SeatArrow';
+import { nextSeatIndex } from '@cma/shared';
 import { PlayHistory } from '@/components/game/PlayHistory';
 
 const COLOR_LABEL: Record<string, string> = { RED: 'แดง', YELLOW: 'เหลือง', GREEN: 'เขียว', BLUE: 'น้ำเงิน' };
@@ -123,6 +124,13 @@ export default function BoardPage() {
         ...players.filter((p) => !game.seatOrder.includes(p.id) && !game.finishedOrder.includes(p.id)),
       ]
     : players;
+  const nextId: string | null = (() => {
+    if (!game || !game.direction || !game.currentPlayerId) return null;
+    const n = game.seatOrder.length;
+    const idx = game.seatOrder.indexOf(game.currentPlayerId);
+    if (n < 2 || idx < 0) return null;
+    return game.seatOrder[nextSeatIndex(idx, n, game.direction)];
+  })();
   const avatarOf = (id: string | null | undefined, nickname?: string) =>
     room.players.find((p: Player) => p.id === id)?.avatar ??
     (nickname ? (room.leaderboard ?? []).find((e: any) => e.nickname?.trim().toLowerCase() === nickname.trim().toLowerCase())?.avatar : null) ??
@@ -290,7 +298,8 @@ export default function BoardPage() {
 
           <div className="relative pt-4">
           <DirectionFlipFlash direction={game.direction} />
-          <SeatRow currentId={game.currentPlayerId} className="items-center gap-x-2 px-2">
+              <TurnFlow currentName={nameOf(game.currentPlayerId)} nextName={nameOf(nextId)} direction={game.direction} size="lg" />
+          <SeatRow currentId={game.currentPlayerId} className="items-center gap-x-2 gap-y-6 px-2 pt-3">
             {seated.map((p, seatNo) => {
               const isCurrent = p.id === game.currentPlayerId;
               const finishRank = game.finishedOrder.indexOf(p.id);
@@ -306,12 +315,13 @@ export default function BoardPage() {
                   layout
                   animate={isCurrent && !hasFinished ? { scale: [1, 1.04, 1] } : {}}
                   transition={{ duration: 1.3, repeat: isCurrent && !hasFinished ? Infinity : 0 }}
-                  className={`shrink-0 w-32 sm:w-36 rounded-2xl p-4 text-center border-2 ${
+                  className={`relative shrink-0 w-32 sm:w-36 rounded-2xl p-4 text-center border-2 ${
                     hasFinished
                       ? 'border-yellow-400 bg-yellow-400/10'
-                      : isCurrent ? 'border-emerald-400 bg-emerald-400/10 animate-turn-ring' : 'border-white/10 bg-white/5'
+                      : isCurrent ? 'border-emerald-400 bg-emerald-400/10 animate-turn-ring' : p.id === nextId ? 'border-amber-400 bg-amber-400/10' : 'border-white/10 bg-white/5'
                   }`}
                 >
+                  {p.id === nextId && !isCurrent && <NextBadge size="lg" />}
                   <div className="relative inline-block">
                     <Avatar nickname={p.nickname} avatar={p.avatar} size="md" />
                     {hasFinished && (

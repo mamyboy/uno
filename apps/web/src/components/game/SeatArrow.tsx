@@ -77,17 +77,38 @@ export function DirectionFlipFlash({ direction }: { direction: 'LEFT' | 'RIGHT' 
   );
 }
 
-/** Horizontal single-row seat strip: never wraps, scrolls sideways when crowded, and keeps the
- *  current player scrolled into view. */
-export function SeatRow({ children, currentId, className = '' }: { children: ReactNode; currentId: string | null | undefined; className?: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = ref.current?.querySelector<HTMLElement>(`[data-seat="${currentId}"]`);
-    el?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-  }, [currentId]);
+/** Seat strip: wraps onto new lines when crowded (centered). */
+export function SeatRow({ children, className = '' }: { children: ReactNode; currentId?: string | null; className?: string }) {
+  return <div className={`flex flex-wrap justify-center ${className}`}>{children}</div>;
+}
+
+/** Badge on the avatar of whoever plays next. */
+export function NextBadge({ size = 'sm' }: { size?: 'sm' | 'lg' }) {
   return (
-    <div ref={ref} className="w-full overflow-x-auto overscroll-x-contain [scrollbar-width:thin] pb-1">
-      <div className={`flex flex-nowrap w-max mx-auto ${className}`}>{children}</div>
+    <motion.span
+      className={`absolute left-1/2 -translate-x-1/2 z-10 whitespace-nowrap rounded-full bg-amber-400 text-black font-black shadow-[0_0_12px_rgba(251,191,36,0.9)] ${
+        size === 'lg' ? '-top-4 px-2.5 py-0.5 text-xs' : '-top-3 px-1.5 py-[1px] text-[9px]'
+      }`}
+      animate={{ y: [0, -3, 0] }}
+      transition={{ duration: 0.8, repeat: Infinity }}
+    >
+      ถัดไป ▼
+    </motion.span>
+  );
+}
+
+/** Clear "now → next" strip so it's obvious who plays after the current player. */
+export function TurnFlow({ currentName, nextName, direction, size = 'sm' }: { currentName: string; nextName: string; direction: 'LEFT' | 'RIGHT' | null; size?: 'sm' | 'lg' }) {
+  if (!direction || !currentName) return null;
+  const big = size === 'lg';
+  return (
+    <div className={`mx-auto mb-3 flex w-fit max-w-full items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-500/10 ${big ? 'px-5 py-2 text-lg' : 'px-3 py-1 text-xs'}`}>
+      <span className="text-zinc-400">ตอนนี้</span>
+      <span className="font-black text-emerald-300 truncate max-w-[9rem]">{currentName}</span>
+      <SeatArrow direction="RIGHT" size={size} />
+      <span className="text-zinc-400">ถัดไป</span>
+      <span className="font-black text-amber-300 truncate max-w-[9rem]">{nextName}</span>
+      <span className={`text-zinc-500 ${big ? 'text-sm' : 'text-[10px]'}`}>({direction === 'LEFT' ? 'ทวนเข็ม ⟲' : 'ตามเข็ม ⟳'})</span>
     </div>
   );
 }

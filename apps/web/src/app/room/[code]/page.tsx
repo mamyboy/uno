@@ -18,7 +18,8 @@ import { GameFx } from '@/components/game/GameFx';
 import { PlayHistory } from '@/components/game/PlayHistory';
 import { TurnBanner } from '@/components/game/TurnBanner';
 import { useCollapse } from '@/components/game/useCollapse';
-import { DirectionFlipFlash, SeatArrow, SeatRow, SeatWrap } from '@/components/game/SeatArrow';
+import { DirectionFlipFlash, NextBadge, SeatArrow, SeatRow, SeatWrap, TurnFlow } from '@/components/game/SeatArrow';
+import { nextSeatIndex } from '@cma/shared';
 import { Button, LinkButton } from '@/components/ui/Button';
 
 const COLOR_LABEL: Record<string, string> = { RED: 'แดง', YELLOW: 'เหลือง', GREEN: 'เขียว', BLUE: 'น้ำเงิน' };
@@ -431,6 +432,13 @@ export default function RoomPage() {
         ...players.filter((p) => !game.seatOrder.includes(p.id) && !game.finishedOrder.includes(p.id)),
       ]
     : players;
+  const nextId: string | null = (() => {
+    if (!game || !game.direction || !game.currentPlayerId) return null;
+    const n = game.seatOrder.length;
+    const idx = game.seatOrder.indexOf(game.currentPlayerId);
+    if (n < 2 || idx < 0) return null;
+    return game.seatOrder[nextSeatIndex(idx, n, game.direction)];
+  })();
   const avatarOf = (id: string | null | undefined, nickname?: string) =>
     room.players.find((p: Player) => p.id === id)?.avatar ??
     (nickname ? (room.leaderboard ?? []).find((e: any) => e.nickname?.trim().toLowerCase() === nickname.trim().toLowerCase())?.avatar : null) ??
@@ -752,7 +760,8 @@ export default function RoomPage() {
               {/* player ring — single row, scrolls sideways when crowded */}
               <div className="relative pt-3">
               <DirectionFlipFlash direction={game.direction} />
-              <SeatRow currentId={game.currentPlayerId} className="gap-x-1.5 items-start px-1">
+              <TurnFlow currentName={nameOf(game.currentPlayerId)} nextName={nameOf(nextId)} direction={game.direction} size="sm" />
+              <SeatRow currentId={game.currentPlayerId} className="gap-x-1.5 gap-y-5 items-start px-1 pt-2">
                 {seated.map((p: Player, seatNo: number) => {
                   const isCurrent = p.id === game.currentPlayerId;
                   const finishRank = game.finishedOrder.indexOf(p.id);
@@ -766,12 +775,13 @@ export default function RoomPage() {
                     <motion.div layout data-seat={p.id} transition={{ type: 'spring', stiffness: 300, damping: 26 }} className="flex flex-col items-center gap-1 shrink-0 w-14">
                       <motion.div
                         className={`relative rounded-full border-2 ${
-                          hasFinished ? 'border-yellow-400' : isCurrent ? 'border-emerald-300 animate-turn-ring' : 'border-zinc-600'
+                          hasFinished ? 'border-yellow-400' : isCurrent ? 'border-emerald-300 animate-turn-ring' : p.id === nextId ? 'border-amber-400 ring-2 ring-amber-400/60' : 'border-zinc-600'
                         } ${p.avatar ? '' : isCurrent ? 'bg-emerald-500' : 'bg-zinc-800'}`}
                         animate={isCurrent && !hasFinished ? { scale: [1, 1.08, 1] } : {}}
                         transition={{ duration: 1.2, repeat: isCurrent && !hasFinished ? Infinity : 0 }}
                       >
                         <Avatar nickname={p.nickname} avatar={p.avatar} size="md" />
+                        {p.id === nextId && !isCurrent && <NextBadge />}
                         {hasFinished && (
                           <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-yellow-400 text-black text-[10px] font-bold flex items-center justify-center ring-2 ring-zinc-900">
                             {finishRank + 1}
