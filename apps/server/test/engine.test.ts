@@ -1169,14 +1169,19 @@ describe('SHUFFLE card (สลับที่นั่ง)', () => {
     expect(['p2', 'p3']).toContain(s.currentPlayerId);
   });
 
-  it('can not be used to dodge a pending combo', () => {
+  it('can be played even while a combo is pending — the combo stays on the shuffler', () => {
     const d2 = { id: 'p1-d2', kind: 'DRAW_TWO' as const, color: 'RED' as const };
-    const deck = [d2, SF('p2-sf'), N('p1-b', 'GREEN', 1), N('p2-b', 'GREEN', 2), N('top', 'RED', 9), ...rest];
-    const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 2 });
+    const deck = [d2, SF('p2-sf'), N('p3-a', 'BLUE', 1), N('p1-b', 'GREEN', 1), N('p2-b', 'GREEN', 2), N('p3-b', 'BLUE', 2), N('top', 'RED', 9), ...rest];
+    const engine = new GameEngine('room1', ['p1', 'p2', 'p3'], { deck, handSize: 2 });
     engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
     engine.playCard('p1', 'p1-d2', engine.turnNumber);
-    expect(engine.getPlayableIds('p2')).not.toContain('p2-sf');
-    expect(() => engine.playCard('p2', 'p2-sf', engine.turnNumber)).toThrow('MUST_COUNTER_OR_DRAW');
+    expect(engine.getPlayableIds('p2')).toContain('p2-sf');
+    engine.playCard('p2', 'p2-sf', engine.turnNumber);
+    const s = engine.getPublicState();
+    expect(s.currentPlayerId).toBe('p2');
+    expect(s.pendingDraw).toMatchObject({ count: 2, targetId: 'p2' });
+    engine.drawCard('p2', engine.turnNumber); // still has to answer or absorb
+    expect(engine.getHand('p2').length).toBe(3);
   });
 });
 

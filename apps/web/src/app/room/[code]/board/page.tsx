@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
-import { Trophy } from 'lucide-react';
+import { ChevronDown, Trophy } from 'lucide-react';
 import { socket } from '@/lib/socket';
 import { EV, type Card, type GameState, type Room, type GameResult, type Player } from '@cma/shared';
 import { PlayingCard } from '@/components/game/PlayingCard';
@@ -11,7 +11,8 @@ import { Confetti } from '@/components/game/Confetti';
 import { ActionEffect } from '@/components/game/ActionEffect';
 import { Soundboard } from '@/components/game/Soundboard';
 import { GameFx } from '@/components/game/GameFx';
-import { SeatArrow, SeatWrap } from '@/components/game/SeatArrow';
+import { useCollapse } from '@/components/game/useCollapse';
+import { DirectionFlipFlash, SeatArrow, SeatRow, SeatWrap } from '@/components/game/SeatArrow';
 import { PlayHistory } from '@/components/game/PlayHistory';
 
 const COLOR_LABEL: Record<string, string> = { RED: 'แดง', YELLOW: 'เหลือง', GREEN: 'เขียว', BLUE: 'น้ำเงิน' };
@@ -35,6 +36,8 @@ function Avatar({ nickname, avatar, size = 'md' }: { nickname: string; avatar?: 
 export default function BoardPage() {
   const params = useParams<{ code: string }>();
   const code = (params.code ?? '').toUpperCase();
+
+  const [lbOpen, toggleLb] = useCollapse('cma:lb-open:board');
 
   const [room, setRoom] = useState<Room | null>(null);
   const [game, setGame] = useState<GameState | null>(null);
@@ -161,10 +164,14 @@ export default function BoardPage() {
       {room.leaderboard.length > 0 && (
         <div className="relative z-10 w-full max-w-lg">
           <div className="rounded-2xl bg-white/5 border border-white/10 p-4 backdrop-blur">
-            <p className="flex items-center gap-2 text-sm font-semibold mb-3 text-zinc-200">
+            <button onClick={toggleLb} aria-expanded={lbOpen} className={`w-full flex items-center gap-2 text-sm font-semibold text-zinc-200 hover:text-white ${lbOpen ? 'mb-3' : ''}`}>
               <Trophy className="w-4 h-4 text-yellow-400" /> อันดับในห้องนี้
-            </p>
-            <ol className="space-y-1.5">
+              <span className="text-[10px] text-zinc-500 font-normal">({room.leaderboard.length} คน)</span>
+              <motion.span animate={{ rotate: lbOpen ? 180 : 0 }} className="ml-auto inline-flex"><ChevronDown className="w-4 h-4 text-zinc-500" /></motion.span>
+            </button>
+            <AnimatePresence initial={false}>
+            {lbOpen && (
+            <motion.ol key="lb" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-1.5 overflow-hidden">
               {room.leaderboard.slice(0, 6).map((e, i) => (
                 <li key={e.nickname} className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white/5">
                   <span className="flex items-center gap-2">
@@ -178,7 +185,9 @@ export default function BoardPage() {
                   </span>
                 </li>
               ))}
-            </ol>
+            </motion.ol>
+            )}
+            </AnimatePresence>
           </div>
         </div>
       )}
@@ -279,7 +288,9 @@ export default function BoardPage() {
             )}
           </motion.div>
 
-          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-4">
+          <div className="relative pt-4">
+          <DirectionFlipFlash direction={game.direction} />
+          <SeatRow currentId={game.currentPlayerId} className="items-center gap-x-2 px-2">
             {seated.map((p, seatNo) => {
               const isCurrent = p.id === game.currentPlayerId;
               const finishRank = game.finishedOrder.indexOf(p.id);
@@ -291,11 +302,11 @@ export default function BoardPage() {
                 <Fragment key={p.id}>
                 {seatNo === 0 && dir === 'LEFT' && activeN > 1 && <SeatWrap direction={dir} toName={nameOf(game.seatOrder[activeN - 1])} size="lg" />}
                 <motion.div
+                  data-seat={p.id}
                   layout
-                  data-seat={seatNo + 1}
                   animate={isCurrent && !hasFinished ? { scale: [1, 1.04, 1] } : {}}
                   transition={{ duration: 1.3, repeat: isCurrent && !hasFinished ? Infinity : 0 }}
-                  className={`w-32 sm:w-36 rounded-2xl p-4 text-center border-2 ${
+                  className={`shrink-0 w-32 sm:w-36 rounded-2xl p-4 text-center border-2 ${
                     hasFinished
                       ? 'border-yellow-400 bg-yellow-400/10'
                       : isCurrent ? 'border-emerald-400 bg-emerald-400/10 animate-turn-ring' : 'border-white/10 bg-white/5'
@@ -320,6 +331,7 @@ export default function BoardPage() {
                 </Fragment>
               );
             })}
+          </SeatRow>
           </div>
 
           <PlayHistory game={game} nameOf={nameOf} limit={16} />

@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
-import { Camera, Crown, Eraser, Loader2, LogOut, RotateCcw, Trash2, Trophy, Tv, Users, WifiOff } from 'lucide-react';
+import { Camera, ChevronDown, Crown, Eraser, Loader2, LogOut, RotateCcw, Trash2, Trophy, Tv, Users, WifiOff } from 'lucide-react';
 import { socket } from '@/lib/socket';
 import { getSession, setSession, removeSession } from '@/lib/session';
 import { getProfile, saveProfile } from '@/lib/profile';
@@ -17,7 +17,8 @@ import { Soundboard } from '@/components/game/Soundboard';
 import { GameFx } from '@/components/game/GameFx';
 import { PlayHistory } from '@/components/game/PlayHistory';
 import { TurnBanner } from '@/components/game/TurnBanner';
-import { SeatArrow, SeatWrap } from '@/components/game/SeatArrow';
+import { useCollapse } from '@/components/game/useCollapse';
+import { DirectionFlipFlash, SeatArrow, SeatRow, SeatWrap } from '@/components/game/SeatArrow';
 import { Button, LinkButton } from '@/components/ui/Button';
 
 const COLOR_LABEL: Record<string, string> = { RED: 'แดง', YELLOW: 'เหลือง', GREEN: 'เขียว', BLUE: 'น้ำเงิน' };
@@ -45,6 +46,8 @@ export default function RoomPage() {
 
   const { session, room, game, hand, result, setSession: storeSetSession, setRoom, setGame, setHand, setResult, reset } =
     useGameStore();
+
+  const [lbOpen, toggleLb] = useCollapse('cma:lb-open:player');
 
   const [joining, setJoining] = useState(true);
   const [nickname, setNickname] = useState('');
@@ -510,17 +513,20 @@ export default function RoomPage() {
 
         {room.leaderboard.length > 0 && (
           <section className="rounded-2xl bg-zinc-900/70 border border-zinc-800 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="flex items-center gap-2 text-zinc-300 text-sm font-semibold">
-                <Trophy className="w-4 h-4 text-yellow-400" /> อันดับในห้องนี้ <span className="text-[10px] text-zinc-500 font-normal">(นับตามชื่อ)</span>
-              </p>
-              {(isHost || room.isStatic) && (
+            <div className={`flex items-center justify-between ${lbOpen ? 'mb-3' : ''}`}>
+              <button onClick={toggleLb} className="flex items-center gap-2 text-zinc-300 text-sm font-semibold hover:text-white" aria-expanded={lbOpen}>
+                <Trophy className="w-4 h-4 text-yellow-400" /> อันดับในห้องนี้ <span className="text-[10px] text-zinc-500 font-normal">(นับตามชื่อ · {room.leaderboard.length} คน)</span>
+                <motion.span animate={{ rotate: lbOpen ? 180 : 0 }} className="inline-flex"><ChevronDown className="w-4 h-4 text-zinc-500" /></motion.span>
+              </button>
+              {lbOpen && (isHost || room.isStatic) && (
                 <button onClick={clearLeaderboard} className="text-xs flex items-center gap-1 px-2 py-1 rounded-lg border border-zinc-700 text-zinc-400 hover:text-red-300 hover:border-red-500/50">
                   <Trash2 className="w-3 h-3" /> ล้าง Leaderboard
                 </button>
               )}
             </div>
-            <ol className="space-y-1.5">
+            <AnimatePresence initial={false}>
+            {lbOpen && (
+            <motion.ol key="lb" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-1.5 overflow-hidden">
               {room.leaderboard.slice(0, 8).map((e, i) => (
                 <li key={e.nickname} className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-zinc-800/50">
                   <span className="flex items-center gap-2">
@@ -534,7 +540,9 @@ export default function RoomPage() {
                   </span>
                 </li>
               ))}
-            </ol>
+            </motion.ol>
+            )}
+            </AnimatePresence>
           </section>
         )}
 
@@ -741,8 +749,10 @@ export default function RoomPage() {
                 </div>
               )}
 
-              {/* player ring */}
-              <div className="flex flex-wrap gap-x-1.5 gap-y-3 items-start justify-center pt-2">
+              {/* player ring — single row, scrolls sideways when crowded */}
+              <div className="relative pt-3">
+              <DirectionFlipFlash direction={game.direction} />
+              <SeatRow currentId={game.currentPlayerId} className="gap-x-1.5 items-start px-1">
                 {seated.map((p: Player, seatNo: number) => {
                   const isCurrent = p.id === game.currentPlayerId;
                   const finishRank = game.finishedOrder.indexOf(p.id);
@@ -753,7 +763,7 @@ export default function RoomPage() {
                   return (
                     <Fragment key={p.id}>
                     {seatNo === 0 && dir === 'LEFT' && activeN > 1 && <SeatWrap direction={dir} toName={nameOf(game.seatOrder[activeN - 1])} />}
-                    <motion.div layout transition={{ type: 'spring', stiffness: 300, damping: 26 }} className="flex flex-col items-center gap-1">
+                    <motion.div layout data-seat={p.id} transition={{ type: 'spring', stiffness: 300, damping: 26 }} className="flex flex-col items-center gap-1 shrink-0 w-14">
                       <motion.div
                         className={`relative rounded-full border-2 ${
                           hasFinished ? 'border-yellow-400' : isCurrent ? 'border-emerald-300 animate-turn-ring' : 'border-zinc-600'
@@ -768,7 +778,7 @@ export default function RoomPage() {
                           </span>
                         )}
                       </motion.div>
-                      <span className="text-[11px] text-zinc-300">{!hasFinished && <span className="text-zinc-500">{seatNo + 1}. </span>}{p.nickname}</span>
+                      <span className="text-[11px] text-zinc-300 max-w-full truncate">{!hasFinished && <span className="text-zinc-500">{seatNo + 1}. </span>}{p.nickname}</span>
                       <span className="text-[10px] text-zinc-500">
                         {hasFinished ? `ชนะอันดับที่ ${finishRank + 1}` : `${p.cardCount} ใบ`}
                       </span>
@@ -778,6 +788,7 @@ export default function RoomPage() {
                     </Fragment>
                   );
                 })}
+              </SeatRow>
               </div>
             </div>
 

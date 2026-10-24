@@ -183,7 +183,7 @@ export class GameEngine {
     if (this.pendingDraw?.targetId === playerId) {
       const top = this.topCard;
       return hand
-        .filter((c) => c.kind === 'REFLECT' || c.kind === 'SHIELD' || (DRAW_FAMILY_KINDS.has(c.kind) && canCounterCombo(c, top)))
+        .filter((c) => c.kind === 'REFLECT' || c.kind === 'SHIELD' || c.kind === 'SHUFFLE' || (DRAW_FAMILY_KINDS.has(c.kind) && canCounterCombo(c, top)))
         .map((c) => c.id);
     }
     const top = this.topCard;
@@ -327,7 +327,7 @@ export class GameEngine {
       return this.playShield(playerId, idx, turnNumber);
     }
     if (card.kind === 'SHUFFLE') {
-      if (defendingCombo) throw new GameError('MUST_COUNTER_OR_DRAW');
+      // Playable any time it's your turn — even with a combo pending (the combo stays on you).
       return this.playShuffleSeats(playerId, idx, turnNumber);
     }
     if (defendingCombo) {
@@ -705,7 +705,8 @@ export class GameEngine {
   }
 
   /**
-   * SHUFFLE (สลับที่นั่ง): randomly reshuffle the seating order of everyone still playing. The
+   * SHUFFLE (สลับที่นั่ง): playable any time it's your turn (even with a combo pending on you — it
+   * stays on you). Randomly reshuffles the seating order of everyone still playing. The
    * shuffler keeps the turn and must still play a card (or draw if they can't); after that, play
    * continues with whoever now sits right after them (in the current direction).
    * The card slides under the top card, so the color/value to match is unchanged.
@@ -723,7 +724,9 @@ export class GameEngine {
     this.log({ turnNumber, playerId, action: 'SHUFFLE_SEATS', card, seatOrder: [...order] });
     this.currentIndex = order.indexOf(playerId);
     if (hand.length === 0) {
-      // Shuffle was their last card: they go out, play moves on to whoever now sits after them.
+      // Shuffle was their last card: they go out, play moves on to whoever now sits after them
+      // (a combo that was pending on them goes away with them, same as any non-draw last card).
+      if (this.pendingDraw?.targetId === playerId) this.pendingDraw = null;
       this.advanceTurn();
       this.specialWentOut(playerId);
     } else {
