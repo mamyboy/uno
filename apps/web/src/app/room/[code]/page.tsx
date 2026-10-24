@@ -87,6 +87,9 @@ export default function RoomPage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const lastTopCardId = useRef<string | null>(null);
+  const effectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finishTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (effectTimer.current) clearTimeout(effectTimer.current); }, []);
   const lastFinishedCount = useRef(0);
 
   // Remembered nickname from a previous visit on this device — still fully editable below.
@@ -118,8 +121,9 @@ export default function RoomPage() {
     const nickname = room?.players.find((p) => p.id === finishedId)?.nickname ?? 'ผู้เล่น';
     lastFinishedCount.current = order.length;
     setFinishNotice(`🏆 ${nickname} ไพ่หมดแล้ว! ชนะอันดับที่ ${rank}`);
-    const t = setTimeout(() => setFinishNotice(''), 3500);
-    return () => clearTimeout(t);
+    // Same fix as the action banner: a room update must not cancel the hide timer.
+    if (finishTimer.current) clearTimeout(finishTimer.current);
+    finishTimer.current = setTimeout(() => setFinishNotice(''), 3500);
   }, [game?.finishedOrder?.length, room]);
 
   // Flash a big banner whenever an Action/Wild card lands on top of the discard pile.
@@ -129,8 +133,10 @@ export default function RoomPage() {
     lastTopCardId.current = top.id;
     if (top.kind === 'NUMBER') return;
     setEffectCard(top);
-    const t = setTimeout(() => setEffectCard(null), 1300);
-    return () => clearTimeout(t);
+    // Timer lives in a ref: it must NOT be cancelled when an unrelated dependency changes
+    // (e.g. the optimistic play being confirmed right after) — that left the banner stuck.
+    if (effectTimer.current) clearTimeout(effectTimer.current);
+    effectTimer.current = setTimeout(() => setEffectCard(null), 1300);
   }, [game?.topCard?.id, optimistic?.top?.id]);
 
   // Safety net: if no confirmation ever arrives, stop pretending after a few seconds.

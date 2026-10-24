@@ -51,6 +51,9 @@ export default function BoardPage() {
   const [effectCard, setEffectCard] = useState<Card | null>(null);
   const [finishNotice, setFinishNotice] = useState('');
   const lastTopCardId = useRef<string | null>(null);
+  const effectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finishTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (effectTimer.current) clearTimeout(effectTimer.current); }, []);
   const lastFinishedCount = useRef(0);
 
   // Flash a big banner whenever an Action/Wild card lands on top of the discard pile.
@@ -60,8 +63,10 @@ export default function BoardPage() {
     lastTopCardId.current = top.id;
     if (top.kind === 'NUMBER') return;
     setEffectCard(top);
-    const t = setTimeout(() => setEffectCard(null), 1300);
-    return () => clearTimeout(t);
+    // Timer lives in a ref: it must NOT be cancelled when an unrelated dependency changes
+    // (e.g. the optimistic play being confirmed right after) — that left the banner stuck.
+    if (effectTimer.current) clearTimeout(effectTimer.current);
+    effectTimer.current = setTimeout(() => setEffectCard(null), 1300);
   }, [game?.topCard?.id]);
 
   // Flash a banner the instant a player's hand empties, announcing their finish rank.
@@ -76,8 +81,9 @@ export default function BoardPage() {
     const nickname = room?.players.find((p) => p.id === finishedId)?.nickname ?? 'ผู้เล่น';
     lastFinishedCount.current = order.length;
     setFinishNotice(`🏆 ${nickname} ไพ่หมดแล้ว! ชนะอันดับที่ ${rank}`);
-    const t = setTimeout(() => setFinishNotice(''), 3500);
-    return () => clearTimeout(t);
+    // Same fix as the action banner: a room update must not cancel the hide timer.
+    if (finishTimer.current) clearTimeout(finishTimer.current);
+    finishTimer.current = setTimeout(() => setFinishNotice(''), 3500);
   }, [game?.finishedOrder?.length, room]);
 
   useEffect(() => {
