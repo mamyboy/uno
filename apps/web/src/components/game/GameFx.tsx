@@ -43,6 +43,7 @@ export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | n
   const lastSeq = useRef<number | null>(null);
   const lastGameId = useRef<string | null>(null);
   const lastResultId = useRef<string | null>(null);
+  const loserTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nameRef = useRef(nameOf);
   nameRef.current = nameOf;
 
@@ -132,9 +133,12 @@ export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | n
     const tease = LOSER_TEASES[Math.floor(h / LOSER_VARIANTS.length) % LOSER_TEASES.length];
     setLoser({ key: result.gameId, name: last.nickname, avatar: avatarRef.current?.(last.playerId, last.nickname) ?? null, cardsLeft: last.cardsLeft, variant, tease });
     setTimeout(() => playClip(LOSER_VARIANTS[variant].sound, 1), 400);
-    const t = setTimeout(() => setLoser(null), 6000);
-    return () => clearTimeout(t);
+    // Timer in a ref: a resync/reconnect re-sends the SAME result as a new object, which re-runs
+    // this effect and returns early above — a cleanup-cancelled timer would leave the overlay stuck.
+    if (loserTimer.current) clearTimeout(loserTimer.current);
+    loserTimer.current = setTimeout(() => setLoser(null), 6000);
   }, [result]);
+  useEffect(() => () => { if (loserTimer.current) clearTimeout(loserTimer.current); }, []);
 
   return (
     <>

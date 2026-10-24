@@ -139,6 +139,13 @@ export default function RoomPage() {
     effectTimer.current = setTimeout(() => setEffectCard(null), 1300);
   }, [game?.topCard?.id, optimistic?.top?.id]);
 
+  // Error toast auto-hides 2.8s after the LATEST message (a new error restarts the countdown).
+  useEffect(() => {
+    if (!actionError) return;
+    const t = setTimeout(() => setActionError(''), 2800);
+    return () => clearTimeout(t);
+  }, [actionError]);
+
   // Safety net: if no confirmation ever arrives, stop pretending after a few seconds.
   useEffect(() => {
     if (!optimistic) return;
@@ -387,6 +394,9 @@ export default function RoomPage() {
   const rollback = (error: string) => {
     setReturningIds(optimisticRef.current?.ids ?? []);
     optimisticRef.current = null;
+    // The pile goes back to the card that was already there — don't re-announce it.
+    lastTopCardId.current = game?.topCard?.id ?? null;
+    setEffectCard(null);
     setOptimistic(null);
     setTimeout(() => setReturningIds([]), 800);
     setActionError(error);
@@ -637,7 +647,6 @@ export default function RoomPage() {
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
               className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm overflow-hidden"
-              onAnimationComplete={() => setTimeout(() => setActionError(''), 2500)}
             >
               {actionError}
             </m.div>
