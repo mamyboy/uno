@@ -14,7 +14,7 @@ import { GameFx } from '@/components/game/GameFx';
 import { useCollapse } from '@/components/game/useCollapse';
 import { TauntButton, TauntLayer } from '@/components/game/Taunts';
 import { VoiceButton, VoiceLayer } from '@/components/game/Voice';
-import { DirectionFlipFlash, NextBadge, SeatArrow, SeatRow, SeatWrap, TurnFlow } from '@/components/game/SeatArrow';
+import { DirectionFlipFlash, NextBadge, SeatArrow, SeatRow } from '@/components/game/SeatArrow';
 import { nextSeatIndex } from '@cma/shared';
 import { PlayHistory } from '@/components/game/PlayHistory';
 
@@ -304,7 +304,6 @@ export default function BoardPage() {
 
           <div className="relative pt-4">
           <DirectionFlipFlash direction={game.direction} />
-              <TurnFlow currentName={nameOf(game.currentPlayerId)} nextName={nameOf(nextId)} direction={game.direction} size="lg" />
           <SeatRow currentId={game.currentPlayerId} className="items-center gap-x-2 gap-y-6 px-2 pt-3">
             {seated.map((p, seatNo) => {
               const isCurrent = p.id === game.currentPlayerId;
@@ -315,7 +314,6 @@ export default function BoardPage() {
               const dir = game.direction;
               return (
                 <Fragment key={p.id}>
-                {seatNo === 0 && dir === 'LEFT' && activeN > 1 && <SeatWrap direction={dir} toName={nameOf(game.seatOrder[activeN - 1])} size="lg" />}
                 <motion.div
                   data-seat={p.id}
                   layout
@@ -343,7 +341,6 @@ export default function BoardPage() {
                   {!p.connected && <p className="text-xs text-red-400">หลุดการเชื่อมต่อ</p>}
                 </motion.div>
                 {isActive && seatNo < activeN - 1 && <SeatArrow direction={dir} size="lg" />}
-                {isActive && seatNo === activeN - 1 && dir === 'RIGHT' && activeN > 1 && <SeatWrap direction={dir} toName={nameOf(game.seatOrder[0])} size="lg" />}
                 </Fragment>
               );
             })}

@@ -20,7 +20,7 @@ import { TurnBanner } from '@/components/game/TurnBanner';
 import { useCollapse } from '@/components/game/useCollapse';
 import { TauntButton, TauntLayer } from '@/components/game/Taunts';
 import { VoiceButton, VoiceLayer } from '@/components/game/Voice';
-import { DirectionFlipFlash, NextBadge, SeatArrow, SeatRow, SeatWrap, TurnFlow } from '@/components/game/SeatArrow';
+import { DirectionFlipFlash, NextBadge, SeatArrow, SeatRow } from '@/components/game/SeatArrow';
 import { nextSeatIndex } from '@cma/shared';
 import { Button, LinkButton } from '@/components/ui/Button';
 
@@ -391,8 +391,8 @@ export default function RoomPage() {
       // legally counter/open" rule.
       if (DRAW_FAMILY.has(firstCard.kind)) {
         if (!DRAW_FAMILY.has(card.kind)) return prev;
-        // Answering a combo: Wild Draws and Draw Twos can't be mixed in one move.
-        if (game?.pendingDraw?.targetId === session?.playerId && (firstCard.kind === 'DRAW_TWO') !== (card.kind === 'DRAW_TWO')) return prev;
+        // Wild Draws and Draw Twos can never be mixed in one move.
+        if ((firstCard.kind === 'DRAW_TWO') !== (card.kind === 'DRAW_TWO')) return prev;
       } else if (firstCard.kind !== card.kind) {
         return prev;
       } else if (firstCard.kind === 'NUMBER') {
@@ -769,7 +769,6 @@ export default function RoomPage() {
               {/* player ring — single row, scrolls sideways when crowded */}
               <div className="relative pt-3">
               <DirectionFlipFlash direction={game.direction} />
-              <TurnFlow currentName={nameOf(game.currentPlayerId)} nextName={nameOf(nextId)} direction={game.direction} size="sm" />
               <SeatRow currentId={game.currentPlayerId} className="gap-x-1.5 gap-y-5 items-start px-1 pt-2">
                 {seated.map((p: Player, seatNo: number) => {
                   const isCurrent = p.id === game.currentPlayerId;
@@ -780,7 +779,6 @@ export default function RoomPage() {
                   const dir = game.direction;
                   return (
                     <Fragment key={p.id}>
-                    {seatNo === 0 && dir === 'LEFT' && activeN > 1 && <SeatWrap direction={dir} toName={nameOf(game.seatOrder[activeN - 1])} />}
                     <motion.div layout data-seat={p.id} transition={{ type: 'spring', stiffness: 300, damping: 26 }} className="flex flex-col items-center gap-1 shrink-0 w-14">
                       <motion.div
                         className={`relative rounded-full border-2 ${
@@ -803,7 +801,6 @@ export default function RoomPage() {
                       </span>
                     </motion.div>
                     {isActive && seatNo < activeN - 1 && <SeatArrow direction={dir} />}
-                    {isActive && seatNo === activeN - 1 && dir === 'RIGHT' && activeN > 1 && <SeatWrap direction={dir} toName={nameOf(game.seatOrder[0])} />}
                     </Fragment>
                   );
                 })}
@@ -884,10 +881,9 @@ export default function RoomPage() {
                           ? firstSelected.value === c.value
                           : firstSelected.kind === 'SKIP' || firstSelected.kind === 'REVERSE');
                       const DRAW_FAM = ['DRAW_TWO', 'WILD_DRAW_TWO', 'WILD_DRAW_FOUR', 'WILD_DRAW_EIGHT'];
-                      const defendingNow = game?.pendingDraw?.targetId === session?.playerId;
                       const canStackDraw =
                         !!firstSelected && DRAW_FAM.includes(firstSelected.kind) && DRAW_FAM.includes(c.kind) &&
-                        (!defendingNow || (firstSelected.kind === 'DRAW_TWO') === (c.kind === 'DRAW_TWO'));
+                        (firstSelected.kind === 'DRAW_TWO') === (c.kind === 'DRAW_TWO');
                       const clickable = hand.isMyTurn && (hand.playableCardIds.includes(c.id) || canStack || canStackDraw);
                       return (
                         <motion.div key={c.id} layout className="relative" exit={{ opacity: 0, y: 30, scale: 0.6 }}>

@@ -630,7 +630,7 @@ describe('GameEngine', () => {
       expect(engine.topCard.color).toBe('RED'); // last card in the stack sets the resolved color
     });
 
-    it('playCards lays down a DRAW_TWO + WILD_DRAW_FOUR together, summing to +6 in one move', () => {
+    it('playCards refuses a DRAW_TWO + WILD_DRAW_FOUR together (Wild Draws and Draw Twos never mix)', () => {
       const drawTwo = { id: 'p1-0', kind: 'DRAW_TWO' as const, color: 'RED' as const };
       const wild4 = { id: 'p1-1', kind: 'WILD_DRAW_FOUR' as const, color: null };
       const filler = { id: 'p1-2', kind: 'NUMBER' as const, color: 'GREEN' as const, value: 5 };
@@ -642,10 +642,12 @@ describe('GameEngine', () => {
       const engine = new GameEngine('room1', ['p1', 'p2'], { deck, handSize: 3 });
       engine.selectDirection('p1', 'RIGHT', engine.turnNumber);
 
-      engine.playCards('p1', ['p1-0', 'p1-1'], engine.turnNumber, 'BLUE');
-      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 6, targetId: 'p2' });
-      expect(engine.topCard.color).toBe('BLUE'); // last card in the stack (the wild) sets the color
-      expect(engine.getHand('p1')).toHaveLength(1); // just the filler left
+      expect(() => engine.playCards('p1', ['p1-0', 'p1-1'], engine.turnNumber, 'BLUE')).toThrow('WILD_DRAW_NO_DRAW_TWO');
+      expect(() => engine.playCards('p1', ['p1-1', 'p1-0'], engine.turnNumber, 'BLUE')).toThrow('WILD_DRAW_NO_DRAW_TWO');
+      expect(engine.getHand('p1')).toHaveLength(3); // nothing was played
+      // each kind alone is fine
+      engine.playCards('p1', ['p1-1'], engine.turnNumber, 'BLUE');
+      expect(engine.getPublicState().pendingDraw).toMatchObject({ count: 4, targetId: 'p2' });
     });
 
     it('WILD_DRAW_FOUR combo can only be countered by another Wild Draw card, never a plain DRAW_TWO even with matching color', () => {
@@ -832,7 +834,7 @@ describe('GameEngine', () => {
     });
 
     it('playCards requires chosenColor when the draw-family stack includes a wild card', () => {
-      const drawTwo = { id: 'p1-0', kind: 'DRAW_TWO' as const, color: 'RED' as const };
+      const drawTwo = { id: 'p1-0', kind: 'WILD_DRAW_TWO' as const, color: null };
       const wild4 = { id: 'p1-1', kind: 'WILD_DRAW_FOUR' as const, color: null };
       const top = { id: 'top', kind: 'NUMBER' as const, color: 'RED' as const, value: 9 };
       const rest = Array.from({ length: 20 }, (_, i) => ({ id: `rest-${i}`, kind: 'NUMBER' as const, color: 'YELLOW' as const, value: i % 10 }));

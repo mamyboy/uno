@@ -448,6 +448,13 @@ export class GameEngine {
   ): { cards: Card[]; finished: boolean } {
     const hand = this.hands.get(playerId)!;
 
+    // Wild Draws (+2/+4/+8) and Draw Twos can never be laid together in one move — whether
+    // opening a combo or answering one. (Several Wild Draws together, or several Draw Twos
+    // together, are still fine.)
+    if (picked.some((c) => isWildDrawKind(c.kind)) && picked.some((c) => c.kind === 'DRAW_TWO')) {
+      throw new GameError('WILD_DRAW_NO_DRAW_TWO');
+    }
+
     if (!defendingCombo) {
       // Not countering a pending combo — opening a new one just needs AT LEAST ONE card in the
       // stack to be a legal play against the current top card (same rule a lone card would
@@ -463,10 +470,7 @@ export class GameEngine {
       // legal +4 counter, even though the BLUE one alone could never counter it.
       const top = this.topCard;
       if (!picked.every((c) => DRAW_FAMILY_KINDS.has(c.kind))) throw new GameError('MUST_COUNTER_OR_DRAW');
-      const hasWildDraw = picked.some((c) => isWildDrawKind(c.kind));
       const hasDrawTwo = picked.some((c) => c.kind === 'DRAW_TWO');
-      // Counter with Wild Draw cards OR with Draw Two cards — never both in one move.
-      if (hasWildDraw && hasDrawTwo) throw new GameError('WILD_DRAW_NO_DRAW_TWO');
       // At least one card must legally counter: a Wild Draw of high-enough tier, or a Draw Two
       // (any color vs a Draw Two; matching color vs a Wild Draw Two) — extra Draw Twos ride along.
       if (!picked.some((c) => canCounterCombo(c, top))) {
