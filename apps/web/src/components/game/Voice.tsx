@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, m } from 'motion/react';
 import { Mic, MicOff, Radio, Volume2, VolumeX } from 'lucide-react';
 import { socket } from '@/lib/socket';
 import { playBytesViaWebAudio, playUrl } from '@/lib/sounds';
@@ -24,12 +24,7 @@ function Bars({ big = false, color = 'bg-cyan-300' }: { big?: boolean; color?: s
   return (
     <span className={`inline-flex items-end gap-[3px] ${big ? 'h-6' : 'h-4'}`}>
       {[0, 1, 2, 3, 4].map((i) => (
-        <motion.span
-          key={i}
-          className={`${big ? 'w-1.5' : 'w-1'} rounded-full ${color}`}
-          animate={{ height: ['25%', '100%', '40%', '85%', '25%'] }}
-          transition={{ duration: 0.7, repeat: Infinity, delay: i * 0.1 }}
-        />
+        <span key={i} className={`fx-bar h-full ${big ? 'w-1.5' : 'w-1'} rounded-full ${color}`} style={{ animationDelay: `${i * 0.1}s` }} />
       ))}
     </span>
   );
@@ -164,7 +159,7 @@ export function VoiceButton({ roomVoiceEnabled, canToggleRoom }: { roomVoiceEnab
   return (
     <>
       {/* settings mini-button */}
-      <motion.button
+      <m.button
         whileTap={{ scale: 0.9 }}
         onClick={() => {
           if (!menu) announcePanel('voice');
@@ -174,13 +169,13 @@ export function VoiceButton({ roomVoiceEnabled, canToggleRoom }: { roomVoiceEnab
         title="ตั้งค่าวิทยุ"
       >
         {muted ? <VolumeX className="w-4 h-4" /> : <Radio className="w-4 h-4" />}
-      </motion.button>
+      </m.button>
 
       {/* push-to-talk */}
       <div className="relative">
         <AnimatePresence>
           {(recording || state === 'starting') && (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: 8, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8 }}
@@ -193,21 +188,21 @@ export function VoiceButton({ roomVoiceEnabled, canToggleRoom }: { roomVoiceEnab
               ) : (
                 'กำลังเปิดไมค์...'
               )}
-            </motion.div>
+            </m.div>
           )}
           {toast && !recording && (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
               className={`absolute bottom-full right-0 mb-3 whitespace-nowrap rounded-2xl px-3 py-1.5 text-xs font-bold shadow-xl ${toast.tone === 'error' ? 'bg-red-950 border border-red-500/60 text-red-200' : 'bg-zinc-900 border border-cyan-400/50 text-cyan-100'}`}
             >
               {toast.text}
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
 
-        <motion.button
+        <m.button
           onPointerDown={(e) => {
             e.preventDefault();
             (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
@@ -232,7 +227,7 @@ export function VoiceButton({ roomVoiceEnabled, canToggleRoom }: { roomVoiceEnab
         >
           {recording && (
             <>
-              <motion.span className="absolute inset-0 rounded-full border-4 border-red-400" animate={{ scale: [1, 1.6], opacity: [0.7, 0] }} transition={{ duration: 1, repeat: Infinity }} />
+              <span className="fx-ping absolute inset-0 rounded-full border-4 border-red-400" />
               <svg className="absolute -inset-1 w-[calc(100%+0.5rem)] h-[calc(100%+0.5rem)] -rotate-90" viewBox="0 0 68 68">
                 <circle cx="34" cy="34" r="30" fill="none" stroke="rgba(255,255,255,0.95)" strokeWidth="4" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - progress)} />
               </svg>
@@ -245,12 +240,12 @@ export function VoiceButton({ roomVoiceEnabled, canToggleRoom }: { roomVoiceEnab
           {state === 'idle' && coolLeft === 0 && roomVoiceEnabled && (
             <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/80 px-1.5 text-[9px] font-bold text-cyan-200">กดค้าง</span>
           )}
-        </motion.button>
+        </m.button>
       </div>
 
       <AnimatePresence>
         {menu && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
@@ -267,7 +262,7 @@ export function VoiceButton({ roomVoiceEnabled, canToggleRoom }: { roomVoiceEnab
                 <span className={roomVoiceEnabled ? 'text-emerald-300 font-bold' : 'text-red-300 font-bold'}>{roomVoiceEnabled ? 'เปิด' : 'ปิด'}</span>
               </button>
             )}
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </>
@@ -311,7 +306,7 @@ export function VoiceLayer({ big = false }: { big?: boolean }) {
     <div className="fixed inset-0 z-[74] pointer-events-none">
       <AnimatePresence>
         {items.map((s) => (
-          <motion.div
+          <m.div
             key={s.key}
             className="absolute"
             style={{ left: s.x, top: s.y }}
@@ -321,11 +316,11 @@ export function VoiceLayer({ big = false }: { big?: boolean }) {
             transition={{ type: 'spring', stiffness: 320, damping: 20 }}
           >
             <div className={`flex items-center gap-2 rounded-full border-2 border-cyan-300 bg-sky-950/95 text-white font-black shadow-[0_0_24px_rgba(34,211,238,0.6)] ${big ? 'px-5 py-2.5 text-xl' : 'px-3 py-1.5 text-sm'}`}>
-              <motion.span animate={{ scale: [1, 1.25, 1] }} transition={{ duration: 0.6, repeat: Infinity }}>🎙️</motion.span>
+              <span className="fx-pulse inline-block">🎙️</span>
               <span className="max-w-[10rem] truncate">{s.nickname}</span>
               {s.failed ? <span className="text-xs text-red-300">เล่นไม่ได้</span> : s.muted ? <VolumeX className="w-4 h-4 text-zinc-400" /> : <Bars big={big} />}
             </div>
-          </motion.div>
+          </m.div>
         ))}
       </AnimatePresence>
     </div>

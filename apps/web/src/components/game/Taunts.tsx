@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion, type TargetAndTransition, type Transition } from 'motion/react';
+import { AnimatePresence, m, type TargetAndTransition, type Transition } from 'motion/react';
 import { BellOff, Bell, X } from 'lucide-react';
 import { socket } from '@/lib/socket';
 import { announcePanel, useClosesOnOtherPanel } from '@/lib/panels';
@@ -37,28 +37,28 @@ const MOTION: Record<TauntMotion, { animate: TargetAndTransition; transition: Tr
 };
 
 /** Little extra particles per style. */
-function Particles({ motion: m }: { motion: TauntMotion }) {
+function Particles({ motion: tm }: { motion: TauntMotion }) {
   const set: Partial<Record<TauntMotion, string[]>> = { laugh: ['🤣', '😂'], cry: ['💧', '💧'], sleep: ['💤', 'z'], shock: ['❗', '❕'], fart: ['💨', '💨'], dance: ['🎵', '🎶'], point: ['🫵'], tongue: ['💦'] };
-  const list = set[m];
+  const list = set[tm];
   if (!list) return null;
   return (
     <>
       {Array.from({ length: 5 }).map((_, i) => (
-        <motion.span
+        <m.span
           key={i}
           className="absolute left-1/2 top-1/2 text-lg"
           initial={{ opacity: 0, x: 0, y: 0, scale: 0.5 }}
           animate={
-            m === 'cry'
+            tm === 'cry'
               ? { opacity: [0, 1, 0], x: (i % 2 ? 1 : -1) * (10 + i * 4), y: 40, scale: 1 }
-              : m === 'sleep' || m === 'fart' || m === 'dance'
+              : tm === 'sleep' || tm === 'fart' || tm === 'dance'
                 ? { opacity: [0, 1, 0], x: (i - 2) * 14, y: -50 - i * 6, scale: 1.2 }
                 : { opacity: [0, 1, 0], x: Math.cos(i * 1.25) * 48, y: Math.sin(i * 1.25) * 40 - 10, scale: 1.2 }
           }
           transition={{ duration: 1.2, delay: i * 0.15, repeat: 1 }}
         >
           {list[i % list.length]}
-        </motion.span>
+        </m.span>
       ))}
     </>
   );
@@ -95,7 +95,7 @@ export function TauntLayer({ big = false }: { big?: boolean }) {
         {items.map((s) => {
           const mv = MOTION[s.taunt.motion];
           return (
-            <motion.div
+            <m.div
               key={s.key}
               className="absolute"
               style={{ left: s.x, top: s.y }}
@@ -105,7 +105,7 @@ export function TauntLayer({ big = false }: { big?: boolean }) {
               transition={{ type: 'spring', stiffness: 320, damping: 18 }}
             >
               <div className="flex flex-col items-center">
-                <motion.div
+                <m.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.15 }}
@@ -114,23 +114,23 @@ export function TauntLayer({ big = false }: { big?: boolean }) {
                   <span className="block text-[10px] font-bold text-zinc-500 leading-none mb-0.5">{s.nickname}</span>
                   {s.taunt.text}
                   <span className="absolute left-1/2 -bottom-1.5 -translate-x-1/2 w-3 h-3 rotate-45 bg-white" />
-                </motion.div>
+                </m.div>
                 <div className={`relative ${big ? 'text-7xl' : 'text-5xl'}`}>
                   <Particles motion={s.taunt.motion} />
-                  <motion.span className="inline-block drop-shadow-[0_6px_10px_rgba(0,0,0,0.5)]" animate={mv.animate} transition={mv.transition}>
+                  <m.span className="inline-block drop-shadow-[0_6px_10px_rgba(0,0,0,0.5)]" animate={mv.animate} transition={mv.transition}>
                     {s.mascot}
-                  </motion.span>
-                  <motion.span
+                  </m.span>
+                  <m.span
                     className={`absolute -right-4 -top-2 ${big ? 'text-4xl' : 'text-3xl'}`}
                     initial={{ scale: 0, rotate: -40 }}
                     animate={{ scale: [0, 1.4, 1], rotate: 0 }}
                     transition={{ delay: 0.2, duration: 0.4 }}
                   >
                     {s.taunt.face}
-                  </motion.span>
+                  </m.span>
                 </div>
               </div>
-            </motion.div>
+            </m.div>
           );
         })}
       </AnimatePresence>
@@ -187,7 +187,7 @@ export function TauntButton() {
 
   return (
     <>
-      <motion.button
+      <m.button
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.92 }}
         onClick={() => {
@@ -201,15 +201,15 @@ export function TauntButton() {
         {left > 0 && !open && (
           <span className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-black/85 text-[10px] font-bold text-white flex items-center justify-center">{Math.ceil(left / 1000)}</span>
         )}
-      </motion.button>
+      </m.button>
 
       <AnimatePresence>
         {open && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-24 right-3 sm:right-5 z-[61] w-80 max-w-[calc(100vw-2.5rem)] rounded-2xl bg-zinc-900/95 border border-zinc-700 p-3 shadow-2xl backdrop-blur"
+            className="fixed bottom-24 right-3 sm:right-5 z-[61] w-80 max-w-[calc(100vw-2.5rem)] rounded-2xl bg-zinc-900/95 border border-zinc-700 p-3 shadow-2xl"
           >
             <div className="flex items-center justify-between mb-2 px-1">
               <p className="text-xs text-zinc-400">ล้อเลียนทั้งห้อง 😜 ทุกคนเห็นและได้ยิน</p>
@@ -231,7 +231,7 @@ export function TauntButton() {
             </div>
             <div className="grid grid-cols-2 gap-1.5">
               {TAUNTS.map((t) => (
-                <motion.button
+                <m.button
                   key={t.id}
                   whileTap={{ scale: 0.94 }}
                   disabled={left > 0}
@@ -240,12 +240,12 @@ export function TauntButton() {
                 >
                   <span className="text-lg">{t.face}</span>
                   <span className="truncate">{t.text}</span>
-                </motion.button>
+                </m.button>
               ))}
             </div>
             {left > 0 && <p className="text-[11px] text-amber-300 mt-2 text-center">รออีก {Math.ceil(left / 1000)} วินาที</p>}
             {err && <p className="text-[11px] text-red-400 mt-1 text-center">{err}</p>}
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </>

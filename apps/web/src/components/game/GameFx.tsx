@@ -1,10 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, m } from 'motion/react';
 import type { GameResult, GameState } from '@cma/shared';
 import { playClip } from '@/lib/sounds';
-import { hashStr, LOSER_TEASES, LOSER_VARIANTS, LoserOverlay, type LoserInfo } from './LoserFx';
+import { allowShake, fxCount } from '@/lib/perf';
+import dynamic from 'next/dynamic';
+import { hashStr, LOSER_TEASES, LOSER_VARIANTS, type LoserInfo } from './loserData';
+
+// The loser overlay is only needed at the end of a match — load its code on demand.
+const LoserOverlay = dynamic(() => import('./LoserFx').then((r) => r.LoserOverlay), { ssr: false });
 
 type ComboVariant = 'D2' | 'WD2' | 'WD4' | 'WD8';
 const COMBO_STYLE: Record<ComboVariant, { label: string; ring: string; flash: string; grad: string; border: string; emojis: string[]; sound: string; sound2?: string }> = {
@@ -138,27 +143,27 @@ export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | n
           const st = COMBO_STYLE[fx.variant];
           const v = fx.variant;
           return (
-            <motion.div
+            <m.div
               key={fx.key}
               className="fixed inset-0 z-[80] pointer-events-none flex items-center justify-center overflow-hidden"
               initial={{ opacity: 0 }}
-              animate={{ opacity: 1, x: v === 'WD8' ? [0, -22, 20, -16, 12, -8, 4, 0] : [0, -8, 7, -5, 3, 0], y: v === 'WD8' ? [0, 12, -14, 8, -4, 0] : 0 }}
+              animate={allowShake() ? { opacity: 1, x: v === 'WD8' ? [0, -22, 20, -16, 12, -8, 4, 0] : [0, -8, 7, -5, 3, 0], y: v === 'WD8' ? [0, 12, -14, 8, -4, 0] : 0 } : { opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: v === 'WD8' ? 0.8 : 0.4 }}
             >
               {/* flash */}
               {v === 'WD4' ? (
-                <motion.div className={`absolute inset-0 ${st.flash}`} initial={{ opacity: 0 }} animate={{ opacity: [0, 0.75, 0.1, 0.65, 0, 0.4, 0] }} transition={{ duration: 0.9 }} />
+                <m.div className={`absolute inset-0 ${st.flash}`} initial={{ opacity: 0 }} animate={{ opacity: [0, 0.75, 0.1, 0.65, 0, 0.4, 0] }} transition={{ duration: 0.9 }} />
               ) : (
-                <motion.div className={`absolute inset-0 ${st.flash}`} initial={{ opacity: v === 'WD8' ? 0.95 : 0.35 }} animate={{ opacity: 0 }} transition={{ duration: v === 'WD8' ? 0.9 : 0.5 }} />
+                <m.div className={`absolute inset-0 ${st.flash}`} initial={{ opacity: v === 'WD8' ? 0.95 : 0.35 }} animate={{ opacity: 0 }} transition={{ duration: v === 'WD8' ? 0.9 : 0.5 }} />
               )}
 
               {/* variant background */}
               {v === 'D2' && (
-                <motion.div className={`absolute w-[60vmin] h-[60vmin] rounded-full border-[12px] ${st.ring}`} initial={{ scale: 0.1, opacity: 1 }} animate={{ scale: 1.8, opacity: 0 }} transition={{ duration: 0.8, ease: 'easeOut' }} />
+                <m.div className={`absolute w-[60vmin] h-[60vmin] rounded-full border-[12px] ${st.ring}`} initial={{ scale: 0.1, opacity: 1 }} animate={{ scale: 1.8, opacity: 0 }} transition={{ duration: 0.8, ease: 'easeOut' }} />
               )}
               {v === 'WD2' && (
-                <motion.div
+                <m.div
                   className="absolute w-[90vmin] h-[90vmin] rounded-full opacity-60"
                   style={{ background: 'conic-gradient(#ff2d55, #ffc800, #14d97c, #2f7bff, #b388ff, #ff2d55)', maskImage: 'radial-gradient(circle, transparent 30%, black 31%, black 45%, transparent 46%)', WebkitMaskImage: 'radial-gradient(circle, transparent 30%, black 31%, black 45%, transparent 46%)' }}
                   initial={{ scale: 0.2, rotate: 0 }}
@@ -168,7 +173,7 @@ export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | n
               )}
               {v === 'WD4' &&
                 [12, 38, 64, 86].map((left, i) => (
-                  <motion.svg
+                  <m.svg
                     key={i}
                     viewBox="0 0 40 100"
                     className="absolute top-0 w-10 h-[55vh]"
@@ -178,11 +183,11 @@ export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | n
                     transition={{ duration: 0.7, delay: i * 0.08 }}
                   >
                     <polygon points="22,0 6,55 20,55 12,100 36,38 22,38 30,0" fill="#fff" stroke="#a78bfa" strokeWidth="2" />
-                  </motion.svg>
+                  </m.svg>
                 ))}
               {v === 'WD8' &&
                 [0, 0.12, 0.24].map((d, i) => (
-                  <motion.div
+                  <m.div
                     key={i}
                     className={`absolute w-[50vmin] h-[50vmin] rounded-full border-[16px] ${st.ring}`}
                     initial={{ scale: 0.1, opacity: 1 }}
@@ -192,8 +197,8 @@ export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | n
                 ))}
 
               {/* flying emojis */}
-              {Array.from({ length: v === 'WD8' ? 18 : 10 }).map((_, i, arr) => (
-                <motion.span
+              {Array.from({ length: fxCount(v === 'WD8' ? 18 : 10) }).map((_, i, arr) => (
+                <m.span
                   key={i}
                   className="absolute text-3xl sm:text-4xl"
                   initial={{ x: 0, y: v === 'D2' ? 120 : 0, scale: 0.4, opacity: 1 }}
@@ -205,63 +210,63 @@ export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | n
                   transition={{ duration: v === 'WD8' ? 1.3 : 1, ease: 'easeOut' }}
                 >
                   {st.emojis[i % st.emojis.length]}
-                </motion.span>
+                </m.span>
               ))}
 
               {/* number + caption */}
-              <motion.div
+              <m.div
                 className="relative text-center"
                 initial={{ scale: v === 'WD8' ? 4 : 2.4, rotate: v === 'WD4' ? -15 : 10, opacity: 0 }}
                 animate={{ scale: [v === 'WD8' ? 4 : 2.4, 0.92, 1.06, 1], rotate: [v === 'WD4' ? -15 : 10, -3, 1, 0], opacity: 1 }}
                 transition={{ duration: 0.5, ease: 'easeOut' }}
               >
                 <div className="text-sm sm:text-base font-black tracking-wide text-white drop-shadow mb-1">{st.label}</div>
-                <motion.div
+                <m.div
                   className={`font-black leading-none ${v === 'WD8' ? 'text-[24vw] sm:text-[11rem]' : 'text-[18vw] sm:text-[8rem]'} bg-gradient-to-b ${st.grad} bg-clip-text text-transparent`}
                   style={{ WebkitTextStroke: '3px #2a0a00', filter: 'drop-shadow(0 6px 0 rgba(0,0,0,0.5))' }}
-                  animate={v === 'WD2' ? { filter: ['hue-rotate(0deg) drop-shadow(0 6px 0 rgba(0,0,0,0.5))', 'hue-rotate(360deg) drop-shadow(0 6px 0 rgba(0,0,0,0.5))'] } : undefined}
-                  transition={v === 'WD2' ? { duration: 1.2, repeat: 1 } : undefined}
+                  animate={v === 'WD2' ? { rotate: [0, -4, 4, -2, 0] } : undefined}
+                  transition={v === 'WD2' ? { duration: 0.8 } : undefined}
                 >
                   +{fx.count}
-                </motion.div>
+                </m.div>
                 <div className={`mt-1 inline-block px-4 py-1.5 rounded-2xl bg-black/80 border-2 ${st.border} text-lg sm:text-2xl font-black text-white`}>
                   {fx.from} ส่งคอมโบ{fx.added !== fx.count ? ` (+${fx.added})` : ''} ➜ {fx.to}
                 </div>
-              </motion.div>
-            </motion.div>
+              </m.div>
+            </m.div>
           );
         })()}
 
         {fx?.type === 'COMBO' && (
-          <motion.div
+          <m.div
             key={fx.key}
             className="fixed inset-0 z-[80] pointer-events-none flex items-center justify-center overflow-hidden"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1, x: [0, -18, 16, -12, 10, -6, 4, 0], y: [0, 10, -12, 8, -6, 4, 0] }}
+            animate={allowShake() ? { opacity: 1, x: [0, -18, 16, -12, 10, -6, 4, 0], y: [0, 10, -12, 8, -6, 4, 0] } : { opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <motion.div className="absolute inset-0 bg-red-600" initial={{ opacity: 0.6 }} animate={{ opacity: 0 }} transition={{ duration: 0.7 }} />
+            <m.div className="absolute inset-0 bg-red-600" initial={{ opacity: 0.6 }} animate={{ opacity: 0 }} transition={{ duration: 0.7 }} />
             {/* impact rays */}
-            <motion.div
+            <m.div
               className="absolute w-[160vmax] h-[160vmax]"
               style={{ background: 'repeating-conic-gradient(from 0deg, rgba(255,214,0,0.35) 0deg 8deg, transparent 8deg 20deg)' }}
               initial={{ scale: 0.2, rotate: 0, opacity: 1 }}
               animate={{ scale: 1, rotate: 40, opacity: 0 }}
               transition={{ duration: 1.4, ease: 'easeOut' }}
             />
-            {Array.from({ length: 14 }).map((_, i) => (
-              <motion.span
+            {Array.from({ length: fxCount(14) }).map((_, i, arr) => (
+              <m.span
                 key={i}
                 className="absolute text-3xl"
                 initial={{ x: 0, y: 0, scale: 0.4, opacity: 1 }}
-                animate={{ x: Math.cos((i / 14) * Math.PI * 2) * 320, y: Math.sin((i / 14) * Math.PI * 2) * 240, scale: 1.3, opacity: 0, rotate: 200 }}
+                animate={{ x: Math.cos((i / arr.length) * Math.PI * 2) * 320, y: Math.sin((i / arr.length) * Math.PI * 2) * 240, scale: 1.3, opacity: 0, rotate: 200 }}
                 transition={{ duration: 1.1, ease: 'easeOut' }}
               >
                 {['💥', '🃏', '💢', '⭐'][i % 4]}
-              </motion.span>
+              </m.span>
             ))}
-            <motion.div
+            <m.div
               className="relative text-center"
               initial={{ scale: 3.2, rotate: -14, opacity: 0 }}
               animate={{ scale: [3.2, 0.9, 1.08, 1], rotate: [-14, 4, -2, 0], opacity: 1 }}
@@ -273,82 +278,82 @@ export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | n
               >
                 +{fx.count}
               </div>
-              <motion.div
+              <m.div
                 className="mt-2 inline-block px-5 py-2 rounded-2xl bg-black/80 border-2 border-yellow-300 text-xl sm:text-3xl font-black text-white"
                 animate={{ rotate: [-2, 2, -2] }}
                 transition={{ duration: 0.4, repeat: 4 }}
               >
                 💥 {fx.name} โดนคอมโบ! จั่ว {fx.count} ใบ 🤣
-              </motion.div>
-            </motion.div>
-          </motion.div>
+              </m.div>
+            </m.div>
+          </m.div>
         )}
 
         {fx?.type === 'REFLECT' && (
-          <motion.div
+          <m.div
             key={fx.key}
             className="fixed inset-0 z-[80] pointer-events-none flex items-center justify-center"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <motion.div
+            <m.div
               className="absolute inset-0"
               style={{ background: 'linear-gradient(115deg, transparent 30%, rgba(200,170,255,0.75) 50%, transparent 70%)' }}
               initial={{ x: '-100%' }}
               animate={{ x: '100%' }}
               transition={{ duration: 0.7 }}
             />
-            <motion.div
+            <m.div
               initial={{ scale: 0.3, rotateY: 180, opacity: 0 }}
               animate={{ scale: 1, rotateY: 0, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 220, damping: 14 }}
               className="px-8 py-6 rounded-3xl bg-gradient-to-br from-violet-200 via-fuchsia-500 to-indigo-800 border-2 border-white/60 shadow-[0_0_60px_rgba(168,85,247,0.8)] text-center"
             >
-              <motion.div className="text-6xl" animate={{ scaleX: [1, -1, 1] }} transition={{ duration: 0.5, repeat: 2 }}>🪞</motion.div>
+              <m.div className="text-6xl" animate={{ scaleX: [1, -1, 1] }} transition={{ duration: 0.5, repeat: 2 }}>🪞</m.div>
               <div className="text-3xl font-black text-white drop-shadow">สะท้อนกลับ! +{fx.count}</div>
               <div className="text-lg font-bold text-white/90 mt-1">
                 {fx.from} ➜ {fx.to}
               </div>
-            </motion.div>
-          </motion.div>
+            </m.div>
+          </m.div>
         )}
 
         {fx?.type === 'SHIELD' && (
-          <motion.div key={fx.key} className="fixed inset-0 z-[80] pointer-events-none flex items-center justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <motion.div
+          <m.div key={fx.key} className="fixed inset-0 z-[80] pointer-events-none flex items-center justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <m.div
               className="absolute w-[70vmin] h-[70vmin] rounded-full border-[10px] border-cyan-300/80"
               initial={{ scale: 0.2, opacity: 1 }}
               animate={{ scale: 1.6, opacity: 0 }}
               transition={{ duration: 0.9, ease: 'easeOut' }}
             />
-            <motion.div
+            <m.div
               initial={{ scale: 0.3, y: 40, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 260, damping: 14 }}
               className="px-8 py-6 rounded-3xl bg-gradient-to-br from-cyan-200 via-sky-500 to-blue-900 border-2 border-white/60 shadow-[0_0_60px_rgba(34,195,230,0.8)] text-center"
             >
-              <motion.div className="text-6xl" animate={{ rotate: [0, -12, 12, 0] }} transition={{ duration: 0.4, repeat: 2 }}>🛡️</motion.div>
+              <m.div className="text-6xl" animate={{ rotate: [0, -12, 12, 0] }} transition={{ duration: 0.4, repeat: 2 }}>🛡️</m.div>
               <div className="text-3xl font-black text-white drop-shadow">โล่ป้องกัน! +{fx.count}</div>
               <div className="text-lg font-bold text-white/90 mt-1">{fx.from} ส่งต่อ ➜ {fx.to}</div>
-            </motion.div>
-          </motion.div>
+            </m.div>
+          </m.div>
         )}
 
         {fx?.type === 'SHUFFLE' && (
-          <motion.div key={fx.key} className="fixed inset-0 z-[80] pointer-events-none flex items-center justify-center bg-black/30" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <motion.div
+          <m.div key={fx.key} className="fixed inset-0 z-[80] pointer-events-none flex items-center justify-center bg-black/30" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <m.div
               initial={{ scale: 0.4, rotate: -20, opacity: 0 }}
               animate={{ scale: 1, rotate: 0, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 220, damping: 13 }}
               className="max-w-[92vw] px-6 py-5 rounded-3xl bg-gradient-to-br from-pink-300 via-fuchsia-500 to-purple-900 border-2 border-white/60 shadow-[0_0_60px_rgba(236,72,153,0.8)] text-center"
             >
-              <motion.div className="text-6xl" animate={{ rotate: [0, 360] }} transition={{ duration: 0.8, repeat: 1 }}>🔀</motion.div>
+              <m.div className="text-6xl" animate={{ rotate: [0, 360] }} transition={{ duration: 0.8, repeat: 1 }}>🔀</m.div>
               <div className="text-3xl font-black text-white drop-shadow">สลับที่นั่ง!</div>
               <div className="text-sm text-white/80 mb-2">{fx.name} สับลำดับผู้เล่นใหม่ — แล้วลงไพ่ต่อ</div>
               <div className="flex flex-wrap justify-center gap-1.5">
                 {fx.order.map((n, i) => (
-                  <motion.span
+                  <m.span
                     key={i}
                     initial={{ y: -30, opacity: 0, rotate: (i % 2 ? 1 : -1) * 30 }}
                     animate={{ y: 0, opacity: 1, rotate: 0 }}
@@ -356,25 +361,25 @@ export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | n
                     className="px-2.5 py-1 rounded-full bg-black/40 border border-white/30 text-sm font-bold text-white"
                   >
                     {i + 1}. {n}
-                  </motion.span>
+                  </m.span>
                 ))}
               </div>
-            </motion.div>
-          </motion.div>
+            </m.div>
+          </m.div>
         )}
 
         {fx?.type === 'VANISH' && (
-          <motion.div
+          <m.div
             key={fx.key}
             className="fixed inset-x-0 top-24 z-[80] pointer-events-none flex justify-center"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, filter: 'blur(8px)' }}
+            exit={{ opacity: 0, scale: 0.95 }}
           >
             <div className="px-5 py-3 rounded-2xl bg-violet-950/90 border border-violet-400/50 text-violet-100 font-bold">
               ✨ ไพ่สะท้อน/โล่ของ {fx.name} หายไป ({fx.count} ใบ) — ไม่มีคอมโบเหลือแล้ว
             </div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 

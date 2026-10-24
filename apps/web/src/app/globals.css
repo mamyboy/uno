@@ -14,3 +14,44 @@ body {
 * {
   -webkit-tap-highlight-color: transparent;
 }
+/* ───────── Compositor-only looping effects (transform / opacity only — no per-frame repaint) ───────── */
+@keyframes fx-sheen { 0% { transform: translateX(-130%); } 60%, 100% { transform: translateX(130%); } }
+@keyframes fx-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+@keyframes fx-pulse-soft { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+@keyframes fx-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes fx-nudge { 0%, 100% { transform: translateX(-2px); opacity: .65; } 50% { transform: translateX(3px); opacity: 1; } }
+@keyframes fx-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@keyframes fx-fade { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+@keyframes fx-bar { 0%, 100% { transform: scaleY(.25); } 50% { transform: scaleY(1); } }
+@keyframes fx-ping { from { transform: scale(1); opacity: .7; } to { transform: scale(1.6); opacity: 0; } }
+@keyframes fx-trophy { 0%, 100% { transform: translateY(0) rotate(0); } 25% { transform: translateY(-14px) rotate(-8deg); } 50% { transform: translateY(-6px) rotate(8deg); } 75% { transform: translateY(0) rotate(0); } }
+
+.fx-sheen { animation: fx-sheen 4s ease-in-out infinite; will-change: transform; }
+.fx-pulse { animation: fx-pulse 1s ease-in-out infinite; will-change: transform; }
+.fx-pulse-soft { animation: fx-pulse-soft 1.3s ease-in-out infinite; will-change: transform; }
+.fx-bob { animation: fx-bob .8s ease-in-out infinite; will-change: transform; }
+.fx-nudge { animation: fx-nudge 1s ease-in-out infinite; will-change: transform, opacity; }
+.fx-sweep { animation: fx-sweep 1.6s linear infinite; will-change: transform; }
+.fx-bar { animation: fx-bar .7s ease-in-out infinite; transform-origin: bottom; will-change: transform; }
+.fx-ping { animation: fx-ping 1s ease-out infinite; will-change: transform, opacity; }
+.fx-trophy { animation: fx-trophy 1.9s ease-in-out infinite; will-change: transform; }
+
+/* Glow / ring pulses: a static box-shadow on a pseudo-layer whose OPACITY animates
+   (animating box-shadow itself forces a repaint every frame). */
+.fx-glow, .fx-turn-ring { position: relative; }
+.fx-glow::after, .fx-turn-ring::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  opacity: 0; animation: fx-fade 1.8s ease-in-out infinite; will-change: opacity;
+}
+.fx-glow::after { box-shadow: 0 0 24px 6px rgba(255,255,255,.55); }
+.fx-turn-ring::after { box-shadow: 0 0 0 6px rgba(16,185,129,.45); animation-duration: 2s; }
+
+/* Lite mode (low-end device) and OS "reduce motion": drop decorative loops. */
+html.cma-lite .fx-sheen, html.cma-lite .fx-nudge, html.cma-lite .fx-trophy { animation: none; }
+html.cma-lite .fx-sheen { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .fx-sheen, .fx-pulse, .fx-pulse-soft, .fx-bob, .fx-nudge, .fx-sweep, .fx-bar, .fx-ping, .fx-trophy,
+  .fx-glow::after, .fx-turn-ring::after { animation: none !important; }
+  .fx-sheen { display: none; }
+  .fx-glow::after, .fx-turn-ring::after { opacity: .6; }
+}

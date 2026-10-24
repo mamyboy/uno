@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, m } from 'motion/react';
 import { ChevronDown, Trophy } from 'lucide-react';
 import { socket } from '@/lib/socket';
 import { EV, type Card, type GameState, type Room, type GameResult, type Player } from '@cma/shared';
@@ -12,6 +12,7 @@ import { ActionEffect } from '@/components/game/ActionEffect';
 import { Soundboard } from '@/components/game/Soundboard';
 import { GameFx } from '@/components/game/GameFx';
 import { useCollapse } from '@/components/game/useCollapse';
+import { inFrame } from '@/lib/frameBatch';
 import { TauntButton, TauntLayer } from '@/components/game/Taunts';
 import { VoiceButton, VoiceLayer } from '@/components/game/Voice';
 import { DirectionFlipFlash, NextBadge, SeatArrow, SeatRow } from '@/components/game/SeatArrow';
@@ -89,9 +90,10 @@ export default function BoardPage() {
       setResult(ack.snapshot.result);
     });
 
-    const onRoom = (r: Room) => setRoom(r);
-    const onGame = (g: GameState) => setGame(g);
-    const onOver = (res: GameResult) => setResult(res);
+    // One move = several messages; apply them together in one frame.
+    const onRoom = (r: Room) => inFrame(() => setRoom(r));
+    const onGame = (g: GameState) => inFrame(() => setGame(g));
+    const onOver = (res: GameResult) => inFrame(() => setResult(res));
 
     socket.on(EV.ROOM_STATE_UPDATED, onRoom);
     socket.on(EV.GAME_STATE, onGame);
@@ -164,28 +166,28 @@ export default function BoardPage() {
 
       <AnimatePresence>
         {finishNotice && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, scale: 0.9, y: -8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9 }}
             className="relative z-10 px-6 py-3 rounded-xl bg-yellow-400/15 border border-yellow-400/40 text-yellow-200 text-lg font-bold text-center"
           >
             {finishNotice}
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
       {room.leaderboard.length > 0 && (
         <div className="relative z-10 w-full max-w-lg">
-          <div className="rounded-2xl bg-white/5 border border-white/10 p-4 backdrop-blur">
+          <div className="rounded-2xl bg-zinc-900/70 border border-white/10 p-4">
             <button onClick={toggleLb} aria-expanded={lbOpen} className={`w-full flex items-center gap-2 text-sm font-semibold text-zinc-200 hover:text-white ${lbOpen ? 'mb-3' : ''}`}>
               <Trophy className="w-4 h-4 text-yellow-400" /> อันดับในห้องนี้
               <span className="text-[10px] text-zinc-500 font-normal">({room.leaderboard.length} คน)</span>
-              <motion.span animate={{ rotate: lbOpen ? 180 : 0 }} className="ml-auto inline-flex"><ChevronDown className="w-4 h-4 text-zinc-500" /></motion.span>
+              <m.span animate={{ rotate: lbOpen ? 180 : 0 }} className="ml-auto inline-flex"><ChevronDown className="w-4 h-4 text-zinc-500" /></m.span>
             </button>
             <AnimatePresence initial={false}>
             {lbOpen && (
-            <motion.ol key="lb" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-1.5 overflow-hidden">
+            <m.ol key="lb" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-1.5 overflow-hidden">
               {room.leaderboard.slice(0, 6).map((e, i) => (
                 <li key={e.nickname} className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white/5">
                   <span className="flex items-center gap-2">
@@ -199,7 +201,7 @@ export default function BoardPage() {
                   </span>
                 </li>
               ))}
-            </motion.ol>
+            </m.ol>
             )}
             </AnimatePresence>
           </div>
@@ -211,16 +213,16 @@ export default function BoardPage() {
           <p className="text-xl text-zinc-300">กำลังรอผู้เล่น ({players.length} คน)</p>
           <div className="flex gap-4 flex-wrap justify-center">
             {players.map((p, i) => (
-              <motion.div
+              <m.div
                 key={p.id}
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: i * 0.06 }}
-                className="flex items-center gap-3 px-6 py-3 rounded-xl bg-white/5 border border-white/10 font-bold backdrop-blur"
+                className="flex items-center gap-3 px-6 py-3 rounded-xl bg-zinc-900/70 border border-white/10 font-bold"
               >
                 <Avatar nickname={p.nickname} avatar={p.avatar} size="sm" />
                 {p.nickname}
-              </motion.div>
+              </m.div>
             ))}
           </div>
         </div>
@@ -233,7 +235,7 @@ export default function BoardPage() {
               <p className="text-sm text-zinc-400">กองจั่ว</p>
               <div className="relative inline-block">
                     <PlayingCard card={game.topCard} faceDown size="lg" />
-                    <motion.span
+                    <m.span
                       key={game.drawPileCount}
                       initial={{ scale: 1.5 }}
                       animate={{ scale: 1 }}
@@ -242,14 +244,14 @@ export default function BoardPage() {
                       <span className={`min-w-[2.6em] px-2 py-1 rounded-xl font-black tabular-nums text-center bg-black/75 border-2 shadow-lg text-3xl sm:text-4xl ${game.drawPileCount === 0 ? 'border-red-400 text-red-300' : game.drawPileCount <= 10 ? 'border-orange-400 text-orange-200' : 'border-white/70 text-white'}`}>
                         {game.drawPileCount}
                       </span>
-                    </motion.span>
+                    </m.span>
                   </div>
               <p className="text-xs text-zinc-300 font-semibold">{game.drawPileCount === 0 ? 'หมดกอง — ขโมยไพ่' : `เหลือ ${game.drawPileCount} ใบ`}</p>
             </div>
             <div className="text-center space-y-2">
               <p className="text-sm text-zinc-400">ไพ่กลาง</p>
               <AnimatePresence mode="popLayout">
-                <motion.div
+                <m.div
                   key={game.topCard.id}
                   initial={{ opacity: 0, scale: 0.4, rotate: -30, y: -30 }}
                   animate={{ opacity: 1, scale: 1, rotate: 0, y: 0 }}
@@ -257,7 +259,7 @@ export default function BoardPage() {
                   transition={{ type: 'spring', stiffness: 260, damping: 20 }}
                 >
                   <PlayingCard card={game.topCard} size="lg" />
-                </motion.div>
+                </m.div>
               </AnimatePresence>
             </div>
             <div className="text-center space-y-2">
@@ -279,7 +281,7 @@ export default function BoardPage() {
             </div>
           )}
 
-          <motion.div
+          <m.div
             key={game.gameStatus === 'CHOOSING_DIRECTION' ? 'choosing' : game.currentPlayerId}
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -290,9 +292,9 @@ export default function BoardPage() {
             ) : (
               <span className="inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-500/90 via-teal-400/90 to-emerald-500/90 border-2 border-white/60 shadow-[0_10px_40px_-8px_rgba(16,185,129,0.8)]">
                 <span className="text-lg font-bold text-white/90">🎯 ตาของ</span>
-                <motion.span className="text-3xl sm:text-5xl font-black text-white drop-shadow" animate={{ scale: [1, 1.08, 1] }} transition={{ duration: 0.9, repeat: Infinity }}>
+                <span className="fx-pulse inline-block text-3xl sm:text-5xl font-black text-white drop-shadow">
                   {nameOf(game.currentPlayerId)}
-                </motion.span>
+                </span>
               </span>
             )}
             {game.pendingDraw && (
@@ -300,7 +302,7 @@ export default function BoardPage() {
                 💥 คอมโบ +{game.pendingDraw.count} รอ {nameOf(game.pendingDraw.targetId)} ตอบโต้ / สะท้อน 🪞 / โล่ 🛡️ / จั่วรับ
               </p>
             )}
-          </motion.div>
+          </m.div>
 
           <div className="relative pt-4">
           <DirectionFlipFlash direction={game.direction} />
@@ -314,15 +316,13 @@ export default function BoardPage() {
               const dir = game.direction;
               return (
                 <Fragment key={p.id}>
-                <motion.div
+                <m.div
                   data-seat={p.id}
                   layout
-                  animate={isCurrent && !hasFinished ? { scale: [1, 1.04, 1] } : {}}
-                  transition={{ duration: 1.3, repeat: isCurrent && !hasFinished ? Infinity : 0 }}
                   className={`relative shrink-0 w-32 sm:w-36 rounded-2xl p-4 text-center border-2 ${
                     hasFinished
                       ? 'border-yellow-400 bg-yellow-400/10'
-                      : isCurrent ? 'border-emerald-400 bg-emerald-400/10 animate-turn-ring' : p.id === nextId ? 'border-amber-400 bg-amber-400/10' : 'border-white/10 bg-white/5'
+                      : isCurrent ? 'border-emerald-400 bg-emerald-400/10 fx-turn-ring' : p.id === nextId ? 'border-amber-400 bg-amber-400/10' : 'border-white/10 bg-white/5'
                   }`}
                 >
                   {p.id === nextId && !isCurrent && <NextBadge size="lg" />}
@@ -339,7 +339,7 @@ export default function BoardPage() {
                     {hasFinished ? `ชนะอันดับที่ ${finishRank + 1}` : `${p.cardCount} ใบ`}
                   </p>
                   {!p.connected && <p className="text-xs text-red-400">หลุดการเชื่อมต่อ</p>}
-                </motion.div>
+                </m.div>
                 {isActive && seatNo < activeN - 1 && <SeatArrow direction={dir} size="lg" />}
                 </Fragment>
               );
@@ -352,23 +352,19 @@ export default function BoardPage() {
       )}
 
       {result && room.status !== 'PLAYING' && (
-        <motion.div
+        <m.div
           initial={{ opacity: 0, scale: 0.85 }}
           animate={{ opacity: 1, scale: 1 }}
           className="text-center space-y-4 relative z-10"
         >
-          <motion.div
-            animate={{ y: [0, -16, 0], rotate: [0, -10, 10, 0] }}
-            transition={{ duration: 1.4, repeat: Infinity, repeatDelay: 0.5 }}
-            className="flex justify-center"
-          >
-            <Trophy className="w-20 h-20 text-yellow-400 drop-shadow-lg" />
-          </motion.div>
+          <div className="flex justify-center">
+            <Trophy className="fx-trophy w-20 h-20 text-yellow-400 drop-shadow-lg" />
+          </div>
           <h2 className="text-4xl font-black text-yellow-400">
             {result.ranking.find((r) => r.playerId === result.winnerId)?.nickname} ชนะ!
           </h2>
           <p className="text-zinc-400">ใช้ {result.turns} ตา · {Math.round(result.durationMs / 1000)} วินาที</p>
-        </motion.div>
+        </m.div>
       )}
     </main>
   );

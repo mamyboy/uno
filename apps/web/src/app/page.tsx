@@ -1,6 +1,6 @@
 'use client';
 
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import { PlusCircle, Play, Users } from 'lucide-react';
 import { PlayingCard } from '@/components/game/PlayingCard';
 import { LinkButton } from '@/components/ui/Button';
@@ -16,7 +16,7 @@ export default function LandingPage() {
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center p-6 bg-gradient-to-br from-[#081710] via-[#0f2b1d] to-black overflow-hidden">
       {DECOR_CARDS.map((c, i) => (
-        <motion.div
+        <m.div
           key={i}
           className={`hidden md:block absolute ${c.style} animate-float`}
           style={{ animationDelay: `${c.delay}s` }}
@@ -25,10 +25,10 @@ export default function LandingPage() {
           transition={{ delay: c.delay, duration: 0.6 }}
         >
           <PlayingCard card={{ id: `decor-${i}`, kind: 'NUMBER', color: c.color, value: c.value }} size="lg" />
-        </motion.div>
+        </m.div>
       ))}
 
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
@@ -51,7 +51,7 @@ export default function LandingPage() {
             <Play className="w-5 h-5" /> เข้าร่วมห้อง
           </LinkButton>
         </div>
-      </motion.div>
+      </m.div>
     </main>
   );
 }

@@ -1,8 +1,8 @@
 'use client';
 
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, m } from 'motion/react';
 import { Camera, ChevronDown, Crown, Eraser, Loader2, LogOut, RotateCcw, Trash2, Trophy, Tv, Users, WifiOff } from 'lucide-react';
 import { socket } from '@/lib/socket';
 import { getSession, setSession, removeSession } from '@/lib/session';
@@ -18,6 +18,7 @@ import { GameFx } from '@/components/game/GameFx';
 import { PlayHistory } from '@/components/game/PlayHistory';
 import { TurnBanner } from '@/components/game/TurnBanner';
 import { useCollapse } from '@/components/game/useCollapse';
+import { inFrame } from '@/lib/frameBatch';
 import { TauntButton, TauntLayer } from '@/components/game/Taunts';
 import { VoiceButton, VoiceLayer } from '@/components/game/Voice';
 import { DirectionFlipFlash, NextBadge, SeatArrow, SeatRow } from '@/components/game/SeatArrow';
@@ -51,6 +52,21 @@ export default function RoomPage() {
     useGameStore();
 
   const [lbOpen, toggleLb] = useCollapse('cma:lb-open:player');
+  // Stable per-card click handlers so memoized <PlayingCard>s don't re-render on every update.
+  const toggleRef = useRef<(id: string, c: any) => void>(() => {});
+  const handCardsRef = useRef<any[]>([]);
+  const cardHandlers = useRef(new Map<string, () => void>());
+  const handlerFor = useCallback((id: string) => {
+    let h = cardHandlers.current.get(id);
+    if (!h) {
+      h = () => {
+        const c = handCardsRef.current.find((x) => x.id === id);
+        if (c) toggleRef.current(id, c);
+      };
+      cardHandlers.current.set(id, h);
+    }
+    return h;
+  }, []);
 
   const [joining, setJoining] = useState(true);
   const [nickname, setNickname] = useState('');
@@ -150,18 +166,21 @@ export default function RoomPage() {
       setJoining(false);
     }
 
+    // Updates for one move arrive as several messages — apply them together in one frame.
     function onRoomUpdate(r: any) {
-      setRoom(r);
+      inFrame(() => setRoom(r));
     }
     function onGameState(g: any) {
-      setGame(g);
+      inFrame(() => setGame(g));
     }
     function onHand(h: any) {
-      setHand(h);
-      setSelectedIds([]);
+      inFrame(() => {
+        setHand(h);
+        setSelectedIds([]);
+      });
     }
     function onGameOver(res: any) {
-      setResult(res);
+      inFrame(() => setResult(res));
     }
     function onKicked() {
       removeSession();
@@ -274,7 +293,7 @@ export default function RoomPage() {
   if (!room) {
     return (
       <main className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-casino-table via-casino-felt to-black">
-        <motion.form
+        <m.form
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           onSubmit={handleManualJoin}
@@ -293,7 +312,7 @@ export default function RoomPage() {
           <button type="submit" className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold transition active:scale-95">
             เข้าร่วม
           </button>
-        </motion.form>
+        </m.form>
       </main>
     );
   }
@@ -403,6 +422,8 @@ export default function RoomPage() {
       return [...prev, cardId];
     });
   };
+  toggleRef.current = toggleSelect;
+  handCardsRef.current = hand?.hand ?? [];
 
   const drawCard = (drawInsteadOfWild = false) => {
     if (!game) return;
@@ -499,7 +520,7 @@ export default function RoomPage() {
             </button>
             <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatarPick} className="hidden" />
             {!meAvatar && (
-              <span className="hidden sm:inline text-xs text-zinc-400 bg-zinc-800/60 px-2 py-1 rounded backdrop-blur border border-zinc-700/50">
+              <span className="hidden sm:inline text-xs text-zinc-400 bg-zinc-800/90 px-2 py-1 rounded border border-zinc-700/50">
                 กดรูปเพื่ออัปโหลดโปรไฟล์
               </span>
             )}
@@ -533,7 +554,7 @@ export default function RoomPage() {
             <div className={`flex items-center justify-between ${lbOpen ? 'mb-3' : ''}`}>
               <button onClick={toggleLb} className="flex items-center gap-2 text-zinc-300 text-sm font-semibold hover:text-white" aria-expanded={lbOpen}>
                 <Trophy className="w-4 h-4 text-yellow-400" /> อันดับในห้องนี้ <span className="text-[10px] text-zinc-500 font-normal">(นับตามชื่อ · {room.leaderboard.length} คน)</span>
-                <motion.span animate={{ rotate: lbOpen ? 180 : 0 }} className="inline-flex"><ChevronDown className="w-4 h-4 text-zinc-500" /></motion.span>
+                <m.span animate={{ rotate: lbOpen ? 180 : 0 }} className="inline-flex"><ChevronDown className="w-4 h-4 text-zinc-500" /></m.span>
               </button>
               {lbOpen && (isHost || room.isStatic) && (
                 <button onClick={clearLeaderboard} className="text-xs flex items-center gap-1 px-2 py-1 rounded-lg border border-zinc-700 text-zinc-400 hover:text-red-300 hover:border-red-500/50">
@@ -543,7 +564,7 @@ export default function RoomPage() {
             </div>
             <AnimatePresence initial={false}>
             {lbOpen && (
-            <motion.ol key="lb" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-1.5 overflow-hidden">
+            <m.ol key="lb" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-1.5 overflow-hidden">
               {room.leaderboard.slice(0, 8).map((e, i) => (
                 <li key={e.nickname} className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-zinc-800/50">
                   <span className="flex items-center gap-2">
@@ -557,7 +578,7 @@ export default function RoomPage() {
                   </span>
                 </li>
               ))}
-            </motion.ol>
+            </m.ol>
             )}
             </AnimatePresence>
           </section>
@@ -565,7 +586,7 @@ export default function RoomPage() {
 
         <AnimatePresence>
           {actionError && (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
@@ -573,51 +594,47 @@ export default function RoomPage() {
               onAnimationComplete={() => setTimeout(() => setActionError(''), 2500)}
             >
               {actionError}
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
 
         <AnimatePresence>
           {stealNotice && (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, height: 0, y: -8 }}
               animate={{ opacity: 1, height: 'auto', y: 0 }}
               exit={{ opacity: 0, height: 0 }}
               className="p-3 rounded-xl bg-purple-500/15 border border-purple-400/30 text-purple-200 text-sm overflow-hidden font-semibold text-center"
             >
               {stealNotice}
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
 
         <AnimatePresence>
           {finishNotice && (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, scale: 0.9, y: -8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9 }}
               className="p-4 rounded-xl bg-yellow-400/15 border border-yellow-400/40 text-yellow-200 text-base overflow-hidden font-bold text-center"
             >
               {finishNotice}
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
 
         {/* Winner screen (last match's result) — shown alongside the lobby for static rooms,
             which flip back to WAITING immediately so a new round can start right away. */}
         {result && room.status !== 'PLAYING' && (
-          <motion.section
+          <m.section
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-6 space-y-4 text-center shadow-2xl"
           >
-            <motion.div
-              animate={{ y: [0, -14, 0], rotate: [0, -8, 8, 0] }}
-              transition={{ duration: 1.4, repeat: Infinity, repeatDelay: 0.6 }}
-              className="flex justify-center"
-            >
-              <Trophy className="w-14 h-14 text-yellow-400 drop-shadow-lg" />
-            </motion.div>
+            <div className="flex justify-center">
+              <Trophy className="fx-trophy w-14 h-14 text-yellow-400 drop-shadow-lg" />
+            </div>
             <h2 className="text-2xl font-bold text-yellow-400">
               {result.ranking.find((r) => r.playerId === result.winnerId)?.nickname ?? 'ไม่มีผู้ชนะ'} ชนะ!
             </h2>
@@ -626,7 +643,7 @@ export default function RoomPage() {
             </p>
             <ol className="text-left space-y-1 max-w-xs mx-auto">
               {result.ranking.map((r, i) => (
-                <motion.li
+                <m.li
                   key={r.playerId}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -635,7 +652,7 @@ export default function RoomPage() {
                 >
                   <span>#{r.rank} {r.nickname}</span>
                   <span className="text-zinc-400">{r.cardsLeft} ใบเหลือ</span>
-                </motion.li>
+                </m.li>
               ))}
             </ol>
             {isHost && room.status === 'FINISHED' && (
@@ -646,18 +663,18 @@ export default function RoomPage() {
             {room.status === 'WAITING' && (
               <p className="text-xs text-zinc-500">ห้องพร้อมแล้ว — เริ่มรอบใหม่ได้จากปุ่มด้านล่าง</p>
             )}
-          </motion.section>
+          </m.section>
         )}
 
         {/* Lobby / Waiting */}
         {room.status === 'WAITING' && (
-          <section className="rounded-2xl bg-zinc-900/80 backdrop-blur border border-zinc-800 p-4 sm:p-6 space-y-4 shadow-xl">
+          <section className="rounded-2xl bg-zinc-900/90 border border-zinc-800 p-4 sm:p-6 space-y-4 shadow-xl">
             <div className="flex items-center gap-2 text-zinc-300">
               <Users className="w-5 h-5" /> ผู้เล่นในห้อง ({players.length} คน · ไม่จำกัด)
             </div>
             <ul className="space-y-2">
               {room.players.map((p: Player, i: number) => (
-                <motion.li
+                <m.li
                   key={p.id}
                   initial={{ opacity: 0, x: -16 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -673,7 +690,7 @@ export default function RoomPage() {
                   <span className={p.connected ? 'text-emerald-400 text-xs flex items-center gap-1' : 'text-red-400 text-xs flex items-center gap-1'}>
                     {p.connected ? 'ออนไลน์' : (<><WifiOff className="w-3 h-3" /> หลุดการเชื่อมต่อ</>)}
                   </span>
-                </motion.li>
+                </m.li>
               ))}
             </ul>
             {joinUrl && (
@@ -718,7 +735,7 @@ export default function RoomPage() {
                   <p className="text-xs text-zinc-400">กองจั่ว</p>
                   <div className="relative inline-block">
                     <PlayingCard card={game.topCard} faceDown size="md" />
-                    <motion.span
+                    <m.span
                       key={game.drawPileCount}
                       initial={{ scale: 1.5 }}
                       animate={{ scale: 1 }}
@@ -727,14 +744,14 @@ export default function RoomPage() {
                       <span className={`min-w-[2.6em] px-2 py-1 rounded-xl font-black tabular-nums text-center bg-black/75 border-2 shadow-lg text-2xl sm:text-3xl ${game.drawPileCount === 0 ? 'border-red-400 text-red-300' : game.drawPileCount <= 10 ? 'border-orange-400 text-orange-200' : 'border-white/70 text-white'}`}>
                         {game.drawPileCount}
                       </span>
-                    </motion.span>
+                    </m.span>
                   </div>
                   <p className="text-xs text-zinc-300 font-semibold">{game.drawPileCount === 0 ? 'หมดกอง — ขโมยไพ่' : `เหลือ ${game.drawPileCount} ใบ`}</p>
                 </div>
                 <div className="text-center space-y-1">
                   <p className="text-xs text-zinc-400">ไพ่กลาง</p>
                   <AnimatePresence mode="popLayout">
-                    <motion.div
+                    <m.div
                       key={game.topCard.id}
                       initial={{ opacity: 0, scale: 0.4, rotate: -25, y: -20 }}
                       animate={{ opacity: 1, scale: 1, rotate: 0, y: 0 }}
@@ -742,7 +759,7 @@ export default function RoomPage() {
                       transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                     >
                       <PlayingCard card={game.topCard} size="lg" />
-                    </motion.div>
+                    </m.div>
                   </AnimatePresence>
                 </div>
                 <div className="text-center space-y-1">
@@ -779,13 +796,11 @@ export default function RoomPage() {
                   const dir = game.direction;
                   return (
                     <Fragment key={p.id}>
-                    <motion.div layout data-seat={p.id} transition={{ type: 'spring', stiffness: 300, damping: 26 }} className="flex flex-col items-center gap-1 shrink-0 w-14">
-                      <motion.div
+                    <m.div layout data-seat={p.id} transition={{ type: 'spring', stiffness: 300, damping: 26 }} className="flex flex-col items-center gap-1 shrink-0 w-14">
+                      <m.div
                         className={`relative rounded-full border-2 ${
-                          hasFinished ? 'border-yellow-400' : isCurrent ? 'border-emerald-300 animate-turn-ring' : p.id === nextId ? 'border-amber-400 ring-2 ring-amber-400/60' : 'border-zinc-600'
+                          hasFinished ? 'border-yellow-400' : isCurrent ? 'border-emerald-300 fx-turn-ring fx-pulse' : p.id === nextId ? 'border-amber-400 ring-2 ring-amber-400/60' : 'border-zinc-600'
                         } ${p.avatar ? '' : isCurrent ? 'bg-emerald-500' : 'bg-zinc-800'}`}
-                        animate={isCurrent && !hasFinished ? { scale: [1, 1.08, 1] } : {}}
-                        transition={{ duration: 1.2, repeat: isCurrent && !hasFinished ? Infinity : 0 }}
                       >
                         <Avatar nickname={p.nickname} avatar={p.avatar} size="md" />
                         {p.id === nextId && !isCurrent && <NextBadge />}
@@ -794,12 +809,12 @@ export default function RoomPage() {
                             {finishRank + 1}
                           </span>
                         )}
-                      </motion.div>
+                      </m.div>
                       <span className="text-[11px] text-zinc-300 max-w-full truncate">{!hasFinished && <span className="text-zinc-500">{seatNo + 1}. </span>}{p.nickname}</span>
                       <span className="text-[10px] text-zinc-500">
                         {hasFinished ? `ชนะอันดับที่ ${finishRank + 1}` : `${p.cardCount} ใบ`}
                       </span>
-                    </motion.div>
+                    </m.div>
                     {isActive && seatNo < activeN - 1 && <SeatArrow direction={dir} />}
                     </Fragment>
                   );
@@ -809,35 +824,35 @@ export default function RoomPage() {
             </div>
 
             {game.gameStatus === 'CHOOSING_DIRECTION' && hand?.isMyTurn && (
-              <motion.div
+              <m.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-6 text-center space-y-4"
               >
                 <p className="font-bold">เลือกทิศทางการเล่น</p>
                 <div className="flex gap-4 justify-center">
-                  <motion.button
+                  <m.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => selectDirection('LEFT')}
                     className="px-8 py-4 rounded-2xl bg-gradient-to-b from-emerald-400 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 border border-emerald-300/50 font-bold text-lg text-white shadow-[0_3px_0_0_rgba(4,65,45,0.75),0_8px_20px_-6px_rgba(16,185,129,0.55)] active:translate-y-[2px] active:shadow-none transition-[transform,filter]"
                   >
                     ⟲ ซ้าย (LEFT)
-                  </motion.button>
-                  <motion.button
+                  </m.button>
+                  <m.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => selectDirection('RIGHT')}
                     className="px-8 py-4 rounded-2xl bg-gradient-to-b from-sky-400 to-blue-600 hover:from-sky-400 hover:to-blue-500 border border-sky-300/50 font-bold text-lg text-white shadow-[0_3px_0_0_rgba(10,45,90,0.75),0_8px_20px_-6px_rgba(59,130,246,0.55)] active:translate-y-[2px] active:shadow-none transition-[transform,filter]"
                   >
                     ⟳ ขวา (RIGHT)
-                  </motion.button>
+                  </m.button>
                 </div>
-              </motion.div>
+              </m.div>
             )}
 
             {game.pendingDraw && (
-              <motion.div
+              <m.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="rounded-2xl bg-orange-500/15 border border-orange-400/30 p-4 text-center font-bold text-orange-200"
@@ -845,7 +860,7 @@ export default function RoomPage() {
                 {game.pendingDraw.targetId === session?.playerId
                   ? `ถึงตาคุณตอบโต้! เล่น +2/+4/+8 ต่อ, สะท้อน 🪞, โล่ 🛡️ ส่งต่อ หรือจั่วสะสม ${game.pendingDraw.count} ใบ`
                   : `${players.find((p) => p.id === game.pendingDraw?.targetId)?.nickname ?? ''} ต้องตอบโต้ด้วย +2/+4/+8, สะท้อน 🪞, โล่ 🛡️ หรือจั่ว ${game.pendingDraw.count} ใบ`}
-              </motion.div>
+              </m.div>
             )}
 
             {hand && !game?.finishedOrder?.includes(session?.playerId ?? '') && !game?.winnerId && (
@@ -886,23 +901,23 @@ export default function RoomPage() {
                         (firstSelected.kind === 'DRAW_TWO') === (c.kind === 'DRAW_TWO');
                       const clickable = hand.isMyTurn && (hand.playableCardIds.includes(c.id) || canStack || canStackDraw);
                       return (
-                        <motion.div key={c.id} layout className="relative" exit={{ opacity: 0, y: 30, scale: 0.6 }}>
+                        <m.div key={c.id} layout className="relative" exit={{ opacity: 0, y: 30, scale: 0.6 }}>
                           <PlayingCard
                             card={c}
                             playable={clickable}
                             selected={isSelected}
-                            onClick={clickable ? () => toggleSelect(c.id, c) : undefined}
+                            onClick={clickable ? handlerFor(c.id) : undefined}
                           />
                           {isSelected && (
-                            <motion.span
+                            <m.span
                               initial={{ scale: 0 }}
                               animate={{ scale: 1 }}
                               className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-yellow-400 text-black text-xs font-bold flex items-center justify-center ring-2 ring-zinc-900"
                             >
                               {selectedIndex + 1}
-                            </motion.span>
+                            </m.span>
                           )}
-                        </motion.div>
+                        </m.div>
                       );
                     })}
                   </AnimatePresence>
@@ -939,14 +954,14 @@ export default function RoomPage() {
       {/* Wild color picker modal */}
       <AnimatePresence>
         {pendingWildCardIds && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-6"
             onClick={() => setPendingWildCardIds(null)}
           >
-            <motion.div
+            <m.div
               initial={{ opacity: 0, scale: 0.85, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.85 }}
@@ -963,7 +978,7 @@ export default function RoomPage() {
                     { color: 'BLUE' as const, label: 'น้ำเงิน', cls: 'from-blue-400 to-blue-700' },
                   ]
                 ).map((opt) => (
-                  <motion.button
+                  <m.button
                     key={opt.color}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
@@ -971,11 +986,11 @@ export default function RoomPage() {
                     className={`py-6 rounded-xl bg-gradient-to-br ${opt.cls} font-bold text-white shadow-lg`}
                   >
                     {opt.label}
-                  </motion.button>
+                  </m.button>
                 ))}
               </div>
-            </motion.div>
-          </motion.div>
+            </m.div>
+          </m.div>
         )}
       </AnimatePresence>
     </main>

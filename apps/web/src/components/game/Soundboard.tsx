@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { m, AnimatePresence } from 'motion/react';
 import { Flame, Music, Play, Search, Star, Volume2, X } from 'lucide-react';
 import { socket } from '@/lib/socket';
 import { announcePanel, useClosesOnOtherPanel } from '@/lib/panels';
@@ -95,18 +95,18 @@ export function Soundboard() {
     <>
       <AnimatePresence>
         {toast && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: -12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             className="fixed top-4 left-1/2 -translate-x-1/2 z-[70] px-4 py-2 rounded-full bg-black/85 border border-white/10 text-sm font-semibold shadow-xl max-w-[90vw] truncate"
           >
             {toast}
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
-      <motion.button
+      <m.button
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.92 }}
         onClick={() => {
@@ -118,15 +118,15 @@ export function Soundboard() {
         title="กดเสียงแกล้งเพื่อนในห้อง"
       >
         {open ? <X className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
-      </motion.button>
+      </m.button>
 
       <AnimatePresence>
         {open && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-24 right-3 sm:right-5 z-[60] w-[calc(100vw-1.5rem)] max-w-sm rounded-2xl bg-zinc-900/95 border border-zinc-700 p-3 shadow-2xl backdrop-blur"
+            className="fixed bottom-24 right-3 sm:right-5 z-[60] w-[calc(100vw-1.5rem)] max-w-sm rounded-2xl bg-zinc-900/95 border border-zinc-700 p-3 shadow-2xl"
           >
             <p className="text-xs text-zinc-400 mb-2 px-1">แตะเพื่อเล่นให้ทุกคนในห้อง 🔊 · ⭐ เพิ่มรายการโปรด · myinstants.com</p>
             <div className="flex gap-1 mb-2">
@@ -159,7 +159,7 @@ export function Soundboard() {
                 const fav = favSet.has(item.f);
                 return (
                   <div key={item.f} className="flex items-center gap-1">
-                    <motion.button
+                    <m.button
                       whileTap={{ scale: 0.96 }}
                       onClick={() => trigger(item)}
                       className="flex-1 min-w-0 px-2.5 py-2 rounded-xl bg-zinc-800 hover:bg-fuchsia-600/30 border border-zinc-700 hover:border-fuchsia-500 text-xs text-left transition truncate"
@@ -167,7 +167,7 @@ export function Soundboard() {
                     >
                       🔊 {item.t}
                       {'n' in item && item.n ? <span className="text-[10px] text-zinc-500"> · {item.n}×</span> : null}
-                    </motion.button>
+                    </m.button>
                     <button onClick={() => playClip(item.f, 0.7)} title="ฟังเฉพาะเรา" className="p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800">
                       <Play className="w-3.5 h-3.5" />
                     </button>
@@ -183,7 +183,7 @@ export function Soundboard() {
                 </button>
               )}
             </div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, m } from 'motion/react';
 import type { Card } from '@cma/shared';
 import { playCardSound } from '@/lib/sfx';
 
@@ -36,7 +36,7 @@ export function ActionEffect({ card }: Props) {
   return (
     <AnimatePresence>
       {card && config && (
-        <motion.div
+        <m.div
           key={card.id}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -45,21 +45,21 @@ export function ActionEffect({ card }: Props) {
           className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none px-4"
         >
           {/* dim backdrop flash */}
-          <motion.div
+          <m.div
             initial={{ opacity: 0 }}
             animate={{ opacity: [0, 0.35, 0] }}
             transition={{ duration: 0.6 }}
             className="absolute inset-0 bg-black"
           />
 
-          <motion.div
+          <m.div
             initial={{ scale: 0.3, rotate: -18, opacity: 0, y: 10 }}
             animate={{ scale: [0.3, 1.25, 1], rotate: [-18, 6, 0], opacity: 1, y: 0 }}
             exit={{ scale: 0.6, opacity: 0, y: -10 }}
             transition={{ duration: 0.5, ease: 'easeOut' }}
-            className={`px-10 py-7 rounded-3xl bg-gradient-to-br ${config.bg} shadow-2xl ring-4 ${config.ring} border-2 border-white/40 text-center backdrop-blur`}
+            className={`px-10 py-7 rounded-3xl bg-gradient-to-br ${config.bg} shadow-2xl ring-4 ${config.ring} border-2 border-white/40 text-center`}
           >
-            <motion.div
+            <m.div
               className="text-6xl mb-2 drop-shadow-lg"
               animate={
                 card.kind === 'REVERSE'
@@ -73,17 +73,17 @@ export function ActionEffect({ card }: Props) {
               transition={{ duration: 0.7, repeat: 1, repeatDelay: 0.1 }}
             >
               {config.emoji}
-            </motion.div>
-            <motion.div
+            </m.div>
+            <m.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
               className="text-2xl font-black text-white drop-shadow-lg tracking-wide whitespace-nowrap"
             >
               {config.label}
-            </motion.div>
-          </motion.div>
-        </motion.div>
+            </m.div>
+          </m.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

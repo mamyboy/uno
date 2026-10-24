@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import { ArrowLeft, Loader2, Sparkles } from 'lucide-react';
 import { socket } from '@/lib/socket';
 import { setSession } from '@/lib/session';
@@ -52,7 +52,7 @@ export default function CreateRoomPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-casino-table via-casino-felt to-black">
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md p-8 rounded-2xl bg-zinc-900/90 border border-zinc-800 shadow-2xl"
@@ -118,7 +118,7 @@ export default function CreateRoomPage() {
             {loading && <Loader2 className="w-5 h-5 animate-spin" />} สร้างห้องและเข้าสู่ Lobby
           </Button>
         </form>
-      </motion.div>
+      </m.div>
     </main>
   );
 }

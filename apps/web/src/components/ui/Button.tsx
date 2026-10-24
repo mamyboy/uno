@@ -2,7 +2,7 @@
 
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import Link from 'next/link';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 
 /**
  * Shared "casino chip" button styling for Color Match Arena — a felt-green primary action,
@@ -42,7 +42,7 @@ interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onA
 
 export function Button({ variant = 'primary', size = 'md', fullWidth, className = '', children, disabled, ...props }: ButtonProps) {
   return (
-    <motion.button
+    <m.button
       whileHover={disabled ? undefined : { scale: 1.025 }}
       whileTap={disabled ? undefined : { scale: 0.97 }}
       disabled={disabled}
@@ -50,7 +50,7 @@ export function Button({ variant = 'primary', size = 'md', fullWidth, className 
       {...props}
     >
       {children}
-    </motion.button>
+    </m.button>
   );
 }
 
@@ -68,7 +68,7 @@ interface LinkButtonProps {
 /** Same chip styling as `Button`, for navigational CTAs that should look identical to action buttons. */
 export function LinkButton({ href, variant = 'primary', size = 'md', fullWidth, className = '', children, target, rel }: LinkButtonProps) {
   return (
-    <motion.div whileHover={{ scale: 1.025 }} whileTap={{ scale: 0.97 }} className={fullWidth ? 'w-full' : 'inline-block'}>
+    <m.div whileHover={{ scale: 1.025 }} whileTap={{ scale: 0.97 }} className={fullWidth ? 'w-full' : 'inline-block'}>
       <Link
         href={href}
         target={target}
@@ -77,6 +77,6 @@ export function LinkButton({ href, variant = 'primary', size = 'md', fullWidth, 
       >
         {children}
       </Link>
-    </motion.div>
+    </m.div>
   );
 }

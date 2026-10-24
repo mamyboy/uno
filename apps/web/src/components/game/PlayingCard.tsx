@@ -1,7 +1,7 @@
 'use client';
 
-import { useId } from 'react';
-import { motion } from 'motion/react';
+import { memo, useId } from 'react';
+import { m } from 'motion/react';
 import { cn } from '@/lib/utils';
 import type { Card } from '@cma/shared';
 
@@ -375,7 +375,7 @@ function Corner({ card, color, flip }: { card: Card; color: string; flip?: boole
   );
 }
 
-export function PlayingCard({ card, playable, selected, faceDown, onClick, size = 'md', className }: Props) {
+function PlayingCardImpl({ card, playable, selected, faceDown, onClick, size = 'md', className }: Props) {
   const uid = useId().replace(/[:]/g, '');
   const box = SIZES[size];
 
@@ -426,7 +426,7 @@ export function PlayingCard({ card, playable, selected, faceDown, onClick, size 
       : [pal![0], pal![1], pal![2]];
 
   return (
-    <motion.button
+    <m.button
       type="button"
       onClick={onClick}
       disabled={!onClick}
@@ -441,7 +441,7 @@ export function PlayingCard({ card, playable, selected, faceDown, onClick, size 
         card.kind === 'REFLECT' && 'shadow-[0_0_18px_-2px_rgba(167,139,250,0.85)]',
         card.kind === 'SHIELD' && 'shadow-[0_0_18px_-2px_rgba(34,211,238,0.85)]',
         card.kind === 'SHUFFLE' && 'shadow-[0_0_18px_-2px_rgba(244,114,182,0.85)]',
-        playable && !selected && 'ring-2 ring-white/80 cursor-pointer animate-glow-pulse',
+        playable && !selected && 'ring-2 ring-white/80 cursor-pointer fx-glow',
         selected && 'ring-4 ring-yellow-300 cursor-pointer shadow-[0_0_24px_4px_rgba(253,224,71,0.6)]',
         onClick && !playable && !selected ? 'opacity-45 saturate-50 cursor-not-allowed' : '',
         !onClick ? 'cursor-default' : '',
@@ -545,14 +545,27 @@ export function PlayingCard({ card, playable, selected, faceDown, onClick, size 
 
       {/* moving sheen on action / wild / reflect cards */}
       {isAction && (
-        <motion.div
-          className="absolute inset-0 pointer-events-none"
+        <div
+          className="fx-sheen absolute inset-0 pointer-events-none"
           style={{ background: special ? 'linear-gradient(115deg, transparent 30%, rgba(255,120,220,0.35) 42%, rgba(140,246,255,0.45) 50%, rgba(255,243,138,0.35) 58%, transparent 70%)' : 'linear-gradient(115deg, transparent 35%, rgba(255,255,255,0.5) 50%, transparent 65%)' }}
-          initial={{ x: '-130%' }}
-          animate={{ x: '130%' }}
-          transition={{ duration: 2.4, repeat: Infinity, repeatDelay: 1.6, ease: 'easeInOut' }}
         />
       )}
-    </motion.button>
+    </m.button>
   );
 }
+
+/** Memoized: a card only re-renders when what it SHOWS changes (cards arrive as fresh objects on
+ *  every socket update, so compare by value rather than identity). */
+export const PlayingCard = memo(PlayingCardImpl, (a, b) =>
+  a.card.id === b.card.id &&
+  a.card.kind === b.card.kind &&
+  a.card.color === b.card.color &&
+  (a.card as { value?: number }).value === (b.card as { value?: number }).value &&
+  a.playable === b.playable &&
+  a.selected === b.selected &&
+  a.faceDown === b.faceDown &&
+  a.size === b.size &&
+  a.className === b.className &&
+  a.stolen === b.stolen &&
+  a.onClick === b.onClick,
+);

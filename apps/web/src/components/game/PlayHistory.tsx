@@ -1,6 +1,7 @@
 'use client';
 
-import { AnimatePresence, motion } from 'motion/react';
+import { memo } from 'react';
+import { AnimatePresence, m } from 'motion/react';
 import type { GameState, HistoryEntry } from '@cma/shared';
 import { PlayingCard } from './PlayingCard';
 
@@ -33,7 +34,7 @@ function describe(h: HistoryEntry, nameOf: (id: string | null | undefined) => st
 }
 
 /** Running log of what previous players did — newest first, with the actual cards they laid down. */
-export function PlayHistory({ game, nameOf, limit = 14, compact }: { game: GameState; nameOf: (id: string | null | undefined) => string; limit?: number; compact?: boolean }) {
+function PlayHistoryImpl({ game, nameOf, limit = 14, compact }: { game: GameState; nameOf: (id: string | null | undefined) => string; limit?: number; compact?: boolean }) {
   // collapse consecutive DRAW entries by the same player into one line
   const items: (HistoryEntry & { times?: number })[] = [];
   for (const h of game.history) {
@@ -55,7 +56,7 @@ export function PlayHistory({ game, nameOf, limit = 14, compact }: { game: GameS
           {list.map((h, i) => {
             const cards = h.cards ?? (h.card && (h.action === 'PLAY' || h.action === 'REFLECT' || h.action === 'SHIELD' || h.action === 'SHUFFLE_SEATS') ? [h.card] : []);
             return (
-              <motion.li
+              <m.li
                 key={h.seq}
                 layout
                 initial={{ opacity: 0, x: -20, scale: 0.95 }}
@@ -74,7 +75,7 @@ export function PlayHistory({ game, nameOf, limit = 14, compact }: { game: GameS
                     ))}
                   </span>
                 )}
-              </motion.li>
+              </m.li>
             );
           })}
         </AnimatePresence>
@@ -82,3 +83,10 @@ export function PlayHistory({ game, nameOf, limit = 14, compact }: { game: GameS
     </div>
   );
 }
+
+const lastSeq = (g: GameState) => (g.history.length ? g.history[g.history.length - 1].seq : 0);
+/** Only re-render when a new history entry arrives (not on every unrelated state update). */
+export const PlayHistory = memo(
+  PlayHistoryImpl,
+  (a, b) => a.game.gameId === b.game.gameId && lastSeq(a.game) === lastSeq(b.game) && a.game.history.length === b.game.history.length && a.limit === b.limit && a.compact === b.compact,
+);
