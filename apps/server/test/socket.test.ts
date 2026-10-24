@@ -79,6 +79,30 @@ describe('socket integration', () => {
     guest.disconnect();
   });
 
+  it('room:voice relays a short clip to the others (not the sender), with cooldown and host on/off', async () => {
+    const host = await connect();
+    const guest = await connect();
+    const created = await emit(host, 'room:create', { name: 'Voice', nickname: 'Vee', hostPlays: true });
+    await emit(guest, 'room:join', { code: created.code, nickname: 'Gee' });
+    let selfGot = false;
+    host.on('room:voice', () => (selfGot = true));
+    const got = new Promise<any>((resolve) => guest.once('room:voice', resolve));
+    const clip = new Uint8Array(2000).fill(7);
+    const ack = await emit(host, 'room:voice', { mime: 'audio/webm;codecs=opus', durationMs: 1500, data: clip });
+    expect(ack.ok).toBe(true);
+    const ev = await got;
+    expect(ev).toMatchObject({ nickname: 'Vee', mime: 'audio/webm;codecs=opus', durationMs: 1500 });
+    expect(new Uint8Array(ev.data).length).toBe(2000);
+    expect(selfGot).toBe(false);
+    expect(await emit(host, 'room:voice', { mime: 'audio/webm', durationMs: 1500, data: clip })).toMatchObject({ ok: false, error: 'VOICE_COOLDOWN' });
+    expect(await emit(guest, 'room:voice', { mime: 'audio/webm', durationMs: 1500, data: new Uint8Array(200_000) })).toMatchObject({ ok: false, error: 'VOICE_INVALID' });
+    expect(await emit(guest, 'room:voice_toggle', { enabled: false })).toMatchObject({ ok: false, error: 'NOT_HOST' });
+    expect((await emit(host, 'room:voice_toggle', { enabled: false })).ok).toBe(true);
+    expect(await emit(guest, 'room:voice', { mime: 'audio/webm', durationMs: 1500, data: clip })).toMatchObject({ ok: false, error: 'VOICE_DISABLED' });
+    host.disconnect();
+    guest.disconnect();
+  });
+
   it('keeps private hands isolated between players', async () => {
     const host = await connect();
     const guest = await connect();

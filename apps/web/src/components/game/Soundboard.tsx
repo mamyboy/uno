@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Flame, Music, Play, Search, Star, Volume2, X } from 'lucide-react';
 import { socket } from '@/lib/socket';
+import { announcePanel, useClosesOnOtherPanel } from '@/lib/panels';
 import { getFavorites, getUsage, loadCatalog, playClip, recordUsage, soundLabel, toggleFavorite, type CatalogItem } from '@/lib/sounds';
 import { EV } from '@cma/shared';
 
@@ -15,6 +16,7 @@ const PAGE = 80;
  * just for you. Favorites/usage are remembered per device. */
 export function Soundboard() {
   const [open, setOpen] = useState(false);
+  useClosesOnOtherPanel('sound', () => setOpen(false));
   const [toast, setToast] = useState('');
   const [q, setQ] = useState('');
   const [tab, setTab] = useState<Tab>('FAV');
@@ -108,10 +110,11 @@ export function Soundboard() {
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.92 }}
         onClick={() => {
+          if (!open) announcePanel('sound');
           setOpen((v) => !v);
           setSeed((s) => s + 1);
         }}
-        className="fixed bottom-5 right-5 z-[60] w-14 h-14 rounded-full bg-gradient-to-b from-fuchsia-500 to-fuchsia-700 border border-fuchsia-300/40 flex items-center justify-center shadow-[0_3px_0_0_rgba(90,10,95,0.6),0_8px_20px_-4px_rgba(192,38,211,0.5)]"
+        className="relative w-12 h-12 rounded-full bg-gradient-to-b from-fuchsia-500 to-fuchsia-700 border border-fuchsia-300/40 flex items-center justify-center shadow-[0_3px_0_0_rgba(90,10,95,0.6),0_8px_20px_-4px_rgba(192,38,211,0.5)]"
         title="กดเสียงแกล้งเพื่อนในห้อง"
       >
         {open ? <X className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}

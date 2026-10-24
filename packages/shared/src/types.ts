@@ -142,6 +142,8 @@ export interface Room {
   players: Player[];
   createdAt: string;
   isStatic?: boolean;
+  /** Push-to-talk voice clips allowed in this room (default true). */
+  voiceEnabled?: boolean;
   leaderboard: LeaderboardEntry[];
 }
 

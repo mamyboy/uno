@@ -39,6 +39,7 @@ export interface ServerRoom {
   lastResult: GameResult | null;
   isStatic: boolean;
   leaderboard: Map<string, LeaderboardRecord>;
+  voiceEnabled?: boolean;
 }
 
 const STATIC_ROOM_DEFS: { code: string; name: string; maxPlayers: number }[] = [
@@ -305,6 +306,7 @@ export class RoomManager {
     return {
       id: room.id, code: room.code, name: room.name, hostId: room.hostId, status: room.status,
       maxPlayers: room.maxPlayers, createdAt: room.createdAt.toISOString(), isStatic: room.isStatic,
+      voiceEnabled: room.voiceEnabled !== false,
       players: room.members.map((m) => ({
         id: m.id, nickname: m.nickname, seatIndex: m.seatIndex, cardCount: counts[m.id] ?? 0,
         connected: m.connected, isHost: m.isHost, isPlayer: m.isPlayer,

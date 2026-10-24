@@ -16,6 +16,8 @@ export const EV = {
   ROOM_SET_AVATAR: 'room:set_avatar',
   ROOM_PLAY_SOUND: 'room:play_sound',
   ROOM_TAUNT: 'room:taunt',
+  ROOM_VOICE: 'room:voice',
+  ROOM_VOICE_TOGGLE: 'room:voice_toggle',
   ROOM_PLAYER_JOINED: 'room:player_joined',
   ROOM_PLAYER_LEFT: 'room:player_left',
   ROOM_STATE_UPDATED: 'room:state_updated',
@@ -66,6 +68,8 @@ export const schemas = {
   drawCard: z.object({ turnNumber: turn, drawInsteadOfWild: z.boolean().optional() }),
   setAvatar: z.object({ avatar: z.string().max(300_000) }),
   // Any myinstants.com clip slug (the full Thai index is in /sounds/catalog.json) — slug-safe chars only.
+  voice: z.object({ mime: z.string().regex(/^audio\/[a-z0-9.+-]{1,30}(;[ a-z0-9=.,"+-]{0,60})?$/i), durationMs: z.number().int().min(200).max(6000) }),
+  voiceToggle: z.object({ enabled: z.boolean() }),
   taunt: z.object({ tauntId: z.string().regex(/^[a-z]{1,20}$/), mascot: z.string().max(8) }),
   playSound: z.object({ soundId: z.string().regex(/^[A-Za-z0-9_\-.]{1,120}$/), label: z.string().max(80).optional() }),
 };

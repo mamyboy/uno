@@ -29,3 +29,8 @@ export const TAUNTS: readonly TauntDef[] = [
 
 export const TAUNT_IDS = TAUNTS.map((t) => t.id);
 export const TAUNT_COOLDOWN_MS = 4000;
+
+/** Push-to-talk walkie-talkie limits. */
+export const VOICE_MAX_MS = 5000;
+export const VOICE_COOLDOWN_MS = 8000;
+export const VOICE_MAX_BYTES = 160_000;

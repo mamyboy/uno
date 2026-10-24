@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, type TargetAndTransition, type Transition } from 'motion/react';
 import { BellOff, Bell, X } from 'lucide-react';
 import { socket } from '@/lib/socket';
+import { announcePanel, useClosesOnOtherPanel } from '@/lib/panels';
 import { playClip } from '@/lib/sounds';
 import { EV, MASCOTS, TAUNTS, TAUNT_COOLDOWN_MS, type TauntDef, type TauntMotion } from '@cma/shared';
 
@@ -140,6 +141,7 @@ export function TauntLayer({ big = false }: { big?: boolean }) {
 /** Floating 😜 button: pick your mascot and fire a taunt the whole room sees and hears. */
 export function TauntButton() {
   const [open, setOpen] = useState(false);
+  useClosesOnOtherPanel('taunt', () => setOpen(false));
   const [mascot, setMascot] = useState<string>(MASCOTS[0]);
   const [muted, setMuted] = useState(false);
   const [coolUntil, setCoolUntil] = useState(0);
@@ -188,8 +190,11 @@ export function TauntButton() {
       <motion.button
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.92 }}
-        onClick={() => setOpen((v) => !v)}
-        className="fixed bottom-5 right-[5.25rem] z-[60] w-14 h-14 rounded-full bg-gradient-to-b from-amber-400 to-orange-600 border border-amber-200/50 flex items-center justify-center text-2xl shadow-[0_3px_0_0_rgba(120,53,15,0.6),0_8px_20px_-4px_rgba(245,158,11,0.5)]"
+        onClick={() => {
+          if (!open) announcePanel('taunt');
+          setOpen((v) => !v);
+        }}
+        className="relative w-12 h-12 rounded-full bg-gradient-to-b from-amber-400 to-orange-600 border border-amber-200/50 flex items-center justify-center text-2xl shadow-[0_3px_0_0_rgba(120,53,15,0.6),0_8px_20px_-4px_rgba(245,158,11,0.5)]"
         title="ล้อเลียนทั้งห้อง"
       >
         {open ? <X className="w-6 h-6 text-white" /> : <span>{mascot}</span>}
@@ -204,7 +209,7 @@ export function TauntButton() {
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-24 right-5 z-[61] w-80 max-w-[calc(100vw-2.5rem)] rounded-2xl bg-zinc-900/95 border border-zinc-700 p-3 shadow-2xl backdrop-blur"
+            className="fixed bottom-24 right-3 sm:right-5 z-[61] w-80 max-w-[calc(100vw-2.5rem)] rounded-2xl bg-zinc-900/95 border border-zinc-700 p-3 shadow-2xl backdrop-blur"
           >
             <div className="flex items-center justify-between mb-2 px-1">
               <p className="text-xs text-zinc-400">ล้อเลียนทั้งห้อง 😜 ทุกคนเห็นและได้ยิน</p>

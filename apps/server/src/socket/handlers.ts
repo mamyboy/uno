@@ -1,6 +1,6 @@
 import type { Server, Socket } from 'socket.io';
 import { z } from 'zod';
-import { EV, MASCOTS, schemas, TAUNT_COOLDOWN_MS, TAUNT_IDS, type Ack, type Card, type SyncPayload } from '@cma/shared';
+import { EV, MASCOTS, schemas, TAUNT_COOLDOWN_MS, TAUNT_IDS, VOICE_COOLDOWN_MS, VOICE_MAX_BYTES, type Ack, type Card, type SyncPayload } from '@cma/shared';
 import { GameError } from '../engine/GameEngine';
 import type { RoomManager, ServerMember, ServerRoom } from '../rooms/RoomManager';
 import type { Persistence } from '../db/persistence';
@@ -36,6 +36,7 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
   // key: `${roomCode}:${playerId}` — pending "kick after grace period" timers for dropped sockets.
   const pendingKicks = new Map<string, ReturnType<typeof setTimeout>>();
   const tauntAt = new Map<string, number>();
+  const voiceAt = new Map<string, number>();
   const kickKey = (code: string, playerId: string) => `${code}:${playerId}`;
   const cancelPendingKick = (code: string, playerId: string) => {
     const key = kickKey(code, playerId);
@@ -325,6 +326,38 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
         if (now - (tauntAt.get(key) ?? 0) < TAUNT_COOLDOWN_MS) throw new GameError('TAUNT_COOLDOWN');
         tauntAt.set(key, now);
         io.to(roomCh(room.code)).emit(EV.ROOM_TAUNT, { playerId: pid, nickname: member.nickname, mascot, tauntId: parsed.tauntId, at: now });
+      });
+    });
+
+    // Push-to-talk: a short recorded clip relayed (not stored) to everyone else in the room.
+    socket.on(EV.ROOM_VOICE, (data: unknown, cb: (ack: Ack<object>) => void) => {
+      handle(socket, cb, () => {
+        const room = withRoom(socket);
+        if (room.voiceEnabled === false) throw new GameError('VOICE_DISABLED');
+        const parsed = schemas.voice.parse(data);
+        const raw = (data as { data?: unknown }).data;
+        const buf = Buffer.isBuffer(raw) ? raw : raw instanceof ArrayBuffer ? Buffer.from(raw) : ArrayBuffer.isView(raw) ? Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength) : null;
+        if (!buf || buf.length < 100 || buf.length > VOICE_MAX_BYTES) throw new GameError('VOICE_INVALID');
+        const pid = sd(socket).playerId ?? '';
+        const member = rooms.getMember(room, pid);
+        if (!member) throw new GameError('NOT_IN_ROOM');
+        const key = `${room.code}:${pid}`;
+        const now = Date.now();
+        if (now - (voiceAt.get(key) ?? 0) < VOICE_COOLDOWN_MS) throw new GameError('VOICE_COOLDOWN');
+        voiceAt.set(key, now);
+        socket.to(roomCh(room.code)).emit(EV.ROOM_VOICE, { playerId: pid, nickname: member.nickname, mime: parsed.mime, durationMs: parsed.durationMs, data: buf, at: now });
+      });
+    });
+
+    socket.on(EV.ROOM_VOICE_TOGGLE, (data: unknown, cb: (ack: Ack<object>) => void) => {
+      handle(socket, cb, () => {
+        const room = withRoom(socket);
+        const parsed = schemas.voiceToggle.parse(data);
+        const member = rooms.getMember(room, sd(socket).playerId ?? '');
+        if (!member) throw new GameError('NOT_IN_ROOM');
+        if (!room.isStatic && !member.isHost) throw new GameError('NOT_HOST');
+        room.voiceEnabled = parsed.enabled;
+        io.to(roomCh(room.code)).emit(EV.ROOM_STATE_UPDATED, rooms.toPublicRoom(room));
       });
     });
 

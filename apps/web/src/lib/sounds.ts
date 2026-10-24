@@ -123,3 +123,43 @@ export function recordUsage(item: CatalogItem) {
   u[item.f] = { t: item.t, n: (u[item.f]?.n ?? 0) + 1, at: Date.now() };
   localStorage.setItem(USE_KEY, JSON.stringify(u));
 }
+
+/** Play an arbitrary URL (e.g. a voice-clip blob) through the unlocked pool. Resolves false if
+ *  the browser can't play it. */
+export function playUrl(url: string, volume = 1): Promise<boolean> {
+  if (typeof window === 'undefined') return Promise.resolve(false);
+  try {
+    let a: HTMLAudioElement;
+    if (pool.length) {
+      a = pool[poolIdx++ % pool.length];
+      a.pause();
+      a.src = url;
+    } else {
+      a = new Audio(url);
+    }
+    a.volume = volume;
+    a.currentTime = 0;
+    return a.play().then(() => true, () => false);
+  } catch {
+    return Promise.resolve(false);
+  }
+}
+
+/** Fallback decoder path (Web Audio) for formats <audio> refuses. */
+let ctx: AudioContext | null = null;
+export async function playBytesViaWebAudio(bytes: ArrayBuffer): Promise<boolean> {
+  try {
+    const Ctx = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | undefined;
+    if (!Ctx) return false;
+    ctx ??= new Ctx();
+    if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
+    const buf = await ctx.decodeAudioData(bytes.slice(0));
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start();
+    return true;
+  } catch {
+    return false;
+  }
+}

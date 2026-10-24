@@ -19,6 +19,7 @@ import { PlayHistory } from '@/components/game/PlayHistory';
 import { TurnBanner } from '@/components/game/TurnBanner';
 import { useCollapse } from '@/components/game/useCollapse';
 import { TauntButton, TauntLayer } from '@/components/game/Taunts';
+import { VoiceButton, VoiceLayer } from '@/components/game/Voice';
 import { DirectionFlipFlash, NextBadge, SeatArrow, SeatRow, SeatWrap, TurnFlow } from '@/components/game/SeatArrow';
 import { nextSeatIndex } from '@cma/shared';
 import { Button, LinkButton } from '@/components/ui/Button';
@@ -469,13 +470,18 @@ export default function RoomPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-casino-table via-casino-felt to-black text-white p-4 md:p-8 relative overflow-hidden">
+    <main className="min-h-screen bg-gradient-to-br from-casino-table via-casino-felt to-black text-white p-4 pb-28 md:p-8 md:pb-28 relative overflow-hidden">
       {room.status === 'FINISHED' && result && result.winnerId && <Confetti />}
       <ActionEffect card={effectCard} />
       <GameFx game={game} result={result} nameOf={nameOf} avatarOf={avatarOf} />
-      <Soundboard />
-      <TauntButton />
       <TauntLayer />
+      <VoiceLayer />
+      {/* floating action dock: sounds · taunt · radio settings · push-to-talk (thumb-reachable, right) */}
+      <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-[60] flex items-center gap-2 rounded-full bg-zinc-950/85 border border-white/10 p-1.5 pl-2 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
+        <Soundboard />
+        <TauntButton />
+        {me && <VoiceButton roomVoiceEnabled={room.voiceEnabled !== false} canToggleRoom={isHost || !!room.isStatic} />}
+      </div>
 
       <div className="max-w-3xl mx-auto space-y-6 relative z-10">
         <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

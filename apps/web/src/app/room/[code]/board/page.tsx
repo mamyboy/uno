@@ -13,6 +13,7 @@ import { Soundboard } from '@/components/game/Soundboard';
 import { GameFx } from '@/components/game/GameFx';
 import { useCollapse } from '@/components/game/useCollapse';
 import { TauntButton, TauntLayer } from '@/components/game/Taunts';
+import { VoiceButton, VoiceLayer } from '@/components/game/Voice';
 import { DirectionFlipFlash, NextBadge, SeatArrow, SeatRow, SeatWrap, TurnFlow } from '@/components/game/SeatArrow';
 import { nextSeatIndex } from '@cma/shared';
 import { PlayHistory } from '@/components/game/PlayHistory';
@@ -151,8 +152,11 @@ export default function BoardPage() {
       {room.status === 'FINISHED' && result?.winnerId && <Confetti count={100} />}
       <ActionEffect card={effectCard} />
       <GameFx game={game} result={result} nameOf={nameOf} avatarOf={avatarOf} />
-      <Soundboard />
       <TauntLayer big />
+      <VoiceLayer big />
+      <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-[60] flex items-center gap-2 rounded-full bg-zinc-950/85 border border-white/10 p-1.5 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
+        <Soundboard />
+      </div>
 
       <h1 className="text-xl sm:text-3xl font-black tracking-tight relative z-10 text-center px-2">
         Color Match Arena · <span className="text-emerald-400 font-mono">{room.code}</span>
