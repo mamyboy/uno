@@ -2,6 +2,7 @@
 
 import { m } from 'motion/react';
 import { fxCount } from '@/lib/perf';
+import { avatarSrc } from '@/lib/avatar';
 
 import { LOSER_VARIANTS, type LoserInfo } from './loserData';
 
@@ -10,7 +11,7 @@ function Avatar({ loser, emoji, ring }: { loser: LoserInfo; emoji: string; ring:
     <div className="relative mx-auto w-36 h-36 sm:w-44 sm:h-44">
       <m.div className="absolute -inset-3 rounded-full" style={{ background: ring }} animate={{ rotate: 360 }} transition={{ duration: 2.5, repeat: Infinity, ease: 'linear' }} />
       {loser.avatar ? (
-        <img src={loser.avatar} alt={loser.name} className="relative w-full h-full rounded-full object-cover border-4 border-white shadow-[0_10px_40px_rgba(0,0,0,0.6)]" />
+        <img src={avatarSrc(loser.avatar)} alt={loser.name} className="relative w-full h-full rounded-full object-cover border-4 border-white shadow-[0_10px_40px_rgba(0,0,0,0.6)]" />
       ) : (
         <div className="relative w-full h-full rounded-full border-4 border-white bg-gradient-to-br from-fuchsia-500 to-purple-800 flex items-center justify-center text-6xl sm:text-7xl font-black text-white shadow-[0_10px_40px_rgba(0,0,0,0.6)]">
           {loser.name.slice(0, 1).toUpperCase()}

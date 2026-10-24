@@ -13,6 +13,7 @@ import { Soundboard } from '@/components/game/Soundboard';
 import { GameFx } from '@/components/game/GameFx';
 import { useCollapse } from '@/components/game/useCollapse';
 import { inFrame } from '@/lib/frameBatch';
+import { avatarSrc } from '@/lib/avatar';
 import { TauntButton, TauntLayer } from '@/components/game/Taunts';
 import { VoiceButton, VoiceLayer } from '@/components/game/Voice';
 import { DirectionFlipFlash, NextBadge, SeatArrow, SeatRow } from '@/components/game/SeatArrow';
@@ -28,7 +29,7 @@ function Avatar({ nickname, avatar, size = 'md' }: { nickname: string; avatar?: 
   const dims = size === 'sm' ? 'w-7 h-7 text-xs' : size === 'lg' ? 'w-14 h-14 text-lg' : 'w-11 h-11 text-xs';
   if (avatar) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={avatar} alt={nickname} className={`${dims} rounded-full object-cover border-2 border-white/20`} />;
+    return <img src={avatarSrc(avatar)} alt={nickname} loading="lazy" decoding="async" className={`${dims} rounded-full object-cover border-2 border-white/20`} />;
   }
   return (
     <span className={`${dims} rounded-full bg-gradient-to-br from-emerald-400 to-emerald-700 flex items-center justify-center font-bold`}>
@@ -336,7 +337,7 @@ export default function BoardPage() {
                   </div>
                   <p className="font-bold mt-1">{p.nickname}</p>
                   <p className={hasFinished ? 'text-sm text-yellow-300 font-semibold' : 'text-sm text-zinc-400'}>
-                    {hasFinished ? `ชนะอันดับที่ ${finishRank + 1}` : `${p.cardCount} ใบ`}
+                    {hasFinished ? `ชนะอันดับที่ ${finishRank + 1}` : `${game.cardCounts?.[p.id] ?? p.cardCount} ใบ`}
                   </p>
                   {!p.connected && <p className="text-xs text-red-400">หลุดการเชื่อมต่อ</p>}
                 </m.div>

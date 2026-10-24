@@ -10,6 +10,25 @@ const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? '*';
 
 const httpServer = createServer((req, res) => {
   const parsed = parse(req.url ?? '', true);
+  // Profile pictures, content-addressed → cache forever on the client.
+  const av = /^\/avatars\/([a-f0-9]{20}\.(jpg|png|webp))$/.exec(parsed.pathname ?? '');
+  if (av && (req.method === 'GET' || req.method === 'HEAD')) {
+    const hit = roomManager.getAvatar(av[1]);
+    if (!hit) {
+      res.writeHead(404, { 'Access-Control-Allow-Origin': '*' });
+      res.end();
+      return;
+    }
+    res.writeHead(200, {
+      'Content-Type': hit.mime,
+      'Content-Length': hit.data.length,
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      'Access-Control-Allow-Origin': '*',
+      'Cross-Origin-Resource-Policy': 'cross-origin',
+    });
+    res.end(req.method === 'HEAD' ? undefined : hit.data);
+    return;
+  }
   if (parsed.pathname === '/' || parsed.pathname === '/health') {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Color Match Arena Server is running');

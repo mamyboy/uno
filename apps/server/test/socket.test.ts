@@ -103,6 +103,52 @@ describe('socket integration', () => {
     guest.disconnect();
   });
 
+  it('avatars are stored once and travel as short /avatars/ paths; locked during a game', async () => {
+    const host = await connect();
+    const guest = await connect();
+    const created = await emit(host, 'room:create', { name: 'Pic', nickname: 'Ann', hostPlays: true });
+    await emit(guest, 'room:join', { code: created.code, nickname: 'Ben' });
+    const jpeg = 'data:image/jpeg;base64,' + Buffer.from(new Uint8Array(3000).fill(9)).toString('base64');
+    const gotRoom = new Promise<any>((resolve) => guest.once('room:state_updated', resolve));
+    expect((await emit(host, 'room:set_avatar', { avatar: jpeg })).ok).toBe(true);
+    const r = await gotRoom;
+    const ann = r.players.find((p: any) => p.nickname === 'Ann');
+    expect(ann.avatar).toMatch(/^\/avatars\/[a-f0-9]{20}\.jpg$/);
+    expect(JSON.stringify(r).length).toBeLessThan(3000); // no base64 in the snapshot
+    const stored = rooms.getAvatar(ann.avatar.slice('/avatars/'.length));
+    expect(stored?.data.length).toBe(3000);
+    expect((await emit(host, 'room:set_avatar', { avatar: 'data:text/html;base64,AAAA' })).ok).toBe(false);
+
+    await emit(host, 'game:start', {});
+    expect(await emit(guest, 'room:set_avatar', { avatar: jpeg })).toMatchObject({ ok: false, error: 'AVATAR_LOCKED_IN_GAME' });
+    host.disconnect();
+    guest.disconnect();
+  });
+
+  it('a plain move (direction / draw) broadcasts game state but NOT the room snapshot', async () => {
+    const host = await connect();
+    const guest = await connect();
+    const created = await emit(host, 'room:create', { name: 'Lean', nickname: 'Cat', hostPlays: true });
+    await emit(guest, 'room:join', { code: created.code, nickname: 'Dog' });
+    await emit(host, 'game:start', {});
+    await new Promise((r) => setTimeout(r, 50));
+    let roomUpdates = 0;
+    let gameUpdates = 0;
+    guest.on('room:state_updated', () => roomUpdates++);
+    guest.on('game:state', () => gameUpdates++);
+    const sync = await emit(host, 'game:sync_state', {});
+    const g = sync.snapshot.game;
+    const first = g.currentPlayerId ?? g.firstPlayerId;
+    const firstSock = first === sync.snapshot.me.playerId ? host : guest;
+    expect((await emit(firstSock, 'game:select_direction', { direction: 'RIGHT', turnNumber: g.turnNumber })).ok).toBe(true);
+    await new Promise((r) => setTimeout(r, 80));
+    expect(gameUpdates).toBeGreaterThan(0);
+    expect(roomUpdates).toBe(0);
+    expect(g.history.length).toBeLessThanOrEqual(15);
+    host.disconnect();
+    guest.disconnect();
+  });
+
   it('keeps private hands isolated between players', async () => {
     const host = await connect();
     const guest = await connect();

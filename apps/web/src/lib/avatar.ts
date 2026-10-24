@@ -28,3 +28,14 @@ export function fileToAvatarDataUrl(file: File, size = 128): Promise<string> {
     reader.readAsDataURL(file);
   });
 }
+
+/** Room snapshots carry avatars as short server paths (/avatars/<hash>.jpg) — resolve them against
+ *  the game server. Data URLs / absolute URLs pass through untouched. */
+export function avatarSrc(a: string | null | undefined): string | undefined {
+  if (!a) return undefined;
+  if (a.startsWith('/avatars/')) {
+    const base = process.env.NEXT_PUBLIC_SERVER_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+    return base.replace(/\/$/, '') + a;
+  }
+  return a;
+}

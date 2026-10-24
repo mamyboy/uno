@@ -7,7 +7,7 @@ import { Camera, ChevronDown, Crown, Eraser, Loader2, LogOut, RotateCcw, Trash2,
 import { socket } from '@/lib/socket';
 import { getSession, setSession, removeSession } from '@/lib/session';
 import { getProfile, saveProfile } from '@/lib/profile';
-import { fileToAvatarDataUrl } from '@/lib/avatar';
+import { fileToAvatarDataUrl, avatarSrc } from '@/lib/avatar';
 import { useGameStore } from '@/store/useGameStore';
 import { EV, MIN_PLAYERS, type Card, type Player } from '@cma/shared';
 import { PlayingCard } from '@/components/game/PlayingCard';
@@ -34,7 +34,7 @@ function Avatar({ nickname, avatar, size = 'md' }: { nickname: string; avatar?: 
   const dims = size === 'sm' ? 'w-7 h-7 text-xs' : size === 'lg' ? 'w-14 h-14 text-lg' : 'w-11 h-11 text-xs';
   if (avatar) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={avatar} alt={nickname} className={`${dims} rounded-full object-cover border-2 border-zinc-700`} />;
+    return <img src={avatarSrc(avatar)} alt={nickname} loading="lazy" decoding="async" className={`${dims} rounded-full object-cover border-2 border-zinc-700`} />;
   }
   return (
     <span className={`${dims} rounded-full bg-gradient-to-br from-emerald-400 to-emerald-700 flex items-center justify-center font-bold`}>
@@ -549,12 +549,12 @@ export default function RoomPage() {
           <div className="flex items-center gap-4">
             <button
               type="button"
-              onClick={() => avatarInputRef.current?.click()}
-              className="relative group shrink-0"
-              title="อัปโหลดรูปโปรไฟล์"
+              onClick={() => (room.status === 'PLAYING' ? setActionError('เปลี่ยนรูปโปรไฟล์ได้ตอนอยู่นอกเกมเท่านั้น') : avatarInputRef.current?.click())}
+              className={`relative group shrink-0 ${room.status === 'PLAYING' ? 'cursor-not-allowed' : ''}`}
+              title={room.status === 'PLAYING' ? 'เปลี่ยนรูปได้หลังจบเกม' : 'อัปโหลดรูปโปรไฟล์'}
             >
               <Avatar nickname={me?.nickname ?? '?'} avatar={meAvatar} size="lg" />
-              <span className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center border-3 border-zinc-900 group-hover:bg-emerald-400 shadow-lg">
+              <span className={`absolute -bottom-1 -right-1 w-8 h-8 rounded-full flex items-center justify-center border-3 border-zinc-900 shadow-lg ${room.status === 'PLAYING' ? 'bg-zinc-700 text-zinc-400' : 'bg-emerald-500 group-hover:bg-emerald-400'}`}>
                 {avatarUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
               </span>
             </button>
@@ -852,7 +852,7 @@ export default function RoomPage() {
                       </m.div>
                       <span className="text-[11px] text-zinc-300 max-w-full truncate">{!hasFinished && <span className="text-zinc-500">{seatNo + 1}. </span>}{p.nickname}</span>
                       <span className="text-[10px] text-zinc-500">
-                        {hasFinished ? `ชนะอันดับที่ ${finishRank + 1}` : `${p.cardCount} ใบ`}
+                        {hasFinished ? `ชนะอันดับที่ ${finishRank + 1}` : `${game.cardCounts?.[p.id] ?? p.cardCount} ใบ`}
                       </span>
                     </m.div>
                     {isActive && seatNo < activeN - 1 && <SeatArrow direction={dir} />}

@@ -1,4 +1,4 @@
-import { randomBytes, randomInt, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { MAX_PLAYERS, MIN_PLAYERS, nameKey, type GameResult, type Room, type RoomStatus, type StaticRoomSummary } from '@cma/shared';
 import { GameEngine, GameError } from '../engine/GameEngine';
 
@@ -257,9 +257,44 @@ export class RoomManager {
     this.reseat(room);
   }
 
-  setAvatar(room: ServerRoom, playerId: string, avatar: string) {
+  /** Content-addressed avatar images (hash → bytes). Room snapshots carry only a short
+   * `/avatars/<hash>.<ext>` path; browsers fetch each picture once and cache it forever. */
+  private avatars = new Map<string, { mime: string; data: Buffer }>();
+
+  getAvatar(file: string): { mime: string; data: Buffer } | null {
+    return this.avatars.get(file) ?? null;
+  }
+
+  /** Accepts a data URL (or an already-stored /avatars/ path) and returns the public path. */
+  private storeAvatar(avatar: string): string {
+    if (avatar.startsWith('/avatars/')) {
+      if (!this.avatars.has(avatar.slice('/avatars/'.length))) throw new GameError('INVALID_AVATAR');
+      return avatar;
+    }
+    const m = /^data:(image\/(jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(avatar);
+    if (!m) throw new GameError('INVALID_AVATAR');
+    const data = Buffer.from(m[3], 'base64');
+    if (data.length < 50 || data.length > 220_000) throw new GameError('INVALID_AVATAR');
+    const ext = m[2] === 'jpeg' ? 'jpg' : m[2];
+    const file = `${createHash('sha1').update(data).digest('hex').slice(0, 20)}.${ext}`;
+    if (!this.avatars.has(file)) this.avatars.set(file, { mime: m[1], data });
+    return `/avatars/${file}`;
+  }
+
+  /** Drop stored pictures no member or leaderboard row references any more. */
+  private sweepAvatars() {
+    const used = new Set<string>();
+    for (const room of this.rooms.values()) {
+      for (const mem of room.members) if (mem.avatar) used.add(mem.avatar.slice('/avatars/'.length));
+      for (const e of room.leaderboard.values()) if (e.avatar) used.add(e.avatar.slice('/avatars/'.length));
+    }
+    for (const k of this.avatars.keys()) if (!used.has(k)) this.avatars.delete(k);
+  }
+
+  setAvatar(room: ServerRoom, playerId: string, rawAvatar: string) {
     const member = this.getMember(room, playerId);
     if (!member) throw new GameError('NOT_IN_ROOM');
+    const avatar = this.storeAvatar(rawAvatar);
     member.avatar = avatar;
     const key = nameKey(member.nickname);
     const entry = room.leaderboard.get(key) ?? { nickname: member.nickname, wins: 0, losses: 0, gamesPlayed: 0 };
@@ -317,6 +352,7 @@ export class RoomManager {
   }
 
   sweep(now = Date.now()) {
+    this.sweepAvatars();
     for (const room of this.rooms.values()) {
       if (room.isStatic) continue; // static rooms persist forever, regardless of activity
       const alive = room.members.some((m) => m.connected || now - m.lastSeen < ROOM_TTL_MS);

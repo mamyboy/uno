@@ -240,7 +240,8 @@ export class GameEngine {
       winnerId: this.winnerId,
       seatOrder: [...this.seatOrder],
       cardCounts: this.getCardCounts(),
-      history: this.history.slice(-40),
+      // Only the latest 15 moves travel with every state update (the UI shows ~14).
+      history: this.history.slice(-15),
       startedAt: this.startedAt,
       endedAt: this.endedAt,
       pendingDraw: this.pendingDraw ? { ...this.pendingDraw } : null,
@@ -941,6 +942,6 @@ export class GameEngine {
 
   private log(entry: Omit<HistoryEntry, 'seq' | 'at'>) {
     this.history.push({ ...entry, seq: ++this.seq, at: this.now() });
-    if (this.history.length > 200) this.history.shift();
+    if (this.history.length > 60) this.history.shift();
   }
 }

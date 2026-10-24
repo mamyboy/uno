@@ -74,8 +74,11 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
     }
   };
 
-  const emitRoom = (room: ServerRoom) => {
-    io.to(roomCh(room.code)).emit(EV.ROOM_STATE_UPDATED, rooms.toPublicRoom(room));
+  /** Broadcast game + private hands. The (larger) room snapshot is only sent when the room itself
+   * changed (join/leave/host/avatar/start...) — a plain move (play/draw/direction) doesn't touch
+   * it, and per-player card counts already travel in GAME_STATE.cardCounts. */
+  const emitRoom = (room: ServerRoom, roomChanged = true) => {
+    if (roomChanged) io.to(roomCh(room.code)).emit(EV.ROOM_STATE_UPDATED, rooms.toPublicRoom(room));
     const engine = room.engine;
     if (!engine) return;
     io.to(roomCh(room.code)).emit(EV.GAME_STATE, engine.getPublicState());
@@ -298,6 +301,8 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
       handle(socket, cb, () => {
         const room = withRoom(socket);
         const parsed = schemas.setAvatar.parse(data);
+        // Profile pictures can't change mid-game (keeps every move's broadcast small and stable).
+        if (room.status === 'PLAYING') throw new GameError('AVATAR_LOCKED_IN_GAME');
         rooms.setAvatar(room, sd(socket).playerId ?? '', parsed.avatar);
         emitRoom(room);
       });
@@ -383,7 +388,7 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
         if (!room.engine) throw new GameError('GAME_NOT_STARTED');
         const parsed = schemas.selectDirection.parse(data);
         room.engine.selectDirection(sd(socket).playerId ?? '', parsed.direction, parsed.turnNumber);
-        emitRoom(room);
+        emitRoom(room, false);
       });
     });
 
@@ -393,7 +398,7 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
         if (!room.engine) throw new GameError('GAME_NOT_STARTED');
         const parsed = schemas.playCard.parse(data);
         const result = room.engine.playCard(sd(socket).playerId ?? '', parsed.cardId, parsed.turnNumber, parsed.chosenColor);
-        emitRoom(room);
+        emitRoom(room, false);
         return result;
       });
     });
@@ -404,7 +409,7 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
         if (!room.engine) throw new GameError('GAME_NOT_STARTED');
         const parsed = schemas.playCards.parse(data);
         const result = room.engine.playCards(sd(socket).playerId ?? '', parsed.cardIds, parsed.turnNumber, parsed.chosenColor);
-        emitRoom(room);
+        emitRoom(room, false);
         return result;
       });
     });
@@ -415,7 +420,7 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
         if (!room.engine) throw new GameError('GAME_NOT_STARTED');
         const parsed = schemas.drawCard.parse(data);
         const result = room.engine.drawCard(sd(socket).playerId ?? '', parsed.turnNumber, parsed.drawInsteadOfWild);
-        emitRoom(room);
+        emitRoom(room, false);
         return result;
       });
     });
