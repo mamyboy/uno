@@ -5,6 +5,7 @@ import { AnimatePresence, m } from 'motion/react';
 import type { GameResult, GameState } from '@cma/shared';
 import { playClip } from '@/lib/sounds';
 import { allowShake, fxCount } from '@/lib/perf';
+import { playPop, popPitchFor } from '@/lib/sfx';
 import dynamic from 'next/dynamic';
 import { hashStr, LOSER_TEASES, LOSER_VARIANTS, type LoserInfo } from './loserData';
 
@@ -35,7 +36,7 @@ type Fx =
  *  - LOSER: when a match ends, the last-place player gets "<name> ดุ่ยดุ้ย"
  * Only events that arrive AFTER mount are played (history replay on reconnect is ignored).
  */
-export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | null; result: GameResult | null; nameOf: (id: string | null | undefined) => string; avatarOf?: (id: string | null | undefined, nickname?: string) => string | null | undefined }) {
+export function GameFx({ game, result, nameOf, avatarOf, meId }: { meId?: string | null; game: GameState | null; result: GameResult | null; nameOf: (id: string | null | undefined) => string; avatarOf?: (id: string | null | undefined, nickname?: string) => string | null | undefined }) {
   const [fx, setFx] = useState<Fx | null>(null);
   const [loser, setLoser] = useState<LoserInfo | null>(null);
   const avatarRef = useRef(avatarOf);
@@ -63,6 +64,17 @@ export function GameFx({ game, result, nameOf, avatarOf }: { game: GameState | n
     if (lastSeq.current === null) lastSeq.current = 0;
     const fresh = hist.filter((h) => h.seq > (lastSeq.current ?? 0));
     lastSeq.current = Math.max(lastSeq.current, maxSeq);
+    // "pop" for every card someone lays down (my own plays already popped on tap — optimistic).
+    let popDelay = 0;
+    for (const h of fresh) {
+      if (h.action !== 'PLAY' && h.action !== 'REFLECT' && h.action !== 'SHIELD' && h.action !== 'SHUFFLE_SEATS') continue;
+      if (meId && h.playerId === meId) continue;
+      const n = h.cards?.length ?? 1;
+      const pitch = popPitchFor(h.playerId);
+      if (popDelay === 0) playPop(pitch, n);
+      else setTimeout(() => playPop(pitch, n), popDelay);
+      popDelay += 120 + n * 75;
+    }
     // newest interesting event wins
     for (let i = fresh.length - 1; i >= 0; i--) {
       const h = fresh[i];

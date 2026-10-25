@@ -19,6 +19,7 @@ import { PlayHistory } from '@/components/game/PlayHistory';
 import { TurnBanner } from '@/components/game/TurnBanner';
 import { useCollapse } from '@/components/game/useCollapse';
 import { inFrame } from '@/lib/frameBatch';
+import { playPop, popPitchFor } from '@/lib/sfx';
 import { TauntButton, TauntLayer } from '@/components/game/Taunts';
 import { VoiceButton, VoiceLayer } from '@/components/game/Voice';
 import { DirectionFlipFlash, NextBadge, SeatArrow, SeatRow } from '@/components/game/SeatArrow';
@@ -390,6 +391,7 @@ export default function RoomPage() {
     const o = { ids: cardIds, top, at: Date.now() };
     optimisticRef.current = o;
     setOptimistic(o);
+    playPop(popPitchFor(session?.playerId), cardIds.length); // instant feedback on tap
   };
   const rollback = (error: string) => {
     setReturningIds(optimisticRef.current?.ids ?? []);
@@ -550,7 +552,7 @@ export default function RoomPage() {
     <main className="min-h-screen bg-gradient-to-br from-casino-table via-casino-felt to-black text-white p-4 pb-28 md:p-8 md:pb-28 relative overflow-hidden">
       {room.status === 'FINISHED' && result && result.winnerId && <Confetti />}
       <ActionEffect card={effectCard} />
-      <GameFx game={game} result={result} nameOf={nameOf} avatarOf={avatarOf} />
+      <GameFx game={game} result={result} nameOf={nameOf} avatarOf={avatarOf} meId={session?.playerId} />
       <TauntLayer />
       <VoiceLayer />
       {/* floating action dock: sounds · taunt · radio settings · push-to-talk (thumb-reachable, right) */}

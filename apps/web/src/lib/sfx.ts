@@ -106,3 +106,29 @@ export function playCardSound(kind: string) {
     // Autoplay-policy or audio errors should never break gameplay.
   }
 }
+
+/** Per-player pitch so everyone's "pop" sounds a little different (stable for a given id). */
+export function popPitchFor(id: string | null | undefined): number {
+  let h = 0;
+  for (const ch of id ?? '') h = (h * 31 + ch.charCodeAt(0)) | 0;
+  const steps = [0, 2, 4, 5, 7, 9, 11, 12]; // major-scale steps → pleasant variety
+  return Math.pow(2, steps[Math.abs(h) % steps.length] / 12);
+}
+
+/** Short bubbly "pop" for a card hitting the pile — synthesized (no download, ~zero latency).
+ *  `count` cards → that many quick pops (max 4), rising slightly in pitch. */
+export function playPop(pitch = 1, count = 1) {
+  const c = getCtx();
+  if (!c) return;
+  try {
+    const n = Math.max(1, Math.min(count, 4));
+    for (let i = 0; i < n; i++) {
+      const f = 520 * pitch * (1 + i * 0.12);
+      const d = i * 0.075;
+      tone(c, { freq: f, endFreq: f * 2.6, wave: 'sine', delay: d, duration: 0.07, gain: 0.32 });
+      tone(c, { freq: f * 0.5, endFreq: f * 0.3, wave: 'triangle', delay: d, duration: 0.05, gain: 0.12 });
+    }
+  } catch {
+    // never break gameplay over audio
+  }
+}
