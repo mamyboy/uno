@@ -120,6 +120,8 @@ export interface Player {
   isHost: boolean;
   isPlayer: boolean;
   isWinner: boolean;
+  /** Joined while a match was running — sits out until the next match starts. */
+  waiting?: boolean;
   avatar?: string | null;
 }
 

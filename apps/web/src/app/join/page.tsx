@@ -152,7 +152,7 @@ export default function JoinRoomPage() {
                     </span>
                     <span className="flex items-center gap-2 text-xs">
                       <Users className="w-3.5 h-3.5" /> {r.playerCount} คน
-                      {inGame && <span className="text-amber-400">กำลังเล่น</span>}
+                      {inGame && <span className="text-amber-400">กำลังเล่น · เข้ารอได้</span>}
                       {full && !inGame && <span className="text-red-400">เต็ม</span>}
                     </span>
                   </button>

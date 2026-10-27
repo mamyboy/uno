@@ -240,7 +240,7 @@ describe('socket integration', () => {
     guest4.close();
   });
 
-  it('has no player limit before start, and locks the room once the game starts', async () => {
+  it('has no player limit; a mid-game joiner waits for the next match, then is dealt in', async () => {
     const sockets = await Promise.all(Array.from({ length: 14 }, () => connect()));
     const created = await emit(sockets[0], 'room:create', { name: 'Big', nickname: 'P0', hostPlays: true });
     for (let i = 1; i < 14; i++) {
@@ -249,8 +249,20 @@ describe('socket integration', () => {
     expect((await emit(sockets[0], 'game:start', {})).ok).toBe(true); // 14 players → engine adds a 2nd deck
     const late = await connect();
     const lateAck = await emit(late, 'room:join', { code: created.code, nickname: 'Late' });
-    expect(lateAck.ok).toBe(false);
-    expect(lateAck.error).toBe('ROOM_IN_GAME');
+    expect(lateAck.ok).toBe(true);
+    let sync = await emit(late, 'game:sync_state', {});
+    const meRow = sync.snapshot.room.players.find((p: any) => p.nickname === 'Late');
+    expect(meRow.waiting).toBe(true);
+    expect(sync.snapshot.hand).toBeNull(); // no cards, not in the turn order
+    expect(sync.snapshot.game.seatOrder).not.toContain(meRow.id);
+    expect(sync.snapshot.room.players.filter((p: any) => p.waiting)).toHaveLength(1);
+    // a waiting player can't act in the running match
+    expect((await emit(late, 'game:draw_card', { turnNumber: sync.snapshot.game.turnNumber })).ok).toBe(false);
+    // next match: the host restarts → the waiting player is dealt in
+    expect((await emit(sockets[0], 'game:restart', {})).ok).toBe(true);
+    sync = await emit(late, 'game:sync_state', {});
+    expect(sync.snapshot.room.players.find((p: any) => p.nickname === 'Late').waiting).toBe(false);
+    expect(sync.snapshot.hand?.hand.length).toBeGreaterThan(0);
     [...sockets, late].forEach((s) => s.close());
   });
 

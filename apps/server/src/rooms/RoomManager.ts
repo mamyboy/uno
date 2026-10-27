@@ -149,8 +149,8 @@ export class RoomManager {
     // cleared browser session) instead of creating a duplicate player — works mid-game too.
     const sameName = room.members.find((m) => nameKey(m.nickname) === nameKey(name));
     if (sameName) return { room, member: sameName, rejoined: true, previousSocketId: sameName.socketId };
-    // No player limit — the room only locks once the game has started.
-    if (room.status === 'PLAYING') throw new GameError('ROOM_IN_GAME');
+    // No player limit. Joining while a match is running is allowed: the newcomer gets a seat but
+    // sits out (shown as "waiting") until the next match starts — startGame deals in every player.
     const becomesHost = room.members.length === 0;
     const member = this.newMember(name, becomesHost, true);
     member.seatIndex = this.players(room).length;
@@ -345,6 +345,7 @@ export class RoomManager {
       players: room.members.map((m) => ({
         id: m.id, nickname: m.nickname, seatIndex: m.seatIndex, cardCount: counts[m.id] ?? 0,
         connected: m.connected, isHost: m.isHost, isPlayer: m.isPlayer,
+        waiting: room.status === 'PLAYING' && !!room.engine && m.isPlayer && !room.engine.isInGame(m.id),
         isWinner: room.lastResult?.winnerId === m.id, avatar: m.avatar ?? null,
       })),
       leaderboard,

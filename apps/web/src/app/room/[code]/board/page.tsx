@@ -132,9 +132,11 @@ export default function BoardPage() {
     ? [
         ...game.seatOrder.map((id) => players.find((p) => p.id === id)).filter((p): p is Player => !!p),
         ...game.finishedOrder.map((id) => players.find((p) => p.id === id)).filter((p): p is Player => !!p && !game.seatOrder.includes(p.id)),
-        ...players.filter((p) => !game.seatOrder.includes(p.id) && !game.finishedOrder.includes(p.id)),
+        ...players.filter((p) => !p.waiting && !game.seatOrder.includes(p.id) && !game.finishedOrder.includes(p.id)),
       ]
     : players;
+  // Joined mid-match: sitting out until the next match starts.
+  const waitingPlayers: Player[] = room.status === 'PLAYING' ? players.filter((p) => p.waiting) : [];
   const nextId: string | null = (() => {
     if (!game || !game.direction || !game.currentPlayerId) return null;
     const n = game.seatOrder.length;
@@ -352,6 +354,17 @@ export default function BoardPage() {
               );
             })}
           </SeatRow>
+          {waitingPlayers.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs text-zinc-400">
+              <span className="font-semibold text-amber-300/90">⏳ รอเล่นรอบหน้า ({waitingPlayers.length})</span>
+              {waitingPlayers.map((p) => (
+                <span key={p.id} className={`flex items-center gap-1.5 rounded-full bg-zinc-800/80 border border-zinc-700 pl-0.5 pr-2.5 py-0.5 ${p.connected ? '' : 'opacity-50'}`}>
+                  <Avatar nickname={p.nickname} avatar={p.avatar} size="sm" />
+                  {p.nickname}
+                </span>
+              ))}
+            </div>
+          )}
           </div>
 
           <PlayHistory game={game} nameOf={nameOf} limit={16} />

@@ -510,9 +510,11 @@ export default function RoomPage() {
     ? [
         ...game.seatOrder.map((id) => players.find((p) => p.id === id)).filter((p): p is Player => !!p),
         ...game.finishedOrder.map((id) => players.find((p) => p.id === id)).filter((p): p is Player => !!p && !game.seatOrder.includes(p.id)),
-        ...players.filter((p) => !game.seatOrder.includes(p.id) && !game.finishedOrder.includes(p.id)),
+        ...players.filter((p) => !p.waiting && !game.seatOrder.includes(p.id) && !game.finishedOrder.includes(p.id)),
       ]
     : players;
+  // Joined mid-match: sitting out until the next match starts.
+  const waitingPlayers: Player[] = room.status === 'PLAYING' ? players.filter((p) => p.waiting) : [];
   const nextId: string | null = (() => {
     if (!game || !game.direction || !game.currentPlayerId) return null;
     const n = game.seatOrder.length;
@@ -877,6 +879,17 @@ export default function RoomPage() {
                   );
                 })}
               </SeatRow>
+              {waitingPlayers.length > 0 && (
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs text-zinc-400">
+                  <span className="font-semibold text-amber-300/90">⏳ รอเล่นรอบหน้า ({waitingPlayers.length})</span>
+                  {waitingPlayers.map((p) => (
+                    <span key={p.id} className={`flex items-center gap-1.5 rounded-full bg-zinc-800/80 border border-zinc-700 pl-0.5 pr-2.5 py-0.5 ${p.connected ? '' : 'opacity-50'}`}>
+                      <Avatar nickname={p.nickname} avatar={p.avatar} size="sm" />
+                      {p.nickname}
+                    </span>
+                  ))}
+                </div>
+              )}
               </div>
             </div>
 
@@ -918,6 +931,13 @@ export default function RoomPage() {
                   ? `ถึงตาคุณตอบโต้! เล่น +2/+4/+8 ต่อ, สะท้อน 🪞, โล่ 🛡️ ส่งต่อ หรือจั่วสะสม ${game.pendingDraw.count} ใบ`
                   : `${players.find((p) => p.id === game.pendingDraw?.targetId)?.nickname ?? ''} ต้องตอบโต้ด้วย +2/+4/+8, สะท้อน 🪞, โล่ 🛡️ หรือจั่ว ${game.pendingDraw.count} ใบ`}
               </m.div>
+            )}
+
+            {me?.waiting && (
+              <div className="rounded-2xl bg-amber-500/10 border border-amber-400/30 p-5 text-center space-y-1">
+                <p className="text-lg font-bold text-amber-300">⏳ เกมกำลังเล่นอยู่ — คุณอยู่ในคิวรอ</p>
+                <p className="text-sm text-zinc-400">ดูเกมรอบนี้ได้เลย พอจบเกม คุณจะได้ร่วมเล่นตั้งแต่รอบใหม่ทันที</p>
+              </div>
             )}
 
             {hand && !game?.finishedOrder?.includes(session?.playerId ?? '') && !game?.winnerId && (
