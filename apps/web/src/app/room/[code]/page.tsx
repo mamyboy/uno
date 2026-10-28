@@ -578,9 +578,9 @@ export default function RoomPage() {
       <AutoPlayNotice />
       {/* floating action dock: sounds · taunt · radio settings · push-to-talk (thumb-reachable, right) */}
       <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-[60] flex items-center gap-2 rounded-full bg-zinc-950/85 border border-white/10 p-1.5 pl-2 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
-        <SoundSettings roomVoiceEnabled={room.voiceEnabled !== false} canToggleRoom={isHost || !!room.isStatic} />
         <Soundboard />
         <TauntButton />
+        <SoundSettings roomVoiceEnabled={room.voiceEnabled !== false} canToggleRoom={isHost || !!room.isStatic} />
         {me && <VoiceButton roomVoiceEnabled={room.voiceEnabled !== false} />}
       </div>
 
