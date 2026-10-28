@@ -19,6 +19,9 @@ const EFFECT_CONFIG: Record<string, { label: string; emoji: string; bg: string; 
   WILD_DRAW_EIGHT: { label: '+8 จัดเต็ม!!', emoji: '\u{1F525}', bg: 'from-fuchsia-600/95 via-purple-800/95 to-black/95', ring: 'ring-amber-300/60' },
 };
 
+const emoClass = (k: string) =>
+  k === 'REVERSE' ? 'fx-emo-REVERSE' : k === 'SKIP' ? 'fx-emo-SKIP' : k.startsWith('WILD') ? 'fx-emo-WILD' : 'fx-emo-POP';
+
 /**
  * A full-screen celebratory banner that flashes whenever an Action/Wild card lands on the
  * discard pile — gives SKIP/REVERSE/DRAW_TWO/WILD/WILD_DRAW_FOUR the "oomph" plain number cards
@@ -45,44 +48,11 @@ export function ActionEffect({ card }: Props) {
           className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none px-4"
         >
           {/* dim backdrop flash */}
-          <m.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: [0, 0.35, 0] }}
-            transition={{ duration: 0.6 }}
-            className="absolute inset-0 bg-black"
-          />
-
-          <m.div
-            initial={{ scale: 0.3, rotate: -18, opacity: 0, y: 10 }}
-            animate={{ scale: [0.3, 1.25, 1], rotate: [-18, 6, 0], opacity: 1, y: 0 }}
-            exit={{ scale: 0.6, opacity: 0, y: -10 }}
-            transition={{ duration: 0.5, ease: 'easeOut' }}
-            className={`px-10 py-7 rounded-3xl bg-gradient-to-br ${config.bg} shadow-2xl ring-4 ${config.ring} border-2 border-white/40 text-center`}
-          >
-            <m.div
-              className="text-6xl mb-2 drop-shadow-lg"
-              animate={
-                card.kind === 'REVERSE'
-                  ? { rotate: [0, 360] }
-                  : card.kind === 'SKIP'
-                    ? { x: [0, -10, 10, -10, 10, 0] }
-                    : card.kind === 'WILD' || card.kind === 'WILD_DRAW_TWO' || card.kind === 'WILD_DRAW_FOUR' || card.kind === 'WILD_DRAW_EIGHT'
-                      ? { rotate: [0, 15, -15, 0], scale: [1, 1.15, 1] }
-                      : { scale: [1, 1.25, 1] }
-              }
-              transition={{ duration: 0.7, repeat: 1, repeatDelay: 0.1 }}
-            >
-              {config.emoji}
-            </m.div>
-            <m.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15 }}
-              className="text-2xl font-black text-white drop-shadow-lg tracking-wide whitespace-nowrap"
-            >
-              {config.label}
-            </m.div>
-          </m.div>
+          <div className="fx-flash absolute inset-0 bg-black" />
+          <div className={`fx-banner-in px-10 py-7 rounded-3xl bg-gradient-to-br ${config.bg} shadow-2xl ring-4 ${config.ring} border-2 border-white/40 text-center`}>
+            <div className={`text-6xl mb-2 drop-shadow-lg ${emoClass(card.kind)}`}>{config.emoji}</div>
+            <div className="fx-rise-in text-2xl font-black text-white drop-shadow-lg tracking-wide whitespace-nowrap">{config.label}</div>
+          </div>
         </m.div>
       )}
     </AnimatePresence>

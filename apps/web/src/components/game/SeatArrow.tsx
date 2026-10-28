@@ -1,5 +1,7 @@
 'use client';
 
+import { useFlip } from '@/lib/flip';
+
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { m } from 'motion/react';
 
@@ -73,8 +75,11 @@ export function DirectionFlipFlash({ direction }: { direction: 'LEFT' | 'RIGHT' 
 }
 
 /** Seat strip: wraps onto new lines when crowded (centered). */
-export function SeatRow({ children, className = '' }: { children: ReactNode; currentId?: string | null; className?: string }) {
-  return <div className={`flex flex-wrap justify-center ${className}`}>{children}</div>;
+export function SeatRow({ children, className = '', orderKey = '' }: { children: ReactNode; currentId?: string | null; className?: string; orderKey?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // seats glide to their new spot only when the order changes (Shuffle card / join / leave)
+  useFlip(ref, orderKey, '[data-seat]', 'data-seat', { duration: 520 });
+  return <div ref={ref} className={`flex flex-wrap justify-center ${className}`}>{children}</div>;
 }
 
 /** Badge on the avatar of whoever plays next. */

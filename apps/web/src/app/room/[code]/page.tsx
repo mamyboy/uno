@@ -22,6 +22,7 @@ import { TurnBanner } from '@/components/game/TurnBanner';
 import { AutoPlayNotice, TurnTimer } from '@/components/game/TurnTimer';
 import { useCollapse } from '@/components/game/useCollapse';
 import { inFrame } from '@/lib/frameBatch';
+import { useFlip } from '@/lib/flip';
 import { playPop, popPitchFor } from '@/lib/sfx';
 import { TauntButton, TauntLayer } from '@/components/game/Taunts';
 import { VoiceButton, VoiceLayer } from '@/components/game/Voice';
@@ -82,6 +83,9 @@ export default function RoomPage() {
   // Optimistic play: cards leave the hand and land on the pile immediately; the server's answer
   // either confirms it (next hand update) or we pull them back.
   const [optimistic, setOptimistic] = useState<{ ids: string[]; top: Card | null; at: number } | null>(null);
+  const handBoxRef = useRef<HTMLDivElement>(null);
+  const handKey = (hand?.hand ?? []).filter((c) => !optimistic?.ids.includes(c.id)).map((c) => c.id).sort().join(',');
+  useFlip(handBoxRef, handKey, '[data-hand-card]', 'data-hand-card', { duration: 300, easing: 'cubic-bezier(.2,.8,.2,1)' });
   const [returningIds, setReturningIds] = useState<string[]>([]);
   const optimisticRef = useRef<{ ids: string[] } | null>(null);
   optimisticRef.current = optimistic;
@@ -862,7 +866,7 @@ export default function RoomPage() {
               {/* player ring — single row, scrolls sideways when crowded */}
               <div className="relative pt-3">
               <DirectionFlipFlash direction={game.direction} />
-              <SeatRow currentId={game.currentPlayerId} className="gap-x-1.5 gap-y-5 items-start px-1 pt-2">
+              <SeatRow currentId={game.currentPlayerId} orderKey={seated.map((p: Player) => p.id).join(',')} className="gap-x-1.5 gap-y-5 items-start px-1 pt-2">
                 {seated.map((p: Player, seatNo: number) => {
                   const isCurrent = p.id === game.currentPlayerId;
                   const finishRank = game.finishedOrder.indexOf(p.id);
@@ -872,7 +876,7 @@ export default function RoomPage() {
                   const dir = game.direction;
                   return (
                     <Fragment key={p.id}>
-                    <m.div layout data-seat={p.id} transition={{ type: 'spring', stiffness: 300, damping: 26 }} className="flex flex-col items-center gap-1 shrink-0 w-14">
+                    <m.div data-seat={p.id} className="flex flex-col items-center gap-1 shrink-0 w-14">
                       <m.div
                         className={`relative rounded-full border-2 ${
                           hasFinished ? 'border-yellow-400' : isCurrent ? 'border-emerald-300 fx-turn-ring fx-pulse' : p.id === nextId ? 'border-amber-400 ring-2 ring-amber-400/60' : 'border-zinc-600'
@@ -965,8 +969,8 @@ export default function RoomPage() {
                     <span className="text-emerald-400"> · เลือกไว้ {selectedIds.length} ใบ (ใบสุดท้ายที่เลือกจะกำหนดสี/เลขให้คนต่อไป)</span>
                   )}
                 </p>
-                <div className="flex flex-wrap gap-2 justify-center">
-                  <AnimatePresence>
+                <div ref={handBoxRef} className="flex flex-wrap gap-2 justify-center">
+                  <AnimatePresence mode="popLayout">
                     {hand.hand
                       .filter((c) => !optimistic?.ids.includes(c.id))
                       .sort((a, b) => {
@@ -997,7 +1001,7 @@ export default function RoomPage() {
                       return (
                         <m.div
                           key={c.id}
-                          layout
+                          data-hand-card={c.id}
                           className="relative"
                           initial={returningIds.includes(c.id) ? { opacity: 0, y: -110, scale: 0.7, rotate: -8 } : false}
                           animate={{ opacity: 1, y: 0, scale: 1, rotate: 0 }}

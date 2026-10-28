@@ -324,7 +324,7 @@ export default function BoardPage() {
 
           <div className="relative pt-4">
           <DirectionFlipFlash direction={game.direction} />
-          <SeatRow currentId={game.currentPlayerId} className="items-center gap-x-2 gap-y-6 px-2 pt-3">
+          <SeatRow currentId={game.currentPlayerId} orderKey={seated.map((p) => p.id).join(',')} className="items-center gap-x-2 gap-y-6 px-2 pt-3">
             {seated.map((p, seatNo) => {
               const isCurrent = p.id === game.currentPlayerId;
               const finishRank = game.finishedOrder.indexOf(p.id);
@@ -336,7 +336,6 @@ export default function BoardPage() {
                 <Fragment key={p.id}>
                 <m.div
                   data-seat={p.id}
-                  layout
                   className={`relative shrink-0 w-32 sm:w-36 rounded-2xl p-4 text-center border-2 ${
                     hasFinished
                       ? 'border-yellow-400 bg-yellow-400/10'

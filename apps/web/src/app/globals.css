@@ -15,6 +15,43 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 /* ───────── Compositor-only looping effects (transform / opacity only — no per-frame repaint) ───────── */
+/* one-shot FX — driven by CSS vars so each particle gets its own path without JS per frame */
+@keyframes fx-burst { 0% { transform: translate(0, var(--y0, 0px)) scale(.4) rotate(0); opacity: 1; } 100% { transform: translate(var(--tx), var(--ty)) scale(var(--s1, 1.3)) rotate(var(--r, 0deg)); opacity: 0; } }
+.fx-burst { animation: fx-burst var(--dur, 1s) cubic-bezier(.16,1,.3,1) both; will-change: transform, opacity; }
+@keyframes fx-ring-out { from { transform: scale(.1); opacity: 1; } to { transform: scale(var(--to, 1.8)); opacity: 0; } }
+.fx-ring-out { animation: fx-ring-out var(--dur, .8s) cubic-bezier(.16,1,.3,1) var(--delay, 0s) both; will-change: transform, opacity; }
+@keyframes fx-ring-spin { 0% { transform: scale(.2) rotate(0); opacity: .8; } 70% { opacity: .8; } 100% { transform: scale(1.4) rotate(360deg); opacity: 0; } }
+.fx-ring-spin { animation: fx-ring-spin 1.3s cubic-bezier(.16,1,.3,1) both; will-change: transform, opacity; }
+@keyframes fx-bolt { 0% { opacity: 0; transform: translateY(-40px); } 25% { opacity: 1; } 50% { opacity: 0; } 75% { opacity: 1; } 100% { opacity: 0; transform: translateY(0); } }
+.fx-bolt { animation: fx-bolt .7s linear var(--delay, 0s) both; will-change: transform, opacity; }
+@keyframes fx-rays { from { transform: scale(.2) rotate(0); opacity: 1; } to { transform: scale(1) rotate(40deg); opacity: 0; } }
+.fx-rays { animation: fx-rays 1.4s cubic-bezier(.16,1,.3,1) both; will-change: transform, opacity; }
+@keyframes fx-shake { 0%, 100% { transform: translate(0, 0); } 14% { transform: translate(calc(-18px * var(--amp, 1)), calc(10px * var(--amp, 1))); } 28% { transform: translate(calc(16px * var(--amp, 1)), calc(-12px * var(--amp, 1))); } 42% { transform: translate(calc(-12px * var(--amp, 1)), calc(8px * var(--amp, 1))); } 57% { transform: translate(calc(10px * var(--amp, 1)), calc(-6px * var(--amp, 1))); } 71% { transform: translate(calc(-6px * var(--amp, 1)), calc(4px * var(--amp, 1))); } 85% { transform: translate(calc(4px * var(--amp, 1)), 0); } }
+.fx-shake { animation: fx-shake var(--dur, .6s) ease-out both; }
+@keyframes fx-slam { 0% { transform: scale(var(--s0, 3)) rotate(var(--r0, -14deg)); opacity: 0; } 55% { transform: scale(.92) rotate(-3deg); opacity: 1; } 78% { transform: scale(1.06) rotate(1deg); } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+.fx-slam { animation: fx-slam var(--dur, .55s) cubic-bezier(.2,.9,.3,1.2) both; will-change: transform, opacity; }
+@keyframes fx-wobble { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
+.fx-wobble { animation: fx-wobble .4s ease-in-out 4; }
+@keyframes fx-tilt { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } 75% { transform: rotate(-2deg); } }
+.fx-tilt { animation: fx-tilt .8s ease-in-out; }
+@keyframes fx-flash { 0% { opacity: 0; } 30% { opacity: .35; } 100% { opacity: 0; } }
+.fx-flash { animation: fx-flash .6s ease-out both; }
+@keyframes fx-banner-in { 0% { transform: translateY(10px) scale(.3) rotate(-18deg); opacity: 0; } 60% { transform: translateY(0) scale(1.25) rotate(6deg); opacity: 1; } 100% { transform: translateY(0) scale(1) rotate(0); opacity: 1; } }
+.fx-banner-in { animation: fx-banner-in .5s ease-out both; will-change: transform, opacity; }
+@keyframes fx-rise-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+.fx-rise-in { animation: fx-rise-in .3s ease-out .15s both; }
+@keyframes fx-spin-once { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+@keyframes fx-shake-x { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-10px); } 40%, 80% { transform: translateX(10px); } }
+@keyframes fx-swing { 0%, 100% { transform: rotate(0) scale(1); } 33% { transform: rotate(15deg) scale(1.15); } 66% { transform: rotate(-15deg) scale(1.1); } }
+@keyframes fx-boing { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.25); } }
+.fx-emo-REVERSE { animation: fx-spin-once .7s ease-in-out 2 .1s; }
+.fx-emo-SKIP { animation: fx-shake-x .7s ease-in-out 2 .1s; }
+.fx-emo-WILD { animation: fx-swing .7s ease-in-out 2 .1s; }
+.fx-emo-POP { animation: fx-boing .7s ease-in-out 2 .1s; }
+/* history: newest row slides in from the left */
+@keyframes fx-hist-in { from { transform: translateX(-20px) scale(.95); opacity: 0; } to { transform: none; opacity: 1; } }
+.fx-hist-in { animation: fx-hist-in .32s cubic-bezier(.2,.9,.3,1) both; }
+
 @keyframes fx-sheen { 0% { transform: translateX(-130%); } 60%, 100% { transform: translateX(130%); } }
 @keyframes fx-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
 @keyframes fx-pulse-soft { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
@@ -47,10 +84,10 @@ body {
 .fx-turn-ring::after { box-shadow: 0 0 0 6px rgba(16,185,129,.45); animation-duration: 2s; }
 
 /* Lite mode (low-end device) and OS "reduce motion": drop decorative loops. */
-html.cma-lite .fx-sheen, html.cma-lite .fx-nudge, html.cma-lite .fx-trophy { animation: none; }
+html.cma-lite .fx-sheen, html.cma-lite .fx-nudge, html.cma-lite .fx-trophy, html.cma-lite .fx-shake { animation: none; }
 html.cma-lite .fx-sheen { display: none; }
 @media (prefers-reduced-motion: reduce) {
-  .fx-sheen, .fx-pulse, .fx-pulse-soft, .fx-bob, .fx-nudge, .fx-sweep, .fx-bar, .fx-ping, .fx-trophy,
+  .fx-sheen, .fx-pulse, .fx-pulse-soft, .fx-bob, .fx-nudge, .fx-sweep, .fx-bar, .fx-ping, .fx-trophy, .fx-shake,
   .fx-glow::after, .fx-turn-ring::after { animation: none !important; }
   .fx-sheen { display: none; }
   .fx-glow::after, .fx-turn-ring::after { opacity: .6; }

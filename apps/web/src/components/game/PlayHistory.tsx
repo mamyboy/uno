@@ -1,7 +1,6 @@
 'use client';
 
-import { memo } from 'react';
-import { AnimatePresence, m } from 'motion/react';
+import { memo, useLayoutEffect, useRef } from 'react';
 import type { GameState, HistoryEntry } from '@cma/shared';
 import { PlayingCard } from './PlayingCard';
 
@@ -46,22 +45,35 @@ function PlayHistoryImpl({ game, nameOf, limit = 14, compact }: { game: GameStat
     items.push({ ...h });
   }
   const list = items.slice(-limit).reverse();
+  const topSeq = list[0]?.seq ?? 0;
+
+  // When a new row lands on top, slide the existing rows down from where they were — one
+  // compositor animation on the <ul>, no per-row measuring.
+  const ulRef = useRef<HTMLUListElement>(null);
+  const prevTop = useRef<number | null>(null);
+  const animateTop = prevTop.current !== null && topSeq !== prevTop.current;
+  useLayoutEffect(() => {
+    const ul = ulRef.current;
+    const first = ul?.firstElementChild as HTMLElement | null;
+    if (ul && first && prevTop.current !== null && topSeq !== prevTop.current && !document.documentElement.classList.contains('cma-lite')) {
+      const h = first.offsetHeight + parseFloat(getComputedStyle(first.nextElementSibling ?? first).marginTop || '0');
+      ul.animate([{ transform: `translateY(-${h}px)` }, { transform: 'translateY(0)' }], { duration: 320, easing: 'cubic-bezier(.2,.9,.3,1)' });
+    }
+    prevTop.current = topSeq;
+  }, [topSeq]);
 
   return (
     <div className="rounded-2xl bg-zinc-900/70 border border-zinc-800 p-3 sm:p-4">
       <p className="text-sm font-semibold text-zinc-300 mb-2">📜 ประวัติการลงไพ่</p>
       {list.length === 0 && <p className="text-xs text-zinc-500">ยังไม่มีการลงไพ่</p>}
-      <ul className={compact ? 'space-y-1.5 max-h-64 overflow-y-auto pr-1' : 'space-y-2 max-h-[60vh] overflow-y-auto pr-1'}>
-        <AnimatePresence initial={false}>
+      <ul ref={ulRef} className={compact ? 'space-y-1.5 max-h-64 overflow-y-auto pr-1' : 'space-y-2 max-h-[60vh] overflow-y-auto pr-1'}>
           {list.map((h, i) => {
             const cards = h.cards ?? (h.card && (h.action === 'PLAY' || h.action === 'REFLECT' || h.action === 'SHIELD' || h.action === 'SHUFFLE_SEATS') ? [h.card] : []);
             return (
-              <m.li
+              <li
                 key={h.seq}
-                layout
-                initial={{ opacity: 0, x: -20, scale: 0.95 }}
-                animate={{ opacity: i === 0 ? 1 : Math.max(0.45, 1 - i * 0.05), x: 0, scale: 1 }}
-                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl ${i === 0 ? 'bg-emerald-500/15 border border-emerald-400/30' : 'bg-zinc-800/50'}`}
+                style={{ opacity: i === 0 ? 1 : Math.max(0.45, 1 - i * 0.05), transition: 'opacity .3s' }}
+                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl ${i === 0 ? 'bg-emerald-500/15 border border-emerald-400/30' : 'bg-zinc-800/50'} ${i === 0 && animateTop ? 'fx-hist-in' : ''}`}
               >
                 <span className="text-[10px] text-zinc-500 w-8 shrink-0">ตา {h.turnNumber}</span>
                 <span className={`flex-1 min-w-0 truncate ${compact ? 'text-xs' : 'text-sm'}`}>
@@ -75,10 +87,9 @@ function PlayHistoryImpl({ game, nameOf, limit = 14, compact }: { game: GameStat
                     ))}
                   </span>
                 )}
-              </m.li>
+              </li>
             );
           })}
-        </AnimatePresence>
       </ul>
     </div>
   );

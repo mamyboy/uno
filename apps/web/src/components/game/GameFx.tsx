@@ -163,10 +163,14 @@ export function GameFx({ game, result, nameOf, avatarOf, meId }: { meId?: string
               key={fx.key}
               className="fixed inset-0 z-[80] pointer-events-none flex items-center justify-center overflow-hidden"
               initial={{ opacity: 0 }}
-              animate={allowShake() ? { opacity: 1, x: v === 'WD8' ? [0, -22, 20, -16, 12, -8, 4, 0] : [0, -8, 7, -5, 3, 0], y: v === 'WD8' ? [0, 12, -14, 8, -4, 0] : 0 } : { opacity: 1 }}
+              animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: v === 'WD8' ? 0.8 : 0.4 }}
+              transition={{ duration: 0.2 }}
             >
+              <div
+                className={`absolute inset-0 flex items-center justify-center ${allowShake() ? 'fx-shake' : ''}`}
+                style={{ ['--amp' as string]: v === 'WD8' ? 1.25 : 0.45, ['--dur' as string]: v === 'WD8' ? '.8s' : '.4s' }}
+              >
               {/* flash */}
               {v === 'WD4' ? (
                 <m.div className={`absolute inset-0 ${st.flash}`} initial={{ opacity: 0 }} animate={{ opacity: [0, 0.75, 0.1, 0.65, 0, 0.4, 0] }} transition={{ duration: 0.9 }} />
@@ -176,79 +180,66 @@ export function GameFx({ game, result, nameOf, avatarOf, meId }: { meId?: string
 
               {/* variant background */}
               {v === 'D2' && (
-                <m.div className={`absolute w-[60vmin] h-[60vmin] rounded-full border-[12px] ${st.ring}`} initial={{ scale: 0.1, opacity: 1 }} animate={{ scale: 1.8, opacity: 0 }} transition={{ duration: 0.8, ease: 'easeOut' }} />
+                <div className={`fx-ring-out absolute w-[60vmin] h-[60vmin] rounded-full border-[12px] ${st.ring}`} />
               )}
               {v === 'WD2' && (
-                <m.div
-                  className="absolute w-[90vmin] h-[90vmin] rounded-full opacity-60"
+                <div
+                  className="fx-ring-spin absolute w-[90vmin] h-[90vmin] rounded-full"
                   style={{ background: 'conic-gradient(#ff2d55, #ffc800, #14d97c, #2f7bff, #b388ff, #ff2d55)', maskImage: 'radial-gradient(circle, transparent 30%, black 31%, black 45%, transparent 46%)', WebkitMaskImage: 'radial-gradient(circle, transparent 30%, black 31%, black 45%, transparent 46%)' }}
-                  initial={{ scale: 0.2, rotate: 0 }}
-                  animate={{ scale: 1.4, rotate: 360, opacity: [0.8, 0.8, 0] }}
-                  transition={{ duration: 1.3, ease: 'easeOut' }}
                 />
               )}
               {v === 'WD4' &&
                 [12, 38, 64, 86].map((left, i) => (
-                  <m.svg
+                  <svg
                     key={i}
                     viewBox="0 0 40 100"
-                    className="absolute top-0 w-10 h-[55vh]"
-                    style={{ left: `${left}%` }}
-                    initial={{ opacity: 0, y: -40 }}
-                    animate={{ opacity: [0, 1, 0, 1, 0], y: 0 }}
-                    transition={{ duration: 0.7, delay: i * 0.08 }}
+                    className="fx-bolt absolute top-0 w-10 h-[55vh]"
+                    style={{ left: `${left}%`, ['--delay' as string]: `${i * 0.08}s` }}
                   >
                     <polygon points="22,0 6,55 20,55 12,100 36,38 22,38 30,0" fill="#fff" stroke="#a78bfa" strokeWidth="2" />
-                  </m.svg>
+                  </svg>
                 ))}
               {v === 'WD8' &&
                 [0, 0.12, 0.24].map((d, i) => (
-                  <m.div
+                  <div
                     key={i}
-                    className={`absolute w-[50vmin] h-[50vmin] rounded-full border-[16px] ${st.ring}`}
-                    initial={{ scale: 0.1, opacity: 1 }}
-                    animate={{ scale: 2.6, opacity: 0 }}
-                    transition={{ duration: 1.1, delay: d, ease: 'easeOut' }}
+                    className={`fx-ring-out absolute w-[50vmin] h-[50vmin] rounded-full border-[16px] ${st.ring}`}
+                    style={{ ['--to' as string]: 2.6, ['--dur' as string]: '1.1s', ['--delay' as string]: `${d}s` }}
                   />
                 ))}
 
               {/* flying emojis */}
               {Array.from({ length: fxCount(v === 'WD8' ? 18 : 10) }).map((_, i, arr) => (
-                <m.span
+                <span
                   key={i}
-                  className="absolute text-3xl sm:text-4xl"
-                  initial={{ x: 0, y: v === 'D2' ? 120 : 0, scale: 0.4, opacity: 1 }}
-                  animate={
+                  className="fx-burst absolute text-3xl sm:text-4xl"
+                  style={
                     v === 'D2'
-                      ? { x: (i - arr.length / 2) * 38, y: -260 - (i % 3) * 40, scale: 1.2, opacity: 0 }
-                      : { x: Math.cos((i / arr.length) * Math.PI * 2) * (v === 'WD8' ? 420 : 280), y: Math.sin((i / arr.length) * Math.PI * 2) * (v === 'WD8' ? 320 : 220), scale: 1.3, opacity: 0, rotate: 180 }
+                      ? { ['--y0' as string]: '120px', ['--tx' as string]: `${(i - arr.length / 2) * 38}px`, ['--ty' as string]: `${-260 - (i % 3) * 40}px`, ['--s1' as string]: 1.2 }
+                      : { ['--tx' as string]: `${Math.cos((i / arr.length) * Math.PI * 2) * (v === 'WD8' ? 420 : 280)}px`, ['--ty' as string]: `${Math.sin((i / arr.length) * Math.PI * 2) * (v === 'WD8' ? 320 : 220)}px`, ['--r' as string]: '180deg', ['--dur' as string]: v === 'WD8' ? '1.3s' : '1s' }
                   }
-                  transition={{ duration: v === 'WD8' ? 1.3 : 1, ease: 'easeOut' }}
                 >
                   {st.emojis[i % st.emojis.length]}
-                </m.span>
+                </span>
               ))}
 
               {/* number + caption */}
-              <m.div
-                className="relative text-center"
-                initial={{ scale: v === 'WD8' ? 4 : 2.4, rotate: v === 'WD4' ? -15 : 10, opacity: 0 }}
-                animate={{ scale: [v === 'WD8' ? 4 : 2.4, 0.92, 1.06, 1], rotate: [v === 'WD4' ? -15 : 10, -3, 1, 0], opacity: 1 }}
-                transition={{ duration: 0.5, ease: 'easeOut' }}
+              <div
+                className="fx-slam relative text-center"
+                style={{ ['--s0' as string]: v === 'WD8' ? 4 : 2.4, ['--r0' as string]: v === 'WD4' ? '-15deg' : '10deg', ['--dur' as string]: '.5s' }}
               >
                 <div className="text-sm sm:text-base font-black tracking-wide text-white drop-shadow mb-1">{st.label}</div>
-                <m.div
-                  className={`font-black leading-none ${v === 'WD8' ? 'text-[24vw] sm:text-[11rem]' : 'text-[18vw] sm:text-[8rem]'} bg-gradient-to-b ${st.grad} bg-clip-text text-transparent`}
+                <div
+                  className={`${v === 'WD2' ? 'fx-tilt ' : ''}font-black leading-none ${v === 'WD8' ? 'text-[24vw] sm:text-[11rem]' : 'text-[18vw] sm:text-[8rem]'} bg-gradient-to-b ${st.grad} bg-clip-text text-transparent`}
                   style={{ WebkitTextStroke: '3px #2a0a00', filter: 'drop-shadow(0 6px 0 rgba(0,0,0,0.5))' }}
-                  animate={v === 'WD2' ? { rotate: [0, -4, 4, -2, 0] } : undefined}
-                  transition={v === 'WD2' ? { duration: 0.8 } : undefined}
                 >
                   +{fx.count}
-                </m.div>
+                </div>
                 <div className={`mt-1 inline-block px-4 py-1.5 rounded-2xl bg-black/80 border-2 ${st.border} text-lg sm:text-2xl font-black text-white`}>
                   {fx.from} ส่งคอมโบ{fx.added !== fx.count ? ` (+${fx.added})` : ''} ➜ {fx.to}
                 </div>
-              </m.div>
+              </div>
+              </div>
             </m.div>
           );
         })()}
@@ -258,50 +249,38 @@ export function GameFx({ game, result, nameOf, avatarOf, meId }: { meId?: string
             key={fx.key}
             className="fixed inset-0 z-[80] pointer-events-none flex items-center justify-center overflow-hidden"
             initial={{ opacity: 0 }}
-            animate={allowShake() ? { opacity: 1, x: [0, -18, 16, -12, 10, -6, 4, 0], y: [0, 10, -12, 8, -6, 4, 0] } : { opacity: 1 }}
+            animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.2 }}
           >
+            <div className={`absolute inset-0 flex items-center justify-center ${allowShake() ? 'fx-shake' : ''}`}>
             <m.div className="absolute inset-0 bg-red-600" initial={{ opacity: 0.6 }} animate={{ opacity: 0 }} transition={{ duration: 0.7 }} />
             {/* impact rays */}
-            <m.div
-              className="absolute w-[160vmax] h-[160vmax]"
+            <div
+              className="fx-rays absolute w-[160vmax] h-[160vmax]"
               style={{ background: 'repeating-conic-gradient(from 0deg, rgba(255,214,0,0.35) 0deg 8deg, transparent 8deg 20deg)' }}
-              initial={{ scale: 0.2, rotate: 0, opacity: 1 }}
-              animate={{ scale: 1, rotate: 40, opacity: 0 }}
-              transition={{ duration: 1.4, ease: 'easeOut' }}
             />
             {Array.from({ length: fxCount(14) }).map((_, i, arr) => (
-              <m.span
+              <span
                 key={i}
-                className="absolute text-3xl"
-                initial={{ x: 0, y: 0, scale: 0.4, opacity: 1 }}
-                animate={{ x: Math.cos((i / arr.length) * Math.PI * 2) * 320, y: Math.sin((i / arr.length) * Math.PI * 2) * 240, scale: 1.3, opacity: 0, rotate: 200 }}
-                transition={{ duration: 1.1, ease: 'easeOut' }}
+                className="fx-burst absolute text-3xl"
+                style={{ ['--tx' as string]: `${Math.cos((i / arr.length) * Math.PI * 2) * 320}px`, ['--ty' as string]: `${Math.sin((i / arr.length) * Math.PI * 2) * 240}px`, ['--r' as string]: '200deg', ['--dur' as string]: '1.1s' }}
               >
                 {['💥', '🃏', '💢', '⭐'][i % 4]}
-              </m.span>
+              </span>
             ))}
-            <m.div
-              className="relative text-center"
-              initial={{ scale: 3.2, rotate: -14, opacity: 0 }}
-              animate={{ scale: [3.2, 0.9, 1.08, 1], rotate: [-14, 4, -2, 0], opacity: 1 }}
-              transition={{ duration: 0.55, ease: 'easeOut' }}
-            >
+            <div className="fx-slam relative text-center" style={{ ['--s0' as string]: 3.2 }}>
               <div
                 className="font-black leading-none text-[22vw] sm:text-[11rem] bg-gradient-to-b from-yellow-200 via-amber-400 to-red-600 bg-clip-text text-transparent"
                 style={{ WebkitTextStroke: '3px #3b0a00', filter: 'drop-shadow(0 8px 0 rgba(0,0,0,0.55))' }}
               >
                 +{fx.count}
               </div>
-              <m.div
-                className="mt-2 inline-block px-5 py-2 rounded-2xl bg-black/80 border-2 border-yellow-300 text-xl sm:text-3xl font-black text-white"
-                animate={{ rotate: [-2, 2, -2] }}
-                transition={{ duration: 0.4, repeat: 4 }}
-              >
+              <div className="fx-wobble mt-2 inline-block px-5 py-2 rounded-2xl bg-black/80 border-2 border-yellow-300 text-xl sm:text-3xl font-black text-white">
                 💥 {fx.name} โดนคอมโบ! จั่ว {fx.count} ใบ 🤣
-              </m.div>
-            </m.div>
+              </div>
+            </div>
+            </div>
           </m.div>
         )}
 
