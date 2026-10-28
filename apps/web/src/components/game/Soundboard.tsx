@@ -2,13 +2,43 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { m, AnimatePresence } from 'motion/react';
-import { Flame, Music, Play, Search, Star, Volume2, X } from 'lucide-react';
+import { BellOff, Bell, Flame, Music, Play, Search, Star, Volume2, X } from 'lucide-react';
 import { socket } from '@/lib/socket';
 import { announcePanel, useClosesOnOtherPanel } from '@/lib/panels';
 import { getFavorites, getUsage, loadCatalog, playClip, recordUsage, soundLabel, toggleFavorite, type CatalogItem } from '@/lib/sounds';
 import { EV } from '@cma/shared';
 
 type Tab = 'FAV' | 'TOP' | 'ALL';
+
+// Mute ONLY soundboard clips other people trigger (card pops, combo hits, voice radio, taunts and
+// every other game sound keep playing). Per device.
+const SB_MUTE_KEY = 'cma:sb-mute';
+export const isSoundboardMuted = () => {
+  try { return localStorage.getItem(SB_MUTE_KEY) === '1'; } catch { return false; }
+};
+
+/** Dock button: 🔔 / 🔕 for soundboard clips only. */
+export function SoundboardMute() {
+  const [muted, setMuted] = useState(false);
+  useEffect(() => setMuted(isSoundboardMuted()), []);
+  const toggle = () => {
+    const next = !muted;
+    try { localStorage.setItem(SB_MUTE_KEY, next ? '1' : '0'); } catch { /* ignore */ }
+    setMuted(next);
+  };
+  return (
+    <button
+      onClick={toggle}
+      className={`w-10 h-10 rounded-full border flex items-center justify-center shadow-lg transition ${
+        muted ? 'bg-zinc-800 border-red-400/60 text-red-300' : 'bg-zinc-800/90 border-zinc-600 text-zinc-200'
+      }`}
+      title={muted ? 'เปิดเสียง Soundboard' : 'ปิดเสียง Soundboard (เสียงเกม/วิทยุ ยังดังปกติ)'}
+      aria-pressed={muted}
+    >
+      {muted ? <BellOff className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
+    </button>
+  );
+}
 const PAGE = 80;
 
 /** Floating soundboard — every clip from myinstants.com/en/index/th (all pages). Tap a clip to
@@ -39,8 +69,9 @@ export function Soundboard() {
   useEffect(() => {
     let t: ReturnType<typeof setTimeout> | undefined;
     function onPlay({ soundId, label, byNickname }: { soundId: string; label?: string; byNickname: string }) {
-      playClip(soundId);
-      setToast(`${byNickname || 'ใครสักคน'} กด "${soundLabel(soundId, label)}" 🔊`);
+      const muted = isSoundboardMuted();
+      if (!muted) playClip(soundId);
+      setToast(`${byNickname || 'ใครสักคน'} กด "${soundLabel(soundId, label)}" ${muted ? '🔇' : '🔊'}`);
       if (t) clearTimeout(t);
       t = setTimeout(() => setToast(''), 2200);
     }

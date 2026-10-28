@@ -1,6 +1,7 @@
 'use client';
 
 import { SOUND_IDS, SOUND_LABELS } from '@cma/shared';
+import { primeSfx } from './sfx';
 
 /**
  * Sounds come from myinstants.com's Thai index (all ~1,400 clips across every page, listed in
@@ -63,9 +64,69 @@ function unlockAudio() {
     void a.play().then(() => a.pause()).catch(() => {});
     return a;
   });
+  popPool = Array.from({ length: 4 }, () => {
+    const a = new Audio(silentWav());
+    a.preload = 'auto';
+    void a.play().then(() => a.pause()).catch(() => {});
+    return a;
+  });
   try {
-    const Ctx = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | undefined;
-    if (Ctx) void new Ctx().resume().catch(() => {});
+    // iOS: play Web Audio like media (not muted by the ring/silent switch).
+    const nav = navigator as Navigator & { audioSession?: { type: string } };
+    if (nav.audioSession) nav.audioSession.type = 'playback';
+  } catch { /* ignore */ }
+  primeSfx(); // create + resume the synth's AudioContext inside this user gesture
+}
+
+// ---- "pop" when a card hits the pile: a tiny synthesized WAV played through its OWN unlocked
+// <audio> pool — same path as the clips that already work everywhere (iOS silent switch, Web
+// Audio contexts created outside a gesture, etc.), and never cut off by soundboard clips. ----
+let popPool: HTMLAudioElement[] = [];
+let popIdx = 0;
+const popCache = new Map<string, string>();
+function popWav(pitch: number, count: number): string {
+  const key = `${pitch.toFixed(3)}:${count}`;
+  const hit = popCache.get(key);
+  if (hit) return hit;
+  const rate = 22050;
+  const one = Math.floor(rate * 0.075), gap = Math.floor(rate * 0.075);
+  const n = one + gap * (count - 1);
+  const buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const w = (o: number, t: string) => [...t].forEach((ch, i) => v.setUint8(o + i, ch.charCodeAt(0)));
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, 'data'); v.setUint32(40, n * 2, true);
+  const samples = new Float32Array(n);
+  for (let k = 0; k < count; k++) {
+    const f0 = 520 * pitch * (1 + k * 0.12);
+    let phase = 0;
+    for (let i = 0; i < one; i++) {
+      const t = i / rate;
+      const f = f0 * Math.pow(2.6, t / 0.07); // quick upward chirp = "pop"
+      phase += (2 * Math.PI * f) / rate;
+      const env = Math.min(1, i / (rate * 0.003)) * Math.exp(-t / 0.018);
+      const j = k * gap + i;
+      if (j < n) samples[j] += Math.sin(phase) * env * 0.8;
+    }
+  }
+  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, samples[i])) * 32767, true);
+  let bin = '';
+  new Uint8Array(buf).forEach((b) => (bin += String.fromCharCode(b)));
+  const url = 'data:audio/wav;base64,' + btoa(bin);
+  popCache.set(key, url);
+  return url;
+}
+export function playPopClip(pitch = 1, count = 1) {
+  if (typeof window === 'undefined') return;
+  try {
+    const src = popWav(pitch, Math.max(1, Math.min(count, 4)));
+    const a = popPool.length ? popPool[popIdx++ % popPool.length] : new Audio();
+    a.pause();
+    a.src = src;
+    a.volume = 1;
+    a.currentTime = 0;
+    void a.play().catch(() => {});
   } catch { /* ignore */ }
 }
 if (typeof window !== 'undefined') {

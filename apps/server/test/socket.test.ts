@@ -49,16 +49,36 @@ describe('socket integration', () => {
     host.close();
   });
 
-  it('a duplicate nickname in the same room is treated as the same person (re-claims the seat)', async () => {
+  it('a name already used by someone ONLINE in the room is refused (NAME_TAKEN)', async () => {
     const host = await connect();
     const guest = await connect();
     const created = await emit(host, 'room:create', { name: 'Room B', nickname: 'Alice', maxPlayers: 4, hostPlays: false });
     const join1 = await emit(guest, 'room:join', { code: created.code, nickname: 'ALICE' });
-    expect(join1.ok).toBe(true);
-    expect(join1.playerId).toBe(created.playerId);
-    expect(join1.snapshot.room.players).toHaveLength(1);
+    expect(join1).toMatchObject({ ok: false, error: 'NAME_TAKEN' });
+    expect((await emit(guest, 'room:join', { code: created.code, nickname: 'Bob' })).ok).toBe(true);
     host.close();
     guest.close();
+  });
+
+  it('switching rooms on one connection stops the old room\'s broadcasts (no cross-room leak)', async () => {
+    const a = await connect();
+    const other = await connect();
+    const r1 = await emit(a, 'room:create', { name: 'One', nickname: 'Ann', hostPlays: true });
+    await emit(other, 'room:join', { code: r1.code, nickname: 'Oz' });
+    const r2 = await emit(other, 'room:create', { name: 'Two', nickname: 'Oz2', hostPlays: true });
+    // `a` moves to room Two
+    expect((await emit(a, 'room:join', { code: r2.code, nickname: 'Ann' })).ok).toBe(true);
+    const seen: string[] = [];
+    a.on('room:state_updated', (r: any) => seen.push(r.code));
+    // something happens in room One → `a` must not hear it
+    const third = await connect();
+    await emit(third, 'room:join', { code: r1.code, nickname: 'Tia' });
+    await new Promise((r) => setTimeout(r, 80));
+    expect(seen.filter((c) => c === r1.code)).toHaveLength(0);
+    // and Ann's old seat in room One is marked offline
+    const one = rooms.find(r1.code)!;
+    expect(one.members.find((m) => m.nickname === 'Ann')?.connected ?? false).toBe(false); // offline (or already kicked after grace)
+    [a, other, third].forEach((s) => s.close());
   });
 
   it('room:taunt is broadcast to everyone in the room, with a per-player cooldown', async () => {
@@ -433,21 +453,21 @@ describe('socket integration', () => {
     host.close();
   });
 
-  it('joining with a name that already exists in the room re-claims that same player (same name = same person)', async () => {
+  it('a dropped player re-claims their seat by name; an online one blocks the name', async () => {
     const a = await connect();
     const b = await connect();
     const first = await emit(a, 'room:join', { code: 'TABLE4', nickname: 'Somchai' });
     expect(first.ok).toBe(true);
-    let replaced = false;
-    a.on('session:replaced', () => { replaced = true; });
+    // online → refused
+    expect(await emit(b, 'room:join', { code: 'TABLE4', nickname: '  somchai ' })).toMatchObject({ ok: false, error: 'NAME_TAKEN' });
+    // dropped (still inside the grace period) → the same name re-claims that seat
+    a.close();
+    await new Promise((r) => setTimeout(r, 20)); // < 60ms test grace period
     const second = await emit(b, 'room:join', { code: 'TABLE4', nickname: '  somchai ' });
     expect(second.ok).toBe(true);
     expect(second.playerId).toBe(first.playerId);
     expect(rooms.find('TABLE4')?.members).toHaveLength(1);
-    await new Promise((r) => setTimeout(r, 30));
-    expect(replaced).toBe(true);
     await emit(b, 'room:clear_by_code', { code: 'TABLE4' });
-    a.close();
     b.close();
   });
 
@@ -547,5 +567,39 @@ describe('RoomManager.recordMatchResult — leaderboard tracks losses too', () =
     // 'alice' / 'ALICE' / 'Alice' are all the same person by name-key.
     expect(lb.find((e) => e.nickname.toLowerCase() === 'alice')).toMatchObject({ wins: 1, losses: 1, gamesPlayed: 2 });
     expect(lb.find((e) => e.nickname === 'Bob')).toMatchObject({ wins: 1, losses: 1, gamesPlayed: 2 });
+  });
+});
+
+describe('turn timer', () => {
+  it('auto-plays a random legal move when the current player runs out of time', async () => {
+    const srv = createServer();
+    const io2 = new Server(srv, { cors: { origin: '*' } });
+    const rm = new RoomManager();
+    registerSocketHandlers(io2, rm, new Persistence(undefined), 60, 150);
+    await new Promise<void>((resolve) => srv.listen(0, resolve));
+    const p = (srv.address() as any).port;
+    const mk = () => new Promise<ClientSocket>((resolve) => { const c = ioc(`http://localhost:${p}`, { transports: ['websocket'] }); c.on('connect', () => resolve(c)); });
+    const h = await mk();
+    const g = await mk();
+    const created = await emit(h, 'room:create', { name: 'T', nickname: 'H', hostPlays: true });
+    await emit(g, 'room:join', { code: created.code, nickname: 'G' });
+    const autos: any[] = [];
+    g.on('game:auto_played', (e: any) => autos.push(e));
+    let lastState: any = null;
+    g.on('game:state', (s: any) => (lastState = s));
+    await emit(h, 'game:start', {});
+    await new Promise((r) => setTimeout(r, 30));
+    expect(lastState.turnEndsIn).toBeGreaterThan(0);
+    expect(lastState.turnEndsIn).toBeLessThanOrEqual(150);
+    // nobody touches anything: direction gets chosen, then moves keep being made
+    await new Promise((r) => setTimeout(r, 600));
+    expect(autos[0]?.action).toBe('DIRECTION');
+    expect(autos.length).toBeGreaterThanOrEqual(2);
+    expect(['PLAY', 'DRAW']).toContain(autos[1].action);
+    expect(rm.find(created.code)!.engine!.getPublicState().history.some((x) => x.action === 'PLAY' || x.action === 'DRAW')).toBe(true);
+    h.close();
+    g.close();
+    io2.close();
+    srv.close();
   });
 });

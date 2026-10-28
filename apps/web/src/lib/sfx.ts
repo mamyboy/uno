@@ -1,5 +1,7 @@
 'use client';
 
+import { playPopClip } from './sounds';
+
 /**
  * Lightweight Web Audio synth for card sound effects — no external audio files needed
  * (fully offline, zero network/CDN dependency). Each action/wild card kind gets its own
@@ -13,8 +15,17 @@ function getCtx(): AudioContext | null {
   const AC = window.AudioContext || (window as any).webkitAudioContext;
   if (!AC) return null;
   if (!ctx) ctx = new AC();
-  if (ctx.state === 'suspended') void ctx.resume();
+  if (ctx.state !== 'running') void ctx.resume().catch(() => {});
   return ctx;
+}
+
+/** Called from the first user gesture (see sounds.ts) so this context is created "unlocked";
+ *  iOS also suspends/interrupts it after app switches → resume on every later tap too. */
+export function primeSfx() {
+  getCtx();
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pointerdown', () => { if (ctx && ctx.state !== 'running') void ctx.resume().catch(() => {}); }, true);
+  }
 }
 
 type Wave = OscillatorType;
@@ -115,20 +126,7 @@ export function popPitchFor(id: string | null | undefined): number {
   return Math.pow(2, steps[Math.abs(h) % steps.length] / 12);
 }
 
-/** Short bubbly "pop" for a card hitting the pile — synthesized (no download, ~zero latency).
- *  `count` cards → that many quick pops (max 4), rising slightly in pitch. */
+/** Short bubbly "pop" for a card hitting the pile (`count` cards → that many quick pops, max 4). */
 export function playPop(pitch = 1, count = 1) {
-  const c = getCtx();
-  if (!c) return;
-  try {
-    const n = Math.max(1, Math.min(count, 4));
-    for (let i = 0; i < n; i++) {
-      const f = 520 * pitch * (1 + i * 0.12);
-      const d = i * 0.075;
-      tone(c, { freq: f, endFreq: f * 2.6, wave: 'sine', delay: d, duration: 0.07, gain: 0.32 });
-      tone(c, { freq: f * 0.5, endFreq: f * 0.3, wave: 'triangle', delay: d, duration: 0.05, gain: 0.12 });
-    }
-  } catch {
-    // never break gameplay over audio
-  }
+  playPopClip(pitch, count);
 }

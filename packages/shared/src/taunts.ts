@@ -34,3 +34,6 @@ export const TAUNT_COOLDOWN_MS = 4000;
 export const VOICE_MAX_MS = 5000;
 export const VOICE_COOLDOWN_MS = 8000;
 export const VOICE_MAX_BYTES = 160_000;
+
+/** Seconds a player gets to act before the server plays a random legal move for them. */
+export const TURN_TIME_MS = 15_000;

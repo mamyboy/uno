@@ -103,6 +103,8 @@ export class GameEngine {
   private readonly shuffledDeck: Card[];
   private readonly cardsDrawn: Record<string, number> = {};
   private history: HistoryEntry[] = [];
+  /** Previous donor within the current draw action (round-the-table stealing). */
+  private lastDonorId: string | null = null;
   private seq = 0;
   private consecutiveSkips = 0;
   private readonly rng: Rng;
@@ -504,6 +506,7 @@ export class GameEngine {
 
   drawCard(playerId: string, turnNumber: number, drawInsteadOfWild = false): { card: Card | null; skipped: boolean; stolen: boolean } {
     this.assertTurn(playerId, turnNumber, 'PLAYING');
+    this.lastDonorId = null; // each draw action starts stealing from the very next player
 
     if (this.pendingDraw?.targetId === playerId) {
       // Choosing not to (or unable to) stack a Draw card: absorb the whole accumulated combo.
@@ -572,8 +575,11 @@ export class GameEngine {
       return { card, stolen: false };
     }
 
-    const donorId = this.nextDonorFrom(playerId);
+    // Steal ONE random card from the next player round the table; each further steal in the same
+    // action moves on to the player after the previous donor (so it goes round, one card each).
+    const donorId = this.nextDonorFrom(playerId, this.lastDonorId);
     if (!donorId) return null;
+    this.lastDonorId = donorId;
 
     const fromHand = this.hands.get(donorId)!;
     const randomIdx = this.rng(fromHand.length);
@@ -605,10 +611,10 @@ export class GameEngine {
    * has cards, repeated calls keep returning the same donor; once their hand is empty, the walk
    * naturally lands on whoever's next after them. Returns null if nobody else has any cards.
    */
-  private nextDonorFrom(excludeId: string): string | null {
+  private nextDonorFrom(excludeId: string, afterId: string | null = null): string | null {
     const n = this.seatOrder.length;
     if (n <= 1) return null;
-    let idx = this.seatOrder.indexOf(excludeId);
+    let idx = afterId && this.seatOrder.includes(afterId) ? this.seatOrder.indexOf(afterId) : this.seatOrder.indexOf(excludeId);
     if (idx < 0) idx = this.currentIndex;
     for (let i = 0; i < n; i++) {
       idx = nextSeatIndex(idx, n, this.direction ?? 'LEFT');
@@ -791,6 +797,46 @@ export class GameEngine {
     if (this.seatOrder.length === 0) return;
     if (idx < this.currentIndex) this.currentIndex--;
     else if (idx === this.currentIndex) this.currentIndex = this.currentIndex % this.seatOrder.length;
+  }
+
+  /**
+   * Turn timer ran out: act for `playerId` at random.
+   *  - choosing direction → random direction
+   *  - any playable card (incl. combo counters) → one at random (wilds get a random color)
+   *  - nothing playable → draw (absorbs a pending combo); keeps going while the turn stays theirs
+   * Returns what was done (for the UI notice), or null if it isn't their turn.
+   */
+  autoPlay(playerId: string, rand: (n: number) => number = this.rng): 'DIRECTION' | 'PLAY' | 'DRAW' | null {
+    if (this.status === 'FINISHED' || this.currentPlayerId !== playerId) return null;
+    if (this.status === 'CHOOSING_DIRECTION') {
+      this.selectDirection(playerId, rand(2) === 0 ? 'LEFT' : 'RIGHT', this.turnNumber);
+      return 'DIRECTION';
+    }
+    let did: 'PLAY' | 'DRAW' | null = null;
+    // Drawing may leave the turn with them (drawn card unplayable but pile not empty) — keep going.
+    for (let guard = 0; guard < 200; guard++) {
+      if (this.status !== 'PLAYING' || this.currentPlayerId !== playerId) break;
+      const playable = this.getPlayableIds(playerId);
+      if (playable.length > 0) {
+        const id = playable[rand(playable.length)];
+        const card = this.hands.get(playerId)!.find((c) => c.id === id)!;
+        try {
+          this.playCard(playerId, id, this.turnNumber, isWild(card) ? COLORS[rand(COLORS.length)] : undefined);
+          return 'PLAY';
+        } catch {
+          // fall through to drawing
+        }
+      }
+      const before = this.turnNumber;
+      try {
+        this.drawCard(playerId, this.turnNumber, true);
+      } catch {
+        break;
+      }
+      did = 'DRAW';
+      if (this.turnNumber === before && this.currentPlayerId === playerId && this.getPlayableIds(playerId).length === 0 && this.drawPile.length === 0) break;
+    }
+    return did;
   }
 
   removePlayer(playerId: string) {

@@ -1,6 +1,6 @@
 import type { Server, Socket } from 'socket.io';
 import { z } from 'zod';
-import { EV, MASCOTS, schemas, TAUNT_COOLDOWN_MS, TAUNT_IDS, VOICE_COOLDOWN_MS, VOICE_MAX_BYTES, type Ack, type Card, type SyncPayload } from '@cma/shared';
+import { EV, MASCOTS, schemas, TURN_TIME_MS, TAUNT_COOLDOWN_MS, TAUNT_IDS, VOICE_COOLDOWN_MS, VOICE_MAX_BYTES, type Ack, type Card, type SyncPayload } from '@cma/shared';
 import { GameError } from '../engine/GameEngine';
 import type { RoomManager, ServerMember, ServerRoom } from '../rooms/RoomManager';
 import type { Persistence } from '../db/persistence';
@@ -32,7 +32,53 @@ function errMessage(err: unknown): string {
   return 'UNKNOWN_ERROR';
 }
 
-export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persistence, graceMs = DISCONNECT_GRACE_MS) {
+export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persistence, graceMs = DISCONNECT_GRACE_MS, turnMs = TURN_TIME_MS) {
+  // ---- Turn timer: one per room; if the current player doesn't act in time, play for them. ----
+  const turnTimers = new Map<string, { key: string; timer: ReturnType<typeof setTimeout>; deadline: number }>();
+  const turnKey = (room: ServerRoom) => {
+    const e = room.engine;
+    if (!e || e.status === 'FINISHED' || !e.currentPlayerId) return null;
+    return `${e.getPublicState().gameId}:${e.turnNumber}:${e.currentPlayerId}:${e.status}`;
+  };
+  const clearTurnTimer = (code: string) => {
+    const t = turnTimers.get(code);
+    if (t) clearTimeout(t.timer);
+    turnTimers.delete(code);
+  };
+  /** (Re)start the timer only when the turn actually changed — returns ms left (null = none). */
+  const armTurnTimer = (room: ServerRoom): number | null => {
+    const key = turnKey(room);
+    if (!key) {
+      clearTurnTimer(room.code);
+      return null;
+    }
+    const cur = turnTimers.get(room.code);
+    if (cur && cur.key === key) return Math.max(0, cur.deadline - Date.now());
+    clearTurnTimer(room.code);
+    const timer = setTimeout(() => {
+      turnTimers.delete(room.code);
+      const r = rooms.find(room.code);
+      if (!r || turnKey(r) !== key || !r.engine?.currentPlayerId) return;
+      const pid = r.engine.currentPlayerId;
+      let action: string | null = null;
+      try {
+        action = r.engine.autoPlay(pid);
+      } catch {
+        action = null;
+      }
+      if (action) {
+        const nickname = r.members.find((m) => m.id === pid)?.nickname ?? '';
+        io.to(roomCh(r.code)).emit(EV.GAME_AUTO_PLAYED, { playerId: pid, nickname, action });
+      }
+      emitRoom(r, false);
+    }, turnMs);
+    (timer as { unref?: () => void }).unref?.();
+    turnTimers.set(room.code, { key, timer, deadline: Date.now() + turnMs });
+    return turnMs;
+  };
+  const gameStateOf = (room: ServerRoom) =>
+    room.engine ? { ...room.engine.getPublicState(), turnEndsIn: armTurnTimer(room) } : null;
+
   // key: `${roomCode}:${playerId}` — pending "kick after grace period" timers for dropped sockets.
   const pendingKicks = new Map<string, ReturnType<typeof setTimeout>>();
   const tauntAt = new Map<string, number>();
@@ -49,7 +95,7 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
 
   const buildSync = (room: ServerRoom, member: ServerMember | null): SyncPayload => ({
     room: rooms.toPublicRoom(room),
-    game: room.engine?.getPublicState() ?? null,
+    game: gameStateOf(room),
     me: member ? { playerId: member.id } : null,
     hand: member && room.engine?.isInGame(member.id) ? room.engine.getPrivateHand(member.id) : null,
     result: room.lastResult,
@@ -81,7 +127,7 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
     if (roomChanged) io.to(roomCh(room.code)).emit(EV.ROOM_STATE_UPDATED, rooms.toPublicRoom(room));
     const engine = room.engine;
     if (!engine) return;
-    io.to(roomCh(room.code)).emit(EV.GAME_STATE, engine.getPublicState());
+    io.to(roomCh(room.code)).emit(EV.GAME_STATE, gameStateOf(room));
     // Include players who already finished (went out) this game, not just the still-active
     // seatOrder — otherwise a winner's LAST hand update stays stuck at whatever it was the
     // instant they played their final card (often isMyTurn: true), since no further
@@ -91,6 +137,7 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
       io.to(playerCh(pid)).emit(EV.GAME_HAND_UPDATED, engine.getPrivateHand(pid));
     }
     finishIfOver(room);
+    if (!room.engine || room.engine.status === 'FINISHED') clearTurnTimer(room.code);
   };
 
   function withRoom(socket: Socket): ServerRoom {
@@ -127,6 +174,46 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
     }
   }
 
+  /** A socket stops representing its seat (dropped connection, or it moved to another room):
+   *  mark the seat disconnected and kick it after the grace period unless it comes back. */
+  const detachSocket = (socket: Socket) => {
+    const code = sd(socket).code;
+    const playerId = sd(socket).playerId;
+    if (!code || !playerId) return;
+    // stop receiving this room's broadcasts on this socket (matters when switching rooms)
+    socket.leave(roomCh(code));
+    socket.leave(playerCh(playerId));
+    sd(socket).code = undefined;
+    sd(socket).playerId = undefined;
+    const room = rooms.find(code);
+    if (!room) return;
+    // A dropped connection doesn't kick immediately — phones throttle/suspend a backgrounded
+    // tab's WebSocket the moment you switch apps, which looks identical to a real disconnect.
+    // Give it a grace period to reconnect (same nickname = same seat, see joinRoom) before
+    // actually removing the seat + hand, so a quick app-switch survives but an abandoned one
+    // doesn't linger forever.
+    const member = rooms.getMember(room, playerId);
+    if (member && member.socketId && member.socketId !== socket.id) return; // seat already taken over by a newer socket
+    rooms.setConnected(room, playerId, false, null);
+    io.to(roomCh(room.code)).emit(EV.PLAYER_DISCONNECTED, { playerId });
+    io.to(roomCh(room.code)).emit(EV.ROOM_STATE_UPDATED, rooms.toPublicRoom(room));
+
+    const key = kickKey(room.code, playerId);
+    const timer = setTimeout(() => {
+      pendingKicks.delete(key);
+      const r = rooms.find(room.code);
+      if (!r) return;
+      const m = rooms.getMember(r, playerId);
+      if (!m || m.connected) return; // reconnected (or already gone) in the meantime
+      rooms.removeMember(r, playerId);
+      if (rooms.find(r.code)) {
+        io.to(roomCh(r.code)).emit(EV.ROOM_PLAYER_LEFT, rooms.toPublicRoom(r));
+        emitRoom(r);
+      }
+    }, graceMs);
+    pendingKicks.set(key, timer);
+  };
+
   io.on('connection', (socket) => {
     sd(socket).rateWindowStart = Date.now();
     sd(socket).rateWindowCount = 0;
@@ -135,6 +222,13 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
       handle(socket, cb, () => {
         const parsed = schemas.createRoom.parse(data);
         const { room, member } = rooms.createRoom(parsed);
+        // This socket was seated in ANOTHER room (or as another player): leave it cleanly so the
+        // old room's broadcasts (room state, leaderboard, hands) never leak into this one.
+        if (sd(socket).code && (sd(socket).code !== room.code || sd(socket).playerId !== member.id)) detachSocket(socket);
+        if (sd(socket).watching && sd(socket).watching !== room.code) {
+          socket.leave(roomCh(sd(socket).watching!));
+          sd(socket).watching = undefined;
+        }
         sd(socket).code = room.code;
         sd(socket).playerId = member.id;
         socket.join(roomCh(room.code));
@@ -160,6 +254,13 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
           old?.leave(playerCh(member.id));
           if (old) { sd(old).code = undefined; sd(old).playerId = undefined; }
         }
+        // This socket was seated in ANOTHER room (or as another player): leave it cleanly so the
+        // old room's broadcasts (room state, leaderboard, hands) never leak into this one.
+        if (sd(socket).code && (sd(socket).code !== room.code || sd(socket).playerId !== member.id)) detachSocket(socket);
+        if (sd(socket).watching && sd(socket).watching !== room.code) {
+          socket.leave(roomCh(sd(socket).watching!));
+          sd(socket).watching = undefined;
+        }
         sd(socket).code = room.code;
         sd(socket).playerId = member.id;
         socket.join(roomCh(room.code));
@@ -180,6 +281,7 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
       handle(socket, cb, () => {
         const parsed = schemas.watch.parse(data);
         const room = rooms.get(parsed.code);
+        if (sd(socket).watching && sd(socket).watching !== room.code) socket.leave(roomCh(sd(socket).watching!));
         sd(socket).watching = room.code;
         socket.join(roomCh(room.code));
         return { snapshot: buildSync(room, null) };
@@ -433,38 +535,7 @@ export function registerSocketHandlers(io: Server, rooms: RoomManager, db: Persi
       });
     });
 
-    socket.on('disconnect', () => {
-      const code = sd(socket).code;
-      const playerId = sd(socket).playerId;
-      if (!code || !playerId) return;
-      const room = rooms.find(code);
-      if (!room) return;
-      // A dropped connection doesn't kick immediately — phones throttle/suspend a backgrounded
-      // tab's WebSocket the moment you switch apps, which looks identical to a real disconnect.
-      // Give it a grace period to reconnect (same nickname = same seat, see joinRoom) before
-      // actually removing the seat + hand, so a quick app-switch survives but an abandoned one
-      // doesn't linger forever.
-      const member = rooms.getMember(room, playerId);
-      if (member && member.socketId && member.socketId !== socket.id) return; // seat already taken over by a newer socket
-      rooms.setConnected(room, playerId, false, null);
-      io.to(roomCh(room.code)).emit(EV.PLAYER_DISCONNECTED, { playerId });
-      io.to(roomCh(room.code)).emit(EV.ROOM_STATE_UPDATED, rooms.toPublicRoom(room));
-
-      const key = kickKey(room.code, playerId);
-      const timer = setTimeout(() => {
-        pendingKicks.delete(key);
-        const r = rooms.find(room.code);
-        if (!r) return;
-        const m = rooms.getMember(r, playerId);
-        if (!m || m.connected) return; // reconnected (or already gone) in the meantime
-        rooms.removeMember(r, playerId);
-        if (rooms.find(r.code)) {
-          io.to(roomCh(r.code)).emit(EV.ROOM_PLAYER_LEFT, rooms.toPublicRoom(r));
-          emitRoom(r);
-        }
-      }, graceMs);
-      pendingKicks.set(key, timer);
-    });
+    socket.on('disconnect', () => detachSocket(socket));
   });
 
   setInterval(() => rooms.sweep(), 60_000);

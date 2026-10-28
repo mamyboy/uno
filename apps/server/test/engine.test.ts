@@ -234,6 +234,42 @@ describe('GameEngine', () => {
     expect(engine.currentPlayerId).toBeNull(); // game is over
   });
 
+  it('stealing goes round the table one random card per player until a playable card turns up', () => {
+    const B = (id: string, value: number) => ({ id, kind: 'NUMBER' as const, color: 'BLUE' as const, value });
+    const top = { id: 'top', kind: 'NUMBER' as const, color: 'RED' as const, value: 9 };
+    const engine = new GameEngine('room1', ['p1', 'p2', 'p3'], { rng: () => 0 });
+    engine.selectDirection(engine.currentPlayerId!, 'RIGHT', engine.turnNumber);
+    const e = engine as any;
+    e.currentIndex = e.seatOrder.indexOf('p1');
+    e.seatOrder = ['p1', 'p2', 'p3'];
+    e.currentIndex = 0;
+    e.drawPile = [];
+    e.discardPile = [top];
+    e.pendingDraw = null;
+    e.hands.set('p1', [B('a', 1)]);
+    e.hands.set('p2', [B('b', 2), B('c', 3)]);
+    e.hands.set('p3', [{ id: 'r', kind: 'NUMBER', color: 'RED', value: 1 }, B('d', 4)]);
+    const res = engine.drawCard('p1', engine.turnNumber);
+    const steals = engine.getPublicState().history.filter((h) => h.action === 'STEAL').map((h) => h.fromPlayerId);
+    expect(steals).toEqual(['p2', 'p3']); // one from p2, then on to p3 — not p2 twice
+    expect(res.card?.id).toBe('r');
+    expect(engine.getHand('p2')).toHaveLength(1);
+    expect(engine.getHand('p3')).toHaveLength(1);
+  });
+
+  it('autoPlay: random direction, then a random playable card, else draw', () => {
+    const engine = new GameEngine('room1', ['p1', 'p2'], { rng: seqRng(3) });
+    const first = engine.currentPlayerId!;
+    expect(engine.autoPlay(first)).toBe('DIRECTION');
+    expect(engine.status).toBe('PLAYING');
+    const cur = engine.currentPlayerId!;
+    const t = engine.turnNumber;
+    const did = engine.autoPlay(cur);
+    expect(['PLAY', 'DRAW']).toContain(did);
+    expect(engine.turnNumber).toBeGreaterThan(t);
+    expect(engine.autoPlay('nobody')).toBeNull();
+  });
+
   it('stealing can cascade through multiple donors, crediting each as finished in order, until the game ends in one call', () => {
     const top = { id: 'top', kind: 'NUMBER' as const, color: 'RED' as const, value: 9 };
     const p1Card = { id: 'p1c', kind: 'NUMBER' as const, color: 'BLUE' as const, value: 3 }; // unplayable

@@ -203,6 +203,8 @@ export interface GameState {
   /** Players who have already emptied their hand, in finish order (index 0 = 1st place). The
    * game continues for everyone else until only one player still holds cards. */
   finishedOrder: string[];
+  /** ms left on the current turn's timer when this state was sent (server auto-plays at 0). */
+  turnEndsIn?: number | null;
 }
 
 export interface PrivateHand {

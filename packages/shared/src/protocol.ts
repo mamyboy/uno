@@ -40,6 +40,8 @@ export const EV = {
   PLAYER_RECONNECTED: 'player:reconnected',
   PLAYER_RECONNECT: 'player:reconnect',
   SESSION_REPLACED: 'session:replaced',
+  /** Server acted for a player whose turn timer ran out: { playerId, nickname, action }. */
+  GAME_AUTO_PLAYED: 'game:auto_played',
   ADMIN_RESET_ALL: 'admin:reset_all',
 } as const;
 

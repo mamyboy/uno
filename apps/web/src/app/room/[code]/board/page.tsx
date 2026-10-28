@@ -9,10 +9,11 @@ import { EV, type Card, type GameState, type Room, type GameResult, type Player 
 import { PlayingCard } from '@/components/game/PlayingCard';
 import { Confetti } from '@/components/game/Confetti';
 import { ActionEffect } from '@/components/game/ActionEffect';
-import { Soundboard } from '@/components/game/Soundboard';
+import { Soundboard, SoundboardMute } from '@/components/game/Soundboard';
 import { GameFx } from '@/components/game/GameFx';
 import { useCollapse } from '@/components/game/useCollapse';
 import { inFrame } from '@/lib/frameBatch';
+import { AutoPlayNotice, TurnTimer } from '@/components/game/TurnTimer';
 import { avatarSrc } from '@/lib/avatar';
 import { TauntButton, TauntLayer } from '@/components/game/Taunts';
 import { VoiceButton, VoiceLayer } from '@/components/game/Voice';
@@ -93,13 +94,17 @@ export default function BoardPage() {
         return;
       }
       setRoom(ack.snapshot.room);
+      if (ack.snapshot.game) ack.snapshot.game.receivedAt = Date.now();
       setGame(ack.snapshot.game);
       setResult(ack.snapshot.result);
     });
 
     // One move = several messages; apply them together in one frame.
     const onRoom = (r: Room) => inFrame(() => setRoom(r));
-    const onGame = (g: GameState) => inFrame(() => setGame(g));
+    const onGame = (g: GameState) => {
+      (g as GameState & { receivedAt?: number }).receivedAt = Date.now();
+      inFrame(() => setGame(g));
+    };
     const onOver = (res: GameResult) => inFrame(() => setResult(res));
 
     socket.on(EV.ROOM_STATE_UPDATED, onRoom);
@@ -163,10 +168,12 @@ export default function BoardPage() {
       {room.status === 'FINISHED' && result?.winnerId && <Confetti count={100} />}
       <ActionEffect card={effectCard} />
       <GameFx game={game} result={result} nameOf={nameOf} avatarOf={avatarOf} />
+      <AutoPlayNotice />
       <TauntLayer big />
       <VoiceLayer big />
       <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-[60] flex items-center gap-2 rounded-full bg-zinc-950/85 border border-white/10 p-1.5 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
         <Soundboard />
+        <SoundboardMute />
       </div>
 
       <h1 className="text-xl sm:text-3xl font-black tracking-tight relative z-10 text-center px-2">
@@ -306,6 +313,7 @@ export default function BoardPage() {
                 </span>
               </span>
             )}
+            <div className="mx-auto mt-2 max-w-md"><TurnTimer game={game} mine={false} compact /></div>
             {game.pendingDraw && (
               <p className="mt-2 text-lg font-bold text-orange-300">
                 💥 คอมโบ +{game.pendingDraw.count} รอ {nameOf(game.pendingDraw.targetId)} ตอบโต้ / สะท้อน 🪞 / โล่ 🛡️ / จั่วรับ

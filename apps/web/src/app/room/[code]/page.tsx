@@ -1,5 +1,6 @@
 'use client';
 
+import { errText } from '@/lib/errors';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { AnimatePresence, m } from 'motion/react';
@@ -13,10 +14,11 @@ import { EV, MIN_PLAYERS, type Card, type Player } from '@cma/shared';
 import { PlayingCard } from '@/components/game/PlayingCard';
 import { Confetti } from '@/components/game/Confetti';
 import { ActionEffect } from '@/components/game/ActionEffect';
-import { Soundboard } from '@/components/game/Soundboard';
+import { Soundboard, SoundboardMute } from '@/components/game/Soundboard';
 import { GameFx } from '@/components/game/GameFx';
 import { PlayHistory } from '@/components/game/PlayHistory';
 import { TurnBanner } from '@/components/game/TurnBanner';
+import { AutoPlayNotice, TurnTimer } from '@/components/game/TurnTimer';
 import { useCollapse } from '@/components/game/useCollapse';
 import { inFrame } from '@/lib/frameBatch';
 import { playPop, popPitchFor } from '@/lib/sfx';
@@ -155,9 +157,16 @@ export default function RoomPage() {
   }, [optimistic]);
 
   useEffect(() => {
-    const existing = getSession();
+    // Leaving another room's state behind: never show room A's data while entering room B.
+    const st = useGameStore.getState();
+    if (st.room && st.room.code !== code) {
+      reset();
+      storeSetSession(null);
+    }
+    const existing = getSession(code);
 
     function applySnapshot(snapshot: any) {
+      if (snapshot.game) snapshot.game.receivedAt = Date.now();
       storeSetSession({ code: snapshot.room.code, sessionToken: existing?.sessionToken ?? '', playerId: snapshot.me?.playerId ?? '' });
       setRoom(snapshot.room);
       setGame(snapshot.game);
@@ -174,7 +183,7 @@ export default function RoomPage() {
           setJoining(false);
         } else {
           // Kicked on disconnect (or session expired): join again fresh with the remembered name.
-          removeSession();
+          removeSession(code);
           const name = getProfile()?.nickname;
           if (!name) return setJoining(false);
           socket.emit(EV.ROOM_JOIN, { code, nickname: name }, (ack2: any) => {
@@ -195,9 +204,13 @@ export default function RoomPage() {
 
     // Updates for one move arrive as several messages — apply them together in one frame.
     function onRoomUpdate(r: any) {
+      if (r?.code && r.code !== code) return; // another room's broadcast — not ours
       inFrame(() => setRoom(r));
     }
     function onGameState(g: any) {
+      const cur = useGameStore.getState().room;
+      if (cur && g?.roomId && g.roomId !== cur.id) return;
+      g.receivedAt = Date.now();
       inFrame(() => setGame(g));
     }
     function onHand(h: any) {
@@ -211,13 +224,13 @@ export default function RoomPage() {
       inFrame(() => setResult(res));
     }
     function onKicked() {
-      removeSession();
+      removeSession(code);
       reset();
       router.push('/join');
     }
     function onReplaced() {
       // Same name joined from another tab/device — that one now owns this seat.
-      removeSession();
+      removeSession(code);
       reset();
       router.push('/join');
     }
@@ -240,9 +253,9 @@ export default function RoomPage() {
       // Brief drops (phone app-switch) get a grace period server-side — try resuming the exact
       // same session first; only if that's gone (grace expired / real kick) fall back to a fresh
       // join under the remembered nickname.
-      const existingToken = getSession();
+      const existingToken = getSession(code);
       const fallback = () => {
-        removeSession();
+        removeSession(code);
         const name = getProfile()?.nickname;
         if (!name) { reset(); router.push('/join'); return; }
         socket.emit(EV.ROOM_JOIN, { code, nickname: name }, (ack: any) => {
@@ -328,7 +341,7 @@ export default function RoomPage() {
           className="w-full max-w-sm p-8 rounded-2xl bg-zinc-900/90 border border-zinc-800 space-y-4 shadow-2xl"
         >
           <h1 className="text-xl font-bold text-white">เข้าร่วมห้อง {code}</h1>
-          {error && <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">{error}</div>}
+          {error && <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">{errText(error)}</div>}
           <input
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
@@ -350,7 +363,7 @@ export default function RoomPage() {
 
   const leaveRoom = () => {
     socket.emit(EV.ROOM_LEAVE, {}, () => {
-      removeSession();
+      removeSession(code);
       reset();
       router.push('/');
     });
@@ -358,7 +371,7 @@ export default function RoomPage() {
 
   const clearSession = () => {
     if (!window.confirm('เคลียร์ Session จะล้างข้อมูลผู้เล่นในเบราว์เซอร์นี้ (ไม่แจ้งเซิร์ฟเวอร์) แล้วพาไปหน้าแรก ต้องการดำเนินการต่อหรือไม่?')) return;
-    removeSession();
+    removeSession(code);
     reset();
     router.push('/');
   };
@@ -557,9 +570,11 @@ export default function RoomPage() {
       <GameFx game={game} result={result} nameOf={nameOf} avatarOf={avatarOf} meId={session?.playerId} />
       <TauntLayer />
       <VoiceLayer />
+      <AutoPlayNotice />
       {/* floating action dock: sounds · taunt · radio settings · push-to-talk (thumb-reachable, right) */}
       <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-[60] flex items-center gap-2 rounded-full bg-zinc-950/85 border border-white/10 p-1.5 pl-2 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
         <Soundboard />
+        <SoundboardMute />
         <TauntButton />
         {me && <VoiceButton roomVoiceEnabled={room.voiceEnabled !== false} canToggleRoom={isHost || !!room.isStatic} />}
       </div>
@@ -652,7 +667,7 @@ export default function RoomPage() {
               exit={{ opacity: 0, height: 0 }}
               className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm overflow-hidden"
             >
-              {actionError}
+              {errText(actionError)}
             </m.div>
           )}
         </AnimatePresence>
@@ -781,6 +796,7 @@ export default function RoomPage() {
                 })()}
               />
             )}
+            <TurnTimer game={game} mine={!!hand?.isMyTurn || (game.gameStatus === 'CHOOSING_DIRECTION' && game.currentPlayerId === session?.playerId)} />
             {/* casino table */}
             <div
               className="rounded-3xl border-4 border-casino-border p-3 sm:p-6 space-y-3 sm:space-y-4 text-center shadow-2xl relative overflow-hidden"

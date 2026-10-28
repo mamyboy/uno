@@ -148,6 +148,9 @@ export class RoomManager {
     // Same name = same person: re-claim that member's seat (e.g. a refresh, a new device, or a
     // cleared browser session) instead of creating a duplicate player — works mid-game too.
     const sameName = room.members.find((m) => nameKey(m.nickname) === nameKey(name));
+    // Someone ONLINE already uses this name in this room → ask for another name. (A seat whose
+    // owner just dropped can still be re-claimed by name during the reconnect grace period.)
+    if (sameName && sameName.connected) throw new GameError('NAME_TAKEN');
     if (sameName) return { room, member: sameName, rejoined: true, previousSocketId: sameName.socketId };
     // No player limit. Joining while a match is running is allowed: the newcomer gets a seat but
     // sits out (shown as "waiting") until the next match starts — startGame deals in every player.

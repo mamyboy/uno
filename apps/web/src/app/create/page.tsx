@@ -1,5 +1,6 @@
 'use client';
 
+import { errText } from '@/lib/errors';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -72,7 +73,7 @@ export default function CreateRoomPage() {
 
         {error && (
           <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-            {error}
+            {errText(error)}
           </div>
         )}
 
