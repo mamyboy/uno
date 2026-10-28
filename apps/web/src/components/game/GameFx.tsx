@@ -26,8 +26,7 @@ type Fx =
   | { key: string; type: 'REFLECT'; from: string; to: string; count: number }
   | { key: string; type: 'VANISH'; name: string; count: number }
   | { key: string; type: 'SHIELD'; from: string; to: string; count: number }
-  | { key: string; type: 'SHUFFLE'; name: string; order: string[] }
-  | { key: string; type: 'STEAL_COMBO'; thief: string; victim: string | null; amount: string };
+  | { key: string; type: 'SHUFFLE'; name: string; order: string[] };
 
 /**
  * Event-driven overlays shared by the player screen and the big board:
@@ -68,7 +67,7 @@ export function GameFx({ game, result, nameOf, avatarOf, meId }: { meId?: string
     // "pop" for every card someone lays down (my own plays already popped on tap — optimistic).
     let popDelay = 0;
     for (const h of fresh) {
-      if (h.action !== 'PLAY' && h.action !== 'REFLECT' && h.action !== 'SHIELD' && h.action !== 'SHUFFLE_SEATS' && h.action !== 'STEAL_COMBO') continue;
+      if (h.action !== 'PLAY' && h.action !== 'REFLECT' && h.action !== 'SHIELD' && h.action !== 'SHUFFLE_SEATS') continue;
       if (meId && h.playerId === meId) continue;
       const n = h.cards?.length ?? 1;
       const pitch = popPitchFor(h.playerId);
@@ -116,12 +115,6 @@ export function GameFx({ game, result, nameOf, avatarOf, meId }: { meId?: string
         playClip('dun-dun-dun', 1);
         return;
       }
-      if (h.action === 'STEAL_COMBO') {
-        const amount = h.card?.kind === 'WILD_DRAW_EIGHT' ? '+8' : h.card?.kind === 'WILD_DRAW_FOUR' ? '+4' : h.card ? '+2' : '';
-        setFx({ key: `sc${h.seq}`, type: 'STEAL_COMBO', thief: nameRef.current(h.playerId), victim: h.fromPlayerId ? nameRef.current(h.fromPlayerId) : null, amount });
-        playClip(h.fromPlayerId ? 'anime-wow-sound-effect' : 'sound-fail-fallo', 1);
-        return;
-      }
       if (h.action === 'VANISH') {
         setFx({ key: `v${h.seq}`, type: 'VANISH', name: nameRef.current(h.playerId), count: h.count ?? 1 });
         playClip('wuued-luuen', 1);
@@ -133,7 +126,7 @@ export function GameFx({ game, result, nameOf, avatarOf, meId }: { meId?: string
 
   useEffect(() => {
     if (!fx) return;
-    const t = setTimeout(() => setFx(null), fx.type === 'COMBO' ? 2300 : fx.type === 'COMBO_UP' ? (fx.variant === 'WD8' ? 2200 : 1700) : fx.type === 'SHUFFLE' || fx.type === 'STEAL_COMBO' ? 2600 : 2000);
+    const t = setTimeout(() => setFx(null), fx.type === 'COMBO' ? 2300 : fx.type === 'COMBO_UP' ? (fx.variant === 'WD8' ? 2200 : 1700) : fx.type === 'SHUFFLE' ? 3000 : 2000);
     return () => clearTimeout(t);
   }, [fx]);
 
@@ -387,36 +380,6 @@ export function GameFx({ game, result, nameOf, avatarOf, meId }: { meId?: string
                   </m.span>
                 ))}
               </div>
-            </m.div>
-          </m.div>
-        )}
-
-        {fx?.type === 'STEAL_COMBO' && (
-          <m.div key={fx.key} className="fixed inset-0 z-[80] pointer-events-none flex items-center justify-center bg-black/30" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <m.div
-              initial={{ x: -260, rotate: -15, opacity: 0 }}
-              animate={{ x: 0, rotate: 0, opacity: 1 }}
-              transition={{ type: 'spring', stiffness: 240, damping: 15 }}
-              className="max-w-[92vw] px-7 py-5 rounded-3xl bg-gradient-to-br from-lime-300 via-green-600 to-emerald-950 border-2 border-yellow-300/80 shadow-[0_0_60px_rgba(74,222,128,0.75)] text-center"
-            >
-              <div className="text-6xl fx-nudge">🦹</div>
-              <div className="text-3xl font-black text-white drop-shadow">ขโมยคอมโบ!</div>
-              {fx.victim ? (
-                <>
-                  <m.div
-                    initial={{ x: 120, scale: 0.5, opacity: 0 }}
-                    animate={{ x: 0, scale: 1, opacity: 1 }}
-                    transition={{ delay: 0.35, type: 'spring', stiffness: 260, damping: 12 }}
-                    className="my-1 text-6xl font-black text-yellow-300 drop-shadow-[0_4px_0_rgba(0,0,0,0.5)]"
-                  >
-                    {fx.amount}
-                  </m.div>
-                  <div className="text-base text-white/90 font-bold">{fx.thief} ฉกมาจาก {fx.victim} 😈</div>
-                </>
-              ) : (
-                <div className="mt-1 text-base text-white/90 font-bold">{fx.thief} ล้วงกระเป๋าเปล่า — ไม่มีใครมี Wild Draw 🤡</div>
-              )}
-              <div className="text-xs text-white/70 mt-1">แล้วลงไพ่ต่อ</div>
             </m.div>
           </m.div>
         )}

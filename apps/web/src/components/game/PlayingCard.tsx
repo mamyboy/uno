@@ -96,18 +96,6 @@ function ShieldGlyph({ cx, cy, s, color }: { cx: number; cy: number; s: number; 
   );
 }
 
-function StealGlyph({ cx, cy, s, color }: { cx: number; cy: number; s: number; color: string }) {
-  // a hook grabbing a card
-  const k = s / 50;
-  return (
-    <g transform={`translate(${cx - 50 * k} ${cy - 50 * k}) scale(${k})`} fill="none" stroke={color} strokeWidth="9" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="48" y="14" width="38" height="54" rx="7" />
-      <path d="M14 86 V40 C14 24 34 24 34 40 V52" />
-      <path d="M26 46 L34 54 L42 46" />
-    </g>
-  );
-}
-
 function ShuffleGlyph({ cx, cy, s, color }: { cx: number; cy: number; s: number; color: string }) {
   // two crossing arrows (shuffle / swap seats)
   const k = s / 50;
@@ -136,7 +124,7 @@ function Pinwheel({ cx, cy, r }: { cx: number; cy: number; r: number }) {
 
 /* ---------- premium face for colorless special cards (Reflect / Shield / Shuffle) ---------- */
 
-type SpecialKind = 'REFLECT' | 'SHIELD' | 'SHUFFLE' | 'STEAL_COMBO';
+type SpecialKind = 'REFLECT' | 'SHIELD' | 'SHUFFLE';
 const SPECIAL_THEME: Record<SpecialKind, {
   body: [string, string, string];
   accent: string;
@@ -173,15 +161,6 @@ const SPECIAL_THEME: Record<SpecialKind, {
     title: 'สลับที่นั่ง',
     tag: 'สุ่มที่นั่ง แล้วลงต่อ',
   },
-  STEAL_COMBO: {
-    body: ['#052e16', '#15803d', '#020f07'],
-    accent: '#bbf7d0',
-    glow: '#4ade80',
-    metal: ['#fff7d6', '#facc15', '#a16207', '#fff3b0'],
-    ink: '#3f2a00',
-    title: 'ขโมยคอมโบ',
-    tag: 'ฉก +2/+4/+8 เพื่อน',
-  },
 };
 
 function MirrorEmblem({ accent, uid }: { accent: string; uid: string }) {
@@ -208,25 +187,6 @@ function ShieldEmblem({ accent, uid }: { accent: string; uid: string }) {
       <path d="M50 44 L68 51 V65 C68 77 60 85 50 89 C40 85 32 77 32 65 V51 Z" fill={`url(#sxc-${uid})`} stroke={`url(#sxm-${uid})`} strokeWidth="3.2" />
       <path d="M50 50 L62 55 V65 C62 73 57 79 50 82 Z" fill="rgba(255,255,255,0.35)" />
       <path d="M50 56 l3 6.5 7 .6 -5.3 4.6 1.7 6.9 -6.4 -3.8 -6.4 3.8 1.7 -6.9 -5.3 -4.6 7 -.6 z" fill="#fff7c2" stroke="#b77900" strokeWidth="0.8" />
-    </g>
-  );
-}
-
-function StealEmblem({ accent }: { accent: string }) {
-  // a bandit's hook yanking a "+8" card out of a friend's hand
-  return (
-    <g>
-      <g>
-        <animateTransform attributeName="transform" type="translate" values="4 0; -5 0; 4 0" dur="1.6s" repeatCount="indefinite" />
-        <g transform="rotate(-12 58 62)">
-          <rect x="44" y="44" width="26" height="38" rx="4" fill="#111" stroke="#fff" strokeWidth="1.6" />
-          <rect x="47" y="47" width="20" height="32" rx="3" fill="none" stroke={accent} strokeWidth="0.9" />
-          <text x="57" y="63.5" textAnchor="middle" dominantBaseline="central" fontSize="11" fontWeight={900} fill="#facc15" stroke="#3f2a00" strokeWidth="1.6" paintOrder="stroke">+8</text>
-        </g>
-      </g>
-      <path d="M30 92 V56 C30 44 44 44 44 56 V60" fill="none" stroke="#facc15" strokeWidth="4.4" strokeLinecap="round" />
-      <path d="M38 55 L44 61 L50 55" fill="none" stroke="#facc15" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" />
-      <text x="30" y="47" textAnchor="middle" fontSize="12">🦹</text>
     </g>
   );
 }
@@ -347,7 +307,6 @@ function SpecialFace({ kind, uid, compact }: { kind: SpecialKind; uid: string; c
       {kind === 'REFLECT' && <MirrorEmblem accent={t.accent} uid={uid} />}
       {kind === 'SHIELD' && <ShieldEmblem accent={t.accent} uid={uid} />}
       {kind === 'SHUFFLE' && <ShuffleEmblem accent={t.accent} />}
-      {kind === 'STEAL_COMBO' && <StealEmblem accent={t.accent} />}
 
       {/* sparkles */}
       <Sparkle x={22} y={44} s={3.2} delay="0s" />
@@ -371,7 +330,6 @@ function SpecialFace({ kind, uid, compact }: { kind: SpecialKind; uid: string; c
           {kind === 'REFLECT' && <ReflectGlyph cx={14} cy={17} s={5.4} color="#fff" />}
           {kind === 'SHIELD' && <ShieldGlyph cx={14} cy={17} s={5.4} color="#fff" />}
           {kind === 'SHUFFLE' && <ShuffleGlyph cx={14} cy={17} s={5.4} color="#fff" />}
-          {kind === 'STEAL_COMBO' && <StealGlyph cx={14} cy={17} s={5.4} color="#fff" />}
         </g>
       ))}
     </g>
@@ -396,8 +354,6 @@ function Corner({ card, color, flip }: { card: Card; color: string; flip?: boole
         <ShieldGlyph cx={14} cy={17} s={8} color="#fff" />
       ) : card.kind === 'SHUFFLE' ? (
         <ShuffleGlyph cx={14} cy={17} s={8} color="#fff" />
-      ) : card.kind === 'STEAL_COMBO' ? (
-        <StealGlyph cx={14} cy={17} s={8} color="#fff" />
       ) : (
         <text
           x={14}
@@ -455,7 +411,6 @@ function PlayingCardImpl({ card, playable, selected, faceDown, onClick, size = '
     REFLECT: ['#f0e6ff', '#9f7bff', '#3a1d8f', '#3a1d8f', '#e9ddff'],
     SHIELD: ['#e0fbff', '#22c3e6', '#0b4f8a', '#0b4f8a', '#dff7ff'],
     SHUFFLE: ['#ffe9f6', '#ff5fc8', '#7a1fa2', '#7a1fa2', '#ffe1f4'],
-    STEAL_COMBO: ['#dcfce7', '#22c55e', '#14532d', '#14532d', '#dcfce7'],
   };
   const special = SPECIAL[card.kind] ?? null;
   const pal = card.color && !special ? PALETTE[card.color] : null;
@@ -486,7 +441,6 @@ function PlayingCardImpl({ card, playable, selected, faceDown, onClick, size = '
         card.kind === 'REFLECT' && 'shadow-[0_0_18px_-2px_rgba(167,139,250,0.85)]',
         card.kind === 'SHIELD' && 'shadow-[0_0_18px_-2px_rgba(34,211,238,0.85)]',
         card.kind === 'SHUFFLE' && 'shadow-[0_0_18px_-2px_rgba(244,114,182,0.85)]',
-        card.kind === 'STEAL_COMBO' && 'shadow-[0_0_18px_-2px_rgba(74,222,128,0.85)]',
         playable && !selected && 'ring-2 ring-white/80 cursor-pointer fx-glow',
         selected && 'ring-4 ring-yellow-300 cursor-pointer shadow-[0_0_24px_4px_rgba(253,224,71,0.6)]',
         onClick && !playable && !selected ? 'opacity-45 saturate-50 cursor-not-allowed' : '',

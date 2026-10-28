@@ -22,10 +22,6 @@ function describe(h: HistoryEntry, nameOf: (id: string | null | undefined) => st
       return `${who} ใช้โล่ 🛡️ ส่งคอมโบ +${h.count ?? 0} ➜ ${nameOf(h.toPlayerId)}`;
     case 'SHUFFLE_SEATS':
       return `${who} สลับที่นั่ง 🔀 ${(h.seatOrder ?? []).map((id) => nameOf(id)).join(' → ')} (ลงไพ่ต่อ)`;
-    case 'STEAL_COMBO':
-      return h.fromPlayerId
-        ? `${who} ขโมยคอมโบ 🦹 ${h.card?.kind === 'WILD_DRAW_EIGHT' ? '+8' : h.card?.kind === 'WILD_DRAW_FOUR' ? '+4' : '+2'} จาก ${nameOf(h.fromPlayerId)} (ลงไพ่ต่อ)`
-        : `${who} ใช้ขโมยคอมโบ 🦹 แต่ไม่มีใครมี Wild Draw ให้ขโมย (ลงไพ่ต่อ)`;
     case 'VANISH':
       return `ไพ่สะท้อน/โล่ของ ${who} หายไป`;
     case 'SKIP':
@@ -58,7 +54,7 @@ function PlayHistoryImpl({ game, nameOf, limit = 14, compact }: { game: GameStat
       <ul className={compact ? 'space-y-1.5 max-h-64 overflow-y-auto pr-1' : 'space-y-2 max-h-[60vh] overflow-y-auto pr-1'}>
         <AnimatePresence initial={false}>
           {list.map((h, i) => {
-            const cards = h.cards ?? (h.card && (h.action === 'PLAY' || h.action === 'REFLECT' || h.action === 'SHIELD' || h.action === 'SHUFFLE_SEATS' || h.action === 'STEAL_COMBO') ? [h.card] : []);
+            const cards = h.cards ?? (h.card && (h.action === 'PLAY' || h.action === 'REFLECT' || h.action === 'SHIELD' || h.action === 'SHUFFLE_SEATS') ? [h.card] : []);
             return (
               <m.li
                 key={h.seq}

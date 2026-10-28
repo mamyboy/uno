@@ -47,11 +47,10 @@ export function createSpecialCards(): Card[] {
   return [
     ...Array.from({ length: 4 }, () => ({ id: randomUUID().slice(0, 12), kind: 'SHIELD' as const, color: null })),
     ...Array.from({ length: 2 }, () => ({ id: randomUUID().slice(0, 12), kind: 'SHUFFLE' as const, color: null })),
-    ...Array.from({ length: 2 }, () => ({ id: randomUUID().slice(0, 12), kind: 'STEAL_COMBO' as const, color: null })),
   ];
 }
 
-/** Standard deck: 76 number + 24 action + 14 wild + 4 reflect + 4 shield + 2 shuffle + 2 steal-combo = 126 cards. */
+/** Standard deck: 76 number + 24 action + 14 wild + 4 reflect + 4 shield + 2 shuffle = 124 cards. */
 export function createDeck(): Card[] {
   return [...createNumberCards(), ...createActionCards(), ...createWildCards(), ...createReflectCards(), ...createSpecialCards()];
 }
