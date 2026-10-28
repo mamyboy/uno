@@ -54,9 +54,10 @@ describe('deck', () => {
     expect(wilds.every((c) => c.color === null)).toBe(true);
   });
 
-  it('builds the full 124-card deck (76 number + 24 action + 14 wild + 4 reflect + 4 shield + 2 shuffle)', () => {
+  it('builds the full 126-card deck (76 number + 24 action + 14 wild + 4 reflect + 4 shield + 2 shuffle + 2 steal-combo)', () => {
     const deck = createDeck();
-    expect(deck).toHaveLength(124);
+    expect(deck).toHaveLength(126);
+    expect(deck.filter((c) => c.kind === 'STEAL_COMBO')).toHaveLength(2);
     expect(deck.filter((c) => c.kind === 'SHIELD')).toHaveLength(4);
     expect(deck.filter((c) => c.kind === 'SHUFFLE')).toHaveLength(2);
     expect(deck.filter((c) => c.kind === 'REFLECT')).toHaveLength(4);
@@ -232,6 +233,49 @@ describe('GameEngine', () => {
     expect(engine.getPublicState().finishedOrder).toEqual(['p2']);
     expect(engine.winnerId).toBe('p2');
     expect(engine.currentPlayerId).toBeNull(); // game is over
+  });
+
+  it('STEAL_COMBO takes one random Wild Draw card from an opponent; the player keeps the turn', () => {
+    const top = { id: 'top', kind: 'NUMBER' as const, color: 'RED' as const, value: 9 };
+    const engine = new GameEngine('room1', ['p1', 'p2', 'p3'], { rng: () => 0 });
+    engine.selectDirection(engine.currentPlayerId!, 'RIGHT', engine.turnNumber);
+    const e = engine as any;
+    e.seatOrder = ['p1', 'p2', 'p3'];
+    e.currentIndex = 0;
+    e.discardPile = [top];
+    e.pendingDraw = null;
+    e.hands.set('p1', [{ id: 'st', kind: 'STEAL_COMBO', color: null }, { id: 'b1', kind: 'NUMBER', color: 'BLUE', value: 1 }]);
+    e.hands.set('p2', [{ id: 'n2', kind: 'NUMBER', color: 'BLUE', value: 2 }]); // no Wild Draw → not a victim
+    e.hands.set('p3', [{ id: 'w8', kind: 'WILD_DRAW_EIGHT', color: null }, { id: 'n3', kind: 'NUMBER', color: 'GREEN', value: 3 }]);
+    const t0 = engine.turnNumber;
+    expect(engine.getPrivateHand('p1').playableCardIds).toContain('st');
+    engine.playCard('p1', 'st', t0);
+    expect(engine.getHand('p1').map((c) => c.id).sort()).toEqual(['b1', 'w8']);
+    expect(engine.getHand('p3').map((c) => c.id)).toEqual(['n3']);
+    expect(engine.currentPlayerId).toBe('p1'); // still their turn
+    expect(engine.turnNumber).toBe(t0 + 1);
+    expect(engine.topCard.id).toBe('top'); // slid under, top unchanged
+    const h = engine.getPublicState().history.at(-1)!;
+    expect(h).toMatchObject({ action: 'STEAL_COMBO', fromPlayerId: 'p3' });
+    expect(h.card?.kind).toBe('WILD_DRAW_EIGHT');
+  });
+
+  it('STEAL_COMBO with nobody holding a Wild Draw steals nothing; can be played vs a pending combo', () => {
+    const engine = new GameEngine('room1', ['p1', 'p2'], { rng: () => 0 });
+    engine.selectDirection(engine.currentPlayerId!, 'RIGHT', engine.turnNumber);
+    const e = engine as any;
+    e.seatOrder = ['p1', 'p2'];
+    e.currentIndex = 0;
+    e.discardPile = [{ id: 'top', kind: 'DRAW_TWO', color: 'RED' }];
+    e.pendingDraw = { count: 2, targetId: 'p1', fromId: 'p2' };
+    e.hands.set('p1', [{ id: 'st', kind: 'STEAL_COMBO', color: null }, { id: 'b1', kind: 'NUMBER', color: 'BLUE', value: 1 }]);
+    e.hands.set('p2', [{ id: 'n2', kind: 'NUMBER', color: 'BLUE', value: 2 }]);
+    expect(engine.getPrivateHand('p1').playableCardIds).toEqual(['st']);
+    engine.playCard('p1', 'st', engine.turnNumber);
+    expect(engine.getHand('p1').map((c) => c.id)).toEqual(['b1']);
+    expect(engine.getPublicState().pendingDraw?.targetId).toBe('p1'); // combo still on them
+    expect(engine.getPublicState().history.at(-1)).toMatchObject({ action: 'STEAL_COMBO' });
+    expect(engine.getPublicState().history.at(-1)?.card).toBeUndefined();
   });
 
   it('stealing goes round the table one random card per player until a playable card turns up', () => {

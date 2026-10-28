@@ -399,7 +399,7 @@ export default function RoomPage() {
     const cards = cardIds.map((id) => hand?.hand.find((c) => c.id === id)).filter(Boolean) as Card[];
     const last = cards[cards.length - 1];
     // Reflect / Shield / Shuffle slide UNDER the top card, so the pile's top doesn't change.
-    const slidesUnder = !!last && ['REFLECT', 'SHIELD', 'SHUFFLE'].includes(last.kind);
+    const slidesUnder = !!last && ['REFLECT', 'SHIELD', 'SHUFFLE', 'STEAL_COMBO'].includes(last.kind);
     const top = last && !slidesUnder ? ({ ...last, color: last.color ?? chosenColor ?? null } as Card) : null;
     const o = { ids: cardIds, top, at: Date.now() };
     optimisticRef.current = o;
@@ -432,7 +432,7 @@ export default function RoomPage() {
     if (!game || !hand) return;
     if (cardIds.length === 1) {
       const card = hand.hand.find((c) => c.id === cardIds[0]);
-      if (card && card.color === null && !['REFLECT', 'SHIELD', 'SHUFFLE'].includes(card.kind)) {
+      if (card && card.color === null && !['REFLECT', 'SHIELD', 'SHUFFLE', 'STEAL_COMBO'].includes(card.kind)) {
         // Wild / Wild Draw Four / Wild Draw Two — ask the player to pick a color before sending.
         setPendingWildCardIds(cardIds);
         return;
@@ -471,7 +471,7 @@ export default function RoomPage() {
       if (prev.length === 0) return [cardId];
       const firstCard = hand?.hand.find((c) => c.id === prev[0]);
       if (!firstCard) return prev;
-      if (['REFLECT', 'SHIELD', 'SHUFFLE'].includes(firstCard.kind) || ['REFLECT', 'SHIELD', 'SHUFFLE'].includes(card.kind)) return [cardId]; // special cards always play alone
+      if (['REFLECT', 'SHIELD', 'SHUFFLE', 'STEAL_COMBO'].includes(firstCard.kind) || ['REFLECT', 'SHIELD', 'SHUFFLE', 'STEAL_COMBO'].includes(card.kind)) return [cardId]; // special cards always play alone
       const DRAW_FAMILY = new Set(['DRAW_TWO', 'WILD_DRAW_TWO', 'WILD_DRAW_FOUR', 'WILD_DRAW_EIGHT']);
       // NUMBER cards stack only by matching value; SKIP/REVERSE stack regardless of color;
       // DRAW_TWO / WILD_DRAW_TWO / WILD_DRAW_FOUR / WILD_DRAW_EIGHT stack with EACH OTHER in any
@@ -969,7 +969,7 @@ export default function RoomPage() {
                     {hand.hand
                       .filter((c) => !optimistic?.ids.includes(c.id))
                       .sort((a, b) => {
-                        const kindOrder: Record<string, number> = { NUMBER: 0, SKIP: 1, REVERSE: 2, DRAW_TWO: 3, WILD: 4, WILD_DRAW_TWO: 5, WILD_DRAW_FOUR: 6, WILD_DRAW_EIGHT: 7, REFLECT: 8, SHIELD: 9, SHUFFLE: 10 };
+                        const kindOrder: Record<string, number> = { NUMBER: 0, SKIP: 1, REVERSE: 2, DRAW_TWO: 3, WILD: 4, WILD_DRAW_TWO: 5, WILD_DRAW_FOUR: 6, WILD_DRAW_EIGHT: 7, REFLECT: 8, SHIELD: 9, SHUFFLE: 10, STEAL_COMBO: 11 };
                         const ka = kindOrder[a.kind] ?? 99;
                         const kb = kindOrder[b.kind] ?? 99;
                         if (ka !== kb) return ka - kb;

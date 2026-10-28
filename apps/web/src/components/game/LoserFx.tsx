@@ -124,12 +124,12 @@ export function LoserOverlay({ loser }: { loser: LoserInfo }) {
           {loser.name}
         </div>
         <m.div
-          className={`mt-2 inline-block font-black text-6xl sm:text-8xl bg-gradient-to-r ${v.text} bg-clip-text text-transparent`}
+          className={`mt-2 inline-block font-black ${loser.title.length > 8 ? 'text-5xl sm:text-7xl' : 'text-6xl sm:text-8xl'} bg-gradient-to-r ${v.text} bg-clip-text text-transparent`}
           style={{ WebkitTextStroke: `2px ${v.stroke}` }}
           animate={{ scale: [1, 1.18, 0.92, 1.1, 1], skewX: [0, -10, 10, -6, 0] }}
           transition={{ duration: 0.9, repeat: Infinity }}
         >
-          ดุ่ยดุ้ย
+          {loser.title}
         </m.div>
         <m.div
           initial={{ opacity: 0, y: 20, scale: 0.8 }}

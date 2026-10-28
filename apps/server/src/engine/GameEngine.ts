@@ -185,7 +185,7 @@ export class GameEngine {
     if (this.pendingDraw?.targetId === playerId) {
       const top = this.topCard;
       return hand
-        .filter((c) => c.kind === 'REFLECT' || c.kind === 'SHIELD' || c.kind === 'SHUFFLE' || (DRAW_FAMILY_KINDS.has(c.kind) && canCounterCombo(c, top)))
+        .filter((c) => c.kind === 'REFLECT' || c.kind === 'SHIELD' || c.kind === 'SHUFFLE' || c.kind === 'STEAL_COMBO' || (DRAW_FAMILY_KINDS.has(c.kind) && canCounterCombo(c, top)))
         .map((c) => c.id);
     }
     const top = this.topCard;
@@ -329,6 +329,10 @@ export class GameEngine {
       if (!defendingCombo) throw new GameError('SHIELD_ONLY_VS_COMBO');
       return this.playShield(playerId, idx, turnNumber);
     }
+    if (card.kind === 'STEAL_COMBO') {
+      // Playable any time it's your turn (even vs a combo — you might steal the card to answer it).
+      return this.playStealCombo(playerId, idx, turnNumber);
+    }
     if (card.kind === 'SHUFFLE') {
       // Playable any time it's your turn — even with a combo pending (the combo stays on you).
       return this.playShuffleSeats(playerId, idx, turnNumber);
@@ -390,7 +394,7 @@ export class GameEngine {
       picked.push(card);
     }
 
-    if (picked.some((c) => c.kind === 'REFLECT' || c.kind === 'SHIELD' || c.kind === 'SHUFFLE')) {
+    if (picked.some((c) => c.kind === 'REFLECT' || c.kind === 'SHIELD' || c.kind === 'SHUFFLE' || c.kind === 'STEAL_COMBO')) {
       // Reflect / Shield / Shuffle always resolve alone — they can't be stacked with anything.
       if (picked.length === 1) {
         const r = this.playCard(playerId, picked[0].id, turnNumber);
@@ -750,6 +754,42 @@ export class GameEngine {
   }
 
   /**
+   * STEAL_COMBO (ขโมยคอมโบ): slides under the top card (top colour/number unchanged), then takes ONE
+   * random Wild Draw card (+2/+4/+8) from a random opponent who has one. Like SHUFFLE, the player
+   * keeps the turn and must still play or draw. Nobody holding a Wild Draw → nothing is stolen.
+   * A victim emptied by the theft goes out (ranked) like any other theft.
+   */
+  private playStealCombo(playerId: string, handIdx: number, turnNumber: number): { card: Card; finished: boolean } {
+    const hand = this.hands.get(playerId)!;
+    const [card] = hand.splice(handIdx, 1);
+    this.discardPile.splice(Math.max(this.discardPile.length - 1, 0), 0, card);
+    this.consecutiveSkips = 0;
+    const victims = this.seatOrder.filter((id) => id !== playerId && (this.hands.get(id) ?? []).some((c) => isWildDrawKind(c.kind)));
+    let stolen: Card | undefined;
+    let fromId: string | undefined;
+    if (victims.length) {
+      fromId = victims[this.rng(victims.length)];
+      const vh = this.hands.get(fromId)!;
+      const idxs = vh.map((c, i) => (isWildDrawKind(c.kind) ? i : -1)).filter((i) => i >= 0);
+      stolen = vh.splice(idxs[this.rng(idxs.length)], 1)[0];
+      hand.push(stolen);
+    }
+    this.log({ turnNumber, playerId, action: 'STEAL_COMBO', card: stolen, fromPlayerId: fromId });
+    if (fromId && this.hands.get(fromId)!.length === 0) this.markWentOutByTheft(fromId);
+    if (this.status === 'FINISHED') return { card, finished: true };
+    if (hand.length === 0) {
+      // It was their last card and nothing was stolen: they go out.
+      if (this.pendingDraw?.targetId === playerId) this.pendingDraw = null;
+      this.advanceTurn();
+      this.specialWentOut(playerId);
+    } else {
+      this.turnNumber++; // keeps the turn — must still play or draw
+      this.resolveStuckPlayers();
+    }
+    return { card, finished: this.status === 'FINISHED' };
+  }
+
+  /**
    * Once the draw pile is exhausted and no combo is pending, a REFLECT card is only useful if some
    * player still holds a draw-family card (a future combo it could bounce). When nobody does, every
    * REFLECT card left in any hand vanishes on its own. A player emptied by this goes out (ranked)
@@ -822,6 +862,8 @@ export class GameEngine {
         const card = this.hands.get(playerId)!.find((c) => c.id === id)!;
         try {
           this.playCard(playerId, id, this.turnNumber, isWild(card) ? COLORS[rand(COLORS.length)] : undefined);
+          did = 'PLAY';
+          if (this.status === 'PLAYING' && this.currentPlayerId === playerId) continue; // Shuffle / Steal: still their turn
           return 'PLAY';
         } catch {
           // fall through to drawing
@@ -833,7 +875,7 @@ export class GameEngine {
       } catch {
         break;
       }
-      did = 'DRAW';
+      did = did ?? 'DRAW';
       if (this.turnNumber === before && this.currentPlayerId === playerId && this.getPlayableIds(playerId).length === 0 && this.drawPile.length === 0) break;
     }
     return did;

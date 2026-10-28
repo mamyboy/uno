@@ -9,7 +9,9 @@ export type CardColor = (typeof COLORS)[number];
  *  SHUFFLE (สลับที่นั่ง): colorless; playable on your turn whenever no combo is pending — randomly
  *  reshuffles the seating order; you then still play a card, and play continues with whoever now
  *  sits after you. */
-export type CardKind = 'NUMBER' | 'SKIP' | 'REVERSE' | 'DRAW_TWO' | 'WILD' | 'WILD_DRAW_FOUR' | 'WILD_DRAW_TWO' | 'WILD_DRAW_EIGHT' | 'REFLECT' | 'SHIELD' | 'SHUFFLE';
+/** STEAL_COMBO (ขโมยคอมโบ): colorless; playable any time it's your turn — steals ONE random
+ *  Wild Draw (+2/+4/+8) card from a random opponent who holds one; you then still play/draw. */
+export type CardKind = 'NUMBER' | 'SKIP' | 'REVERSE' | 'DRAW_TWO' | 'WILD' | 'WILD_DRAW_FOUR' | 'WILD_DRAW_TWO' | 'WILD_DRAW_EIGHT' | 'REFLECT' | 'SHIELD' | 'SHUFFLE' | 'STEAL_COMBO';
 export const ACTION_KINDS = ['SKIP', 'REVERSE', 'DRAW_TWO'] as const;
 export const WILD_KINDS = ['WILD', 'WILD_DRAW_FOUR', 'WILD_DRAW_TWO', 'WILD_DRAW_EIGHT'] as const;
 /** color is null only for WILD / WILD_DRAW_FOUR / WILD_DRAW_TWO / WILD_DRAW_EIGHT before a color is chosen when played. */
@@ -159,7 +161,7 @@ export interface StaticRoomSummary {
   topPlayer?: { nickname: string; wins: number } | null;
 }
 
-export type HistoryAction = 'DIRECTION' | 'PLAY' | 'DRAW' | 'SKIP' | 'RESHUFFLE' | 'STEAL' | 'ABSORB' | 'REFLECT' | 'SHIELD' | 'SHUFFLE_SEATS' | 'VANISH';
+export type HistoryAction = 'DIRECTION' | 'PLAY' | 'DRAW' | 'SKIP' | 'RESHUFFLE' | 'STEAL' | 'ABSORB' | 'REFLECT' | 'SHIELD' | 'SHUFFLE_SEATS' | 'VANISH' | 'STEAL_COMBO';
 export interface HistoryEntry {
   seq: number;
   at: number;

@@ -1,4 +1,4 @@
-export type LoserInfo = { key: string; name: string; avatar?: string | null; cardsLeft: number; variant: number; tease: string };
+export type LoserInfo = { key: string; name: string; avatar?: string | null; cardsLeft: number; variant: number; tease: string; title: string };
 
 /** Each style = a different entrance motion, backdrop, mascot emoji, palette and sound. */
 export const LOSER_VARIANTS = [
@@ -12,22 +12,32 @@ export const LOSER_VARIANTS = [
   { id: 'error', emoji: '🖥️', sound: 'error-cdoxcym', bg: 'bg-blue-950/70', ring: 'conic-gradient(#3b82f6, #1d4ed8, #93c5fd, #3b82f6)', text: 'from-white via-blue-200 to-blue-400', stroke: '#172554' },
 ] as const;
 
-export const LOSER_TEASES = [
-  'ไปฝึกมาใหม่นะ 🤭',
-  'ถือไพ่เยอะจนจะเปิดร้านได้แล้ว 🏪',
-  'เกิดมาเพื่อจั่วไพ่ 🃏',
-  'วันนี้ดวงไม่เข้าข้างเลยจริงๆ 🍀❌',
-  'เก่งมาก... ในการแพ้ 👏',
-  'ครั้งหน้าลองลงไพ่ดูบ้างนะ 😅',
-  'ไพ่ในมือหนักกว่ากระเป๋าตังค์ 💸',
-  'ขอบคุณที่มาเป็นสีสันให้เพื่อนๆ 🌈',
-  'พรุ่งนี้ค่อยเอาคืนนะ 555 😂',
-  'แพ้ไม่เป็นไร แต่แพ้บ่อยนี่สิ 🤔',
-  'ตำแหน่งนี้จองไว้ให้แล้ว ประจำเลย 🪑',
-  'มือขวาหรือมือซ้ายที่ทำแพ้เนี่ย 🫳',
-  'เทพแห่งการจั่วไพ่มาเอง 🙇',
-  'ไม่ได้แพ้ แค่ชนะช้าที่สุด 🐢',
+/**
+ * Preset: Thai teen / TikTok slang used to roast whoever finished last. `word` replaces the old
+ * "ดุ่ยดุ้ย" headline, `tease` is the line underneath. Same pick on every screen per match.
+ * Sources for the slang: springnews.co.th (บ้ง), LINE TODAY/INN 2024 (ขิต, ตุย/ตุยเย่, ตัวตึง),
+ * Lemon8 Gen-Z lists (อ่อม, ยับแม่, พินาศ, สลายฟิล, Big L, Mid, Dead) + common gamer slang
+ * (ไก่, เกลือ, อ่อนซ้อม, โดนแกง, นก). Kept playful — no slurs, nothing about looks/gender.
+ */
+export const LOSER_SLANG: { word: string; tease: string }[] = [
+  { word: 'บ้งมาก', tease: 'เกมนี้บ้งของจริง ไม่ไหวจะเคลียร์ 🫠' },
+  { word: 'ขิตแล้ว', tease: 'ขิตคาโต๊ะ เพื่อนเก็บศพด้วย ⚰️' },
+  { word: 'ตุยเย่', tease: 'ตุยเย่จ้า ไปเกิดใหม่รอบหน้านะ 👻' },
+  { word: 'ยับแม่!', tease: 'ยับเยินทั้งมือ ไพ่ล้นจนถือไม่ไหว 🃏' },
+  { word: 'พินาศ', tease: 'พินาศสันตะปาปา ไม่เหลือชิ้นดี 💥' },
+  { word: 'อ่อมไปป่ะ', tease: 'อ่อมมาก เอเนอร์จี้หายไปไหนหมด 🔋' },
+  { word: 'Big L', tease: 'รับ L ก้อนใหญ่ไปเต็มๆ 🫵' },
+  { word: 'ไก่อ่อน', tease: 'ไก่อ่อนสอนขัน... แต่ขันไม่ออก 🐣' },
+  { word: 'เกลือของแท้', tease: 'เค็มจนเพื่อนต้องหาน้ำให้กิน 🧂' },
+  { word: 'อ่อนซ้อม', tease: 'กลับไปซ้อมมาใหม่ แล้วค่อยมาเจอกัน 🏋️' },
+  { word: 'โดนแกง', tease: 'โดนเพื่อนแกงจนเปื่อย อร่อยมั้ย 🍛' },
+  { word: 'นกจ้า', tease: 'อุตส่าห์ลุ้น สุดท้ายก็นก 🐦' },
+  { word: 'สลายฟิล', tease: 'ฟิลชนะสลายหมดในพริบตา 🫥' },
+  { word: 'Mid มาก', tease: 'ฝีมือกลางๆ ค่อนไปทางล่าง 📉' },
+  { word: 'ตัวถ่วง', tease: 'ตัวตึงไม่ใช่ ตัวถ่วงต่างหาก ⚓' },
+  { word: 'Dead 💀', tease: 'ไพ่หมดมือทุกคน ยกเว้นเธอ 💀' },
 ];
+
 
 /** Small stable hash so every screen in the room picks the same style/tease for a match. */
 export function hashStr(s: string) {
