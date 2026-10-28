@@ -2,10 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, m } from 'motion/react';
-import { Mic, MicOff, Radio, Volume2, VolumeX } from 'lucide-react';
+import { Mic, MicOff, VolumeX } from 'lucide-react';
 import { socket } from '@/lib/socket';
 import { playBytesViaWebAudio, playUrl } from '@/lib/sounds';
-import { announcePanel, useClosesOnOtherPanel } from '@/lib/panels';
 import { EV, VOICE_COOLDOWN_MS, VOICE_MAX_BYTES, VOICE_MAX_MS } from '@cma/shared';
 
 const MUTE_KEY = 'cma:voice-mute';
@@ -33,14 +32,12 @@ function Bars({ big = false, color = 'bg-cyan-300' }: { big?: boolean; color?: s
 type Toast = { text: string; tone: 'info' | 'error' };
 
 /** Push-to-talk walkie-talkie: hold to record (max 5 s), release to send to everyone in the room. */
-export function VoiceButton({ roomVoiceEnabled, canToggleRoom }: { roomVoiceEnabled: boolean; canToggleRoom: boolean }) {
+export function VoiceButton({ roomVoiceEnabled }: { roomVoiceEnabled: boolean }) {
   const [state, setState] = useState<'idle' | 'starting' | 'recording' | 'sending'>('idle');
   const [elapsed, setElapsed] = useState(0);
   const [coolUntil, setCoolUntil] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [toast, setToast] = useState<Toast | null>(null);
-  const [menu, setMenu] = useState(false);
-  const [muted, setMuted] = useState(false);
   const rec = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const chunks = useRef<Blob[]>([]);
@@ -48,8 +45,6 @@ export function VoiceButton({ roomVoiceEnabled, canToggleRoom }: { roomVoiceEnab
   const released = useRef(false);
   const timers = useRef<{ auto?: ReturnType<typeof setTimeout>; tick?: ReturnType<typeof setInterval> }>({});
 
-  useClosesOnOtherPanel('voice', () => setMenu(false));
-  useEffect(() => setMuted(isMuted()), []);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 2600);
@@ -145,32 +140,12 @@ export function VoiceButton({ roomVoiceEnabled, canToggleRoom }: { roomVoiceEnab
     });
   }
 
-  const toggleMute = () =>
-    setMuted((v) => {
-      try { localStorage.setItem(MUTE_KEY, v ? '0' : '1'); } catch { /* ignore */ }
-      return !v;
-    });
-  const toggleRoom = () => socket.emit(EV.ROOM_VOICE_TOGGLE, { enabled: !roomVoiceEnabled }, () => {});
-
   const recording = state === 'recording';
   const progress = Math.min(1, elapsed / VOICE_MAX_MS);
   const C = 2 * Math.PI * 30;
 
   return (
     <>
-      {/* settings mini-button */}
-      <m.button
-        whileTap={{ scale: 0.9 }}
-        onClick={() => {
-          if (!menu) announcePanel('voice');
-          setMenu((v) => !v);
-        }}
-        className={`relative w-9 h-9 rounded-full flex items-center justify-center border ${muted ? 'bg-zinc-800 border-red-500/50 text-red-300' : 'bg-zinc-800 border-zinc-600 text-zinc-300'}`}
-        title="ตั้งค่าวิทยุ"
-      >
-        {muted ? <VolumeX className="w-4 h-4" /> : <Radio className="w-4 h-4" />}
-      </m.button>
-
       {/* push-to-talk */}
       <div className="relative">
         <AnimatePresence>
@@ -243,28 +218,6 @@ export function VoiceButton({ roomVoiceEnabled, canToggleRoom }: { roomVoiceEnab
         </m.button>
       </div>
 
-      <AnimatePresence>
-        {menu && (
-          <m.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-24 right-3 sm:right-5 z-[61] w-72 max-w-[calc(100vw-1.5rem)] rounded-2xl bg-zinc-900/95 border border-zinc-700 p-3 shadow-2xl space-y-2"
-          >
-            <p className="text-xs text-zinc-400 px-1">📻 วิทยุสื่อสาร — กดปุ่มไมค์ค้างไว้แล้วพูด (สูงสุด {VOICE_MAX_MS / 1000} วิ) ทุกคนในห้องได้ยิน · ไม่มีการบันทึกเก็บไว้</p>
-            <button onClick={toggleMute} className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">
-              <span className="flex items-center gap-2">{muted ? <VolumeX className="w-4 h-4 text-red-300" /> : <Volume2 className="w-4 h-4 text-cyan-300" />} เสียงวิทยุบนเครื่องนี้</span>
-              <span className={muted ? 'text-red-300 font-bold' : 'text-emerald-300 font-bold'}>{muted ? 'ปิด' : 'เปิด'}</span>
-            </button>
-            {canToggleRoom && (
-              <button onClick={toggleRoom} className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">
-                <span className="flex items-center gap-2">{roomVoiceEnabled ? <Mic className="w-4 h-4 text-cyan-300" /> : <MicOff className="w-4 h-4 text-red-300" />} วิทยุทั้งห้อง</span>
-                <span className={roomVoiceEnabled ? 'text-emerald-300 font-bold' : 'text-red-300 font-bold'}>{roomVoiceEnabled ? 'เปิด' : 'ปิด'}</span>
-              </button>
-            )}
-          </m.div>
-        )}
-      </AnimatePresence>
     </>
   );
 }

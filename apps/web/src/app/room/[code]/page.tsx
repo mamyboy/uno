@@ -14,7 +14,8 @@ import { EV, MIN_PLAYERS, type Card, type Player } from '@cma/shared';
 import { PlayingCard } from '@/components/game/PlayingCard';
 import { Confetti } from '@/components/game/Confetti';
 import { ActionEffect } from '@/components/game/ActionEffect';
-import { Soundboard, SoundboardMute } from '@/components/game/Soundboard';
+import { Soundboard } from '@/components/game/Soundboard';
+import { SoundSettings } from '@/components/game/SoundSettings';
 import { GameFx } from '@/components/game/GameFx';
 import { PlayHistory } from '@/components/game/PlayHistory';
 import { TurnBanner } from '@/components/game/TurnBanner';
@@ -573,10 +574,10 @@ export default function RoomPage() {
       <AutoPlayNotice />
       {/* floating action dock: sounds · taunt · radio settings · push-to-talk (thumb-reachable, right) */}
       <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-[60] flex items-center gap-2 rounded-full bg-zinc-950/85 border border-white/10 p-1.5 pl-2 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
+        <SoundSettings roomVoiceEnabled={room.voiceEnabled !== false} canToggleRoom={isHost || !!room.isStatic} />
         <Soundboard />
-        <SoundboardMute />
         <TauntButton />
-        {me && <VoiceButton roomVoiceEnabled={room.voiceEnabled !== false} canToggleRoom={isHost || !!room.isStatic} />}
+        {me && <VoiceButton roomVoiceEnabled={room.voiceEnabled !== false} />}
       </div>
 
       <div className="max-w-3xl mx-auto space-y-6 relative z-10">

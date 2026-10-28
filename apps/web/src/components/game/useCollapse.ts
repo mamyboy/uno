@@ -1,20 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
-/** Open/closed state remembered per device (localStorage). */
-export function useCollapse(key: string, defaultOpen = true) {
+/** Open/closed panel state. Always starts at `defaultOpen` when the page opens (not remembered),
+ *  so e.g. the leaderboard starts collapsed every time you enter a room. */
+export function useCollapse(_key: string, defaultOpen = false) {
   const [open, setOpen] = useState(defaultOpen);
-  useEffect(() => {
-    try {
-      const v = localStorage.getItem(key);
-      if (v !== null) setOpen(v === '1');
-    } catch { /* ignore */ }
-  }, [key]);
-  const toggle = () =>
-    setOpen((o) => {
-      try { localStorage.setItem(key, o ? '0' : '1'); } catch { /* ignore */ }
-      return !o;
-    });
+  const toggle = () => setOpen((o) => !o);
   return [open, toggle] as const;
 }

@@ -143,7 +143,6 @@ export function TauntButton() {
   const [open, setOpen] = useState(false);
   useClosesOnOtherPanel('taunt', () => setOpen(false));
   const [mascot, setMascot] = useState<string>(MASCOTS[0]);
-  const [muted, setMuted] = useState(false);
   const [coolUntil, setCoolUntil] = useState(0);
   const [, force] = useState(0);
   const [err, setErr] = useState('');
@@ -153,7 +152,6 @@ export function TauntButton() {
     const m = readMascot();
     setMascot(m);
     try { localStorage.setItem(MASCOT_KEY, m); } catch { /* ignore */ }
-    setMuted(isMuted());
   }, []);
 
   useEffect(() => {
@@ -170,11 +168,6 @@ export function TauntButton() {
     setMascot(m);
     try { localStorage.setItem(MASCOT_KEY, m); } catch { /* ignore */ }
   };
-  const toggleMute = () =>
-    setMuted((v) => {
-      try { localStorage.setItem(MUTE_KEY, v ? '0' : '1'); } catch { /* ignore */ }
-      return !v;
-    });
   const fire = (t: TauntDef) => {
     if (left > 0) return;
     setCoolUntil(Date.now() + TAUNT_COOLDOWN_MS);
@@ -213,9 +206,6 @@ export function TauntButton() {
           >
             <div className="flex items-center justify-between mb-2 px-1">
               <p className="text-xs text-zinc-400">ล้อเลียนทั้งห้อง 😜 ทุกคนเห็นและได้ยิน</p>
-              <button onClick={toggleMute} className="text-zinc-400 hover:text-white" title={muted ? 'เปิดเสียงล้อเลียน' : 'ปิดเสียงล้อเลียนเครื่องนี้'}>
-                {muted ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
-              </button>
             </div>
             <p className="text-[11px] text-zinc-500 px-1 mb-1">มาสคอตของฉัน</p>
             <div className="flex flex-wrap gap-1 mb-3">

@@ -9,7 +9,8 @@ import { EV, type Card, type GameState, type Room, type GameResult, type Player 
 import { PlayingCard } from '@/components/game/PlayingCard';
 import { Confetti } from '@/components/game/Confetti';
 import { ActionEffect } from '@/components/game/ActionEffect';
-import { Soundboard, SoundboardMute } from '@/components/game/Soundboard';
+import { Soundboard } from '@/components/game/Soundboard';
+import { SoundSettings } from '@/components/game/SoundSettings';
 import { GameFx } from '@/components/game/GameFx';
 import { useCollapse } from '@/components/game/useCollapse';
 import { inFrame } from '@/lib/frameBatch';
@@ -172,8 +173,8 @@ export default function BoardPage() {
       <TauntLayer big />
       <VoiceLayer big />
       <div className="fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-[60] flex items-center gap-2 rounded-full bg-zinc-950/85 border border-white/10 p-1.5 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
+        <SoundSettings showRoomVoice={false} />
         <Soundboard />
-        <SoundboardMute />
       </div>
 
       <h1 className="text-xl sm:text-3xl font-black tracking-tight relative z-10 text-center px-2">
