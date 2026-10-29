@@ -12,6 +12,27 @@ const isMuted = () => {
   try { return localStorage.getItem(MUTE_KEY) === '1'; } catch { return false; }
 };
 const MIME_PREFS = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
+type Nav = Navigator & { audioSession?: { type: string } };
+/** iOS Safari: our sound unlock sets audioSession 'playback' (so pops ignore the silent switch) —
+ *  but a 'playback' session is NOT allowed to capture the mic, so getUserMedia fails. Switch to
+ *  'play-and-record' just for the recording and back afterwards. */
+function setAudioSession(type: 'playback' | 'play-and-record') {
+  try {
+    const nav = navigator as Nav;
+    if (nav.audioSession && nav.audioSession.type !== type) nav.audioSession.type = type;
+  } catch { /* ignore */ }
+}
+const inAppBrowser = () => typeof navigator !== 'undefined' && /\bLine\/|FBAN|FBAV|Instagram|MicroMessenger|TikTok|musical_ly/i.test(navigator.userAgent);
+function micErrorText(err: unknown): string {
+  const name = (err as { name?: string })?.name ?? '';
+  if (inAppBrowser()) return 'แอปนี้ไม่ให้ใช้ไมค์ — กด ⋯ แล้วเลือก “เปิดใน Safari”';
+  if (name === 'NotAllowedError' || name === 'SecurityError')
+    return 'ไมค์ถูกปิดอยู่ — iPhone: ตั้งค่า › Safari › ไมโครโฟน › ถาม/อนุญาต แล้วรีเฟรช';
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'ไม่พบไมโครโฟนในเครื่องนี้';
+  if (name === 'NotReadableError' || name === 'AbortError') return 'ไมค์ถูกแอปอื่นใช้อยู่ (เช่น โทรศัพท์/FaceTime)';
+  return `เปิดไมค์ไม่ได้ (${name || 'unknown'})`;
+}
+
 function pickMime(): string | undefined {
   if (typeof MediaRecorder === 'undefined') return undefined;
   return MIME_PREFS.find((m) => {
@@ -68,17 +89,26 @@ export function VoiceButton({ roomVoiceEnabled }: { roomVoiceEnabled: boolean })
     if (timers.current.tick) clearInterval(timers.current.tick);
     stream.current?.getTracks().forEach((t) => t.stop());
     stream.current = null;
+    setAudioSession('playback'); // back to loudspeaker media playback for pops/clips
   }
 
   async function start() {
     if (state !== 'idle') return;
     if (!roomVoiceEnabled) return setToast({ text: 'ห้องนี้ปิดวิทยุอยู่', tone: 'error' });
-    if (!supported) return setToast({ text: 'เบราว์เซอร์นี้อัดเสียงไม่ได้', tone: 'error' });
+    if (!supported) return setToast({ text: inAppBrowser() ? 'แอปนี้ไม่ให้ใช้ไมค์ — กด ⋯ แล้วเลือก “เปิดใน Safari”' : 'เบราว์เซอร์นี้อัดเสียงไม่ได้ (iPhone ต้อง iOS 14.3+)', tone: 'error' });
     if (coolLeft > 0) return setToast({ text: `รออีก ${Math.ceil(coolLeft / 1000)} วิ`, tone: 'info' });
     released.current = false;
     setState('starting');
     try {
-      const s = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      setAudioSession('play-and-record');
+      let s: MediaStream;
+      try {
+        s = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      } catch (err) {
+        // some iOS versions reject the processing constraints — retry with plain audio
+        if ((err as { name?: string })?.name === 'NotAllowedError') throw err;
+        s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       stream.current = s;
       if (released.current) {
         // released while the permission prompt was up
@@ -87,7 +117,12 @@ export function VoiceButton({ roomVoiceEnabled }: { roomVoiceEnabled: boolean })
         return setToast({ text: 'พร้อมแล้ว 🎙️ กดค้างไว้แล้วพูดได้เลย', tone: 'info' });
       }
       const mime = pickMime();
-      const r = new MediaRecorder(s, { ...(mime ? { mimeType: mime } : {}), audioBitsPerSecond: 24000 });
+      let r: MediaRecorder;
+      try {
+        r = new MediaRecorder(s, { ...(mime ? { mimeType: mime } : {}), audioBitsPerSecond: 24000 });
+      } catch {
+        r = new MediaRecorder(s); // let the browser pick (iOS: audio/mp4)
+      }
       chunks.current = [];
       r.ondataavailable = (e) => e.data.size && chunks.current.push(e.data);
       r.onstop = () => void finish(r.mimeType || mime || 'audio/webm');
@@ -99,10 +134,10 @@ export function VoiceButton({ roomVoiceEnabled }: { roomVoiceEnabled: boolean })
       try { navigator.vibrate?.(30); } catch { /* ignore */ }
       timers.current.tick = setInterval(() => setElapsed(Date.now() - startedAt.current), 100);
       timers.current.auto = setTimeout(() => stop(), VOICE_MAX_MS);
-    } catch {
+    } catch (err) {
       cleanup();
       setState('idle');
-      setToast({ text: 'ไม่ได้รับอนุญาตให้ใช้ไมค์', tone: 'error' });
+      setToast({ text: micErrorText(err), tone: 'error' });
     }
   }
 
@@ -270,7 +305,7 @@ export function VoiceLayer({ big = false }: { big?: boolean }) {
           >
             <div className={`flex items-center gap-2 rounded-full border-2 border-cyan-300 bg-sky-950/95 text-white font-black shadow-[0_0_24px_rgba(34,211,238,0.6)] ${big ? 'px-5 py-2.5 text-xl' : 'px-3 py-1.5 text-sm'}`}>
               <span className="fx-pulse inline-block">🎙️</span>
-              <span className="max-w-[10rem] truncate">{s.nickname}</span>
+              <span className="max-w-[60vw] break-words [overflow-wrap:anywhere]">{s.nickname}</span>
               {s.failed ? <span className="text-xs text-red-300">เล่นไม่ได้</span> : s.muted ? <VolumeX className="w-4 h-4 text-zinc-400" /> : <Bars big={big} />}
             </div>
           </m.div>

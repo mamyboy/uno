@@ -192,6 +192,15 @@ export class GameEngine {
     return hand.filter((c) => canPlayCard(c, top)).map((c) => c.id);
   }
 
+  /** Every playable card is optional (Wild family / Shuffle) → the player may draw instead. */
+  private onlyOptionalPlayable(playerId: string): boolean {
+    if (this.pendingDraw?.targetId === playerId) return false;
+    const playable = this.getPlayableIds(playerId);
+    const hand = this.hands.get(playerId) ?? [];
+    const OPTIONAL = new Set(['WILD', 'WILD_DRAW_TWO', 'WILD_DRAW_FOUR', 'WILD_DRAW_EIGHT', 'SHUFFLE']);
+    return playable.length > 0 && playable.every((id) => OPTIONAL.has(hand.find((c) => c.id === id)?.kind ?? ''));
+  }
+
   getPrivateHand(playerId: string): PrivateHand {
     const isMyTurn = this.currentPlayerId === playerId;
     const playable = this.getPlayableIds(playerId);
@@ -202,9 +211,9 @@ export class GameEngine {
     // If so, the player MAY choose to draw instead of playing a wild card.
     // If there are ANY other playable cards (color/number match, Skip, Reverse, Draw Two),
     // drawing is NOT allowed (must play).
-    const WILD_KINDS_SET = new Set(['WILD', 'WILD_DRAW_TWO', 'WILD_DRAW_FOUR', 'WILD_DRAW_EIGHT']);
-    const onlyWildPlayable = playable.length > 0 &&
-      playable.every((id) => WILD_KINDS_SET.has(hand.find((c) => c.id === id)?.kind ?? ''));
+    // SHUFFLE counts as optional too: it is playable on any turn, so without this a player
+    // holding one could never draw (the draw button vanished — "some players can't draw" bug).
+    const onlyWildPlayable = this.onlyOptionalPlayable(playerId);
 
     // Can something actually be drawn right now? Either the draw pile still has cards, or — once
     // it's empty — there's still at least one other player holding cards to steal from.
@@ -525,7 +534,7 @@ export class GameEngine {
       return { card: null, skipped: false, stolen: false };
     }
 
-    if (!drawInsteadOfWild && this.getPlayableIds(playerId).length > 0) throw new GameError('HAS_PLAYABLE_CARD');
+    if (!drawInsteadOfWild && !this.onlyOptionalPlayable(playerId) && this.getPlayableIds(playerId).length > 0) throw new GameError('HAS_PLAYABLE_CARD');
 
     // Keep drawing/stealing one card at a time until a playable card turns up, or there is
     // truly nothing left anywhere (draw pile empty AND every other player's hand empty).
@@ -813,6 +822,16 @@ export class GameEngine {
       return 'DIRECTION';
     }
     let did: 'PLAY' | 'DRAW' | null = null;
+    // Hit by a combo and let the clock run out: take the whole stack first (no auto-counter),
+    // then carry on below with a random legal play (or a draw) — still their turn after absorbing.
+    if (this.pendingDraw?.targetId === playerId) {
+      try {
+        this.drawCard(playerId, this.turnNumber);
+        did = 'DRAW';
+      } catch {
+        /* fall through */
+      }
+    }
     // Drawing may leave the turn with them (drawn card unplayable but pile not empty) — keep going.
     for (let guard = 0; guard < 200; guard++) {
       if (this.status !== 'PLAYING' || this.currentPlayerId !== playerId) break;

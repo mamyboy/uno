@@ -102,12 +102,12 @@ export function TurnFlow({ currentName, nextName, direction, size = 'sm' }: { cu
   if (!direction || !currentName) return null;
   const big = size === 'lg';
   return (
-    <div className={`mx-auto mb-3 flex w-fit max-w-full items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-500/10 ${big ? 'px-5 py-2 text-lg' : 'px-3 py-1 text-xs'}`}>
+    <div className={`mx-auto mb-3 flex w-fit max-w-full items-center gap-2 rounded-3xl border border-emerald-400/40 bg-emerald-500/10 ${big ? 'px-5 py-2 text-lg' : 'px-3 py-1 text-xs'}`}>
       <span className="text-zinc-400">ตอนนี้</span>
-      <span className="font-black text-emerald-300 truncate max-w-[9rem]">{currentName}</span>
+      <span className="font-black text-emerald-300 break-words [overflow-wrap:anywhere] max-w-[40vw] text-center leading-tight">{currentName}</span>
       <SeatArrow direction="RIGHT" size={size} />
       <span className="text-zinc-400">ถัดไป</span>
-      <span className="font-black text-amber-300 truncate max-w-[9rem]">{nextName}</span>
+      <span className="font-black text-amber-300 break-words [overflow-wrap:anywhere] max-w-[40vw] text-center leading-tight">{nextName}</span>
       <span className={`text-zinc-500 ${big ? 'text-sm' : 'text-[10px]'}`}>({direction === 'LEFT' ? 'ทวนเข็ม ⟲' : 'ตามเข็ม ⟳'})</span>
     </div>
   );

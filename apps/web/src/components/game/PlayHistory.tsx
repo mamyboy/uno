@@ -76,7 +76,7 @@ function PlayHistoryImpl({ game, nameOf, limit = 14, compact }: { game: GameStat
                 className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl ${i === 0 ? 'bg-emerald-500/15 border border-emerald-400/30' : 'bg-zinc-800/50'} ${i === 0 && animateTop ? 'fx-hist-in' : ''}`}
               >
                 <span className="text-[10px] text-zinc-500 w-8 shrink-0">ตา {h.turnNumber}</span>
-                <span className={`flex-1 min-w-0 truncate ${compact ? 'text-xs' : 'text-sm'}`}>
+                <span className={`flex-1 min-w-0 break-words [overflow-wrap:anywhere] ${compact ? 'text-xs' : 'text-sm'}`}>
                   {describe(h, nameOf)}
                   {h.times && h.times > 1 ? ` ×${h.times}` : ''}
                 </span>

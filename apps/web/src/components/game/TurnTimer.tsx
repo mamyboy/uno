@@ -75,7 +75,7 @@ export function AutoPlayNotice() {
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
-          className="pointer-events-none fixed top-16 left-1/2 -translate-x-1/2 z-[65] px-4 py-2 rounded-full bg-zinc-900/95 border border-amber-400/40 text-amber-200 text-sm font-bold shadow-xl max-w-[92vw] truncate"
+          className="pointer-events-none fixed top-16 left-1/2 -translate-x-1/2 z-[65] px-4 py-2 rounded-2xl bg-zinc-900/95 border border-amber-400/40 text-amber-200 text-sm font-bold shadow-xl max-w-[92vw] text-center break-words [overflow-wrap:anywhere]"
         >
           {msg.text}
         </m.div>

@@ -130,7 +130,7 @@ export function Soundboard() {
             initial={{ opacity: 0, y: -12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
-            className="fixed top-4 left-1/2 -translate-x-1/2 z-[70] px-4 py-2 rounded-full bg-black/85 border border-white/10 text-sm font-semibold shadow-xl max-w-[90vw] truncate"
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-[70] px-4 py-2 rounded-full bg-black/85 border border-white/10 text-sm font-semibold shadow-xl max-w-[90vw] text-center break-words [overflow-wrap:anywhere]"
           >
             {toast}
           </m.div>

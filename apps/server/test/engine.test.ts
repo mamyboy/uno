@@ -257,6 +257,59 @@ describe('GameEngine', () => {
     expect(engine.getHand('p3')).toHaveLength(1);
   });
 
+  it('a player holding only a SHUFFLE (plus unplayable cards) may still draw', () => {
+    const engine = new GameEngine('room1', ['p1', 'p2'], { rng: () => 0 });
+    engine.selectDirection(engine.currentPlayerId!, 'RIGHT', engine.turnNumber);
+    const e = engine as any;
+    e.seatOrder = ['p1', 'p2'];
+    e.currentIndex = 0;
+    e.pendingDraw = null;
+    e.discardPile = [{ id: 'top', kind: 'NUMBER', color: 'RED', value: 9 }];
+    e.hands.set('p1', [{ id: 'sh', kind: 'SHUFFLE', color: null }, { id: 'b1', kind: 'NUMBER', color: 'BLUE', value: 1 }]);
+    const ph = engine.getPrivateHand('p1');
+    expect(ph.playableCardIds).toEqual(['sh']);
+    expect(ph.canDraw).toBe(true);
+    expect(ph.canDrawInsteadOfWild).toBe(true);
+    const before = engine.getHand('p1').length;
+    engine.drawCard('p1', engine.turnNumber, false); // old client flag must also work
+    expect(engine.getHand('p1').length).toBeGreaterThan(before);
+  });
+
+  it('a normally playable card still blocks drawing', () => {
+    const engine = new GameEngine('room1', ['p1', 'p2'], { rng: () => 0 });
+    engine.selectDirection(engine.currentPlayerId!, 'RIGHT', engine.turnNumber);
+    const e = engine as any;
+    e.seatOrder = ['p1', 'p2'];
+    e.currentIndex = 0;
+    e.pendingDraw = null;
+    e.discardPile = [{ id: 'top', kind: 'NUMBER', color: 'RED', value: 9 }];
+    e.hands.set('p1', [{ id: 'sh', kind: 'SHUFFLE', color: null }, { id: 'r1', kind: 'NUMBER', color: 'RED', value: 1 }]);
+    expect(engine.getPrivateHand('p1').canDraw).toBe(false);
+    expect(() => engine.drawCard('p1', engine.turnNumber, false)).toThrow('HAS_PLAYABLE_CARD');
+  });
+
+  it('autoPlay on a combo victim absorbs the whole stack first, then plays a random card', () => {
+    const engine = new GameEngine('room1', ['p1', 'p2', 'p3'], { rng: () => 0 });
+    engine.selectDirection(engine.currentPlayerId!, 'RIGHT', engine.turnNumber);
+    const e = engine as any;
+    e.seatOrder = ['p1', 'p2', 'p3'];
+    e.currentIndex = 0;
+    e.discardPile = [{ id: 'top', kind: 'DRAW_TWO', color: 'RED' }];
+    e.pendingDraw = { count: 4, targetId: 'p1', fromId: 'p3' };
+    // p1 COULD counter with a Draw Two — auto-play must NOT do that; it absorbs instead
+    e.hands.set('p1', [{ id: 'd2', kind: 'DRAW_TWO', color: 'RED' }, { id: 'g5', kind: 'NUMBER', color: 'GREEN', value: 5 }]);
+    e.drawPile = Array.from({ length: 10 }, (_, i) => ({ id: `x${i}`, kind: 'NUMBER', color: 'YELLOW', value: 7 }));
+    const did = engine.autoPlay('p1', () => 0);
+    expect(did).toBe('PLAY');
+    const hist = engine.getPublicState().history;
+    const iAbs = hist.findIndex((h) => h.action === 'ABSORB' && h.playerId === 'p1');
+    expect(iAbs).toBeGreaterThanOrEqual(0);
+    expect(hist.slice(iAbs).some((h) => h.action === 'PLAY' && h.playerId === 'p1')).toBe(true);
+    // 2 cards + 4 absorbed - 1 played
+    expect(engine.getHand('p1').length).toBe(5);
+    expect(engine.currentPlayerId).not.toBe('p1');
+  });
+
   it('autoPlay: random direction, then a random playable card, else draw', () => {
     const engine = new GameEngine('room1', ['p1', 'p2'], { rng: seqRng(3) });
     const first = engine.currentPlayerId!;

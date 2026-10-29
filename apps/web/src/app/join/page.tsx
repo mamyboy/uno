@@ -159,7 +159,7 @@ export default function JoinRoomPage() {
                   </button>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="flex-1 min-w-0 truncate text-zinc-400">
+                  <span className="flex-1 min-w-0 break-words [overflow-wrap:anywhere] text-zinc-400">
                     <Trophy className="inline w-3.5 h-3.5 text-yellow-400 mr-1" />
                     {r.topPlayer ? `${r.topPlayer.nickname} (${r.topPlayer.wins} ชนะ)` : 'ยังไม่มีอันดับ'}
                     {r.leaderboardCount ? ` · ${r.leaderboardCount} คน` : ''}

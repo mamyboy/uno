@@ -876,7 +876,7 @@ export default function RoomPage() {
                   const dir = game.direction;
                   return (
                     <Fragment key={p.id}>
-                    <m.div data-seat={p.id} className="flex flex-col items-center gap-1 shrink-0 w-14">
+                    <m.div data-seat={p.id} className="flex flex-col items-center gap-1 shrink-0 w-[4.5rem]">
                       <m.div
                         className={`relative rounded-full border-2 ${
                           hasFinished ? 'border-yellow-400' : isCurrent ? 'border-emerald-300 fx-turn-ring fx-pulse' : p.id === nextId ? 'border-amber-400 ring-2 ring-amber-400/60' : 'border-zinc-600'
@@ -890,7 +890,7 @@ export default function RoomPage() {
                           </span>
                         )}
                       </m.div>
-                      <span className="text-[11px] text-zinc-300 max-w-full truncate">{!hasFinished && <span className="text-zinc-500">{seatNo + 1}. </span>}{p.nickname}</span>
+                      <span className="text-[11px] leading-tight text-center text-zinc-300 max-w-full break-words [overflow-wrap:anywhere]">{!hasFinished && <span className="text-zinc-500">{seatNo + 1}. </span>}{p.nickname}</span>
                       <span className="text-[10px] text-zinc-500">
                         {hasFinished ? `ชนะอันดับที่ ${finishRank + 1}` : `${game.cardCounts?.[p.id] ?? p.cardCount} ใบ`}
                       </span>
@@ -1041,7 +1041,7 @@ export default function RoomPage() {
                 )}
                 {hand.isMyTurn && hand.canDrawInsteadOfWild && (
                   <Button onClick={() => drawCard(true)} variant="ghost" size="lg" fullWidth>
-                    จั่วแทนการเล่น Wild Draw
+                    จั่วไพ่ (ไม่ลง Wild / สลับที่นั่ง)
                   </Button>
                 )}
                 {hand.isMyTurn && !hand.canDraw && hand.playableCardIds.length === 0 && (

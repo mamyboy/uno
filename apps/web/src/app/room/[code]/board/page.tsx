@@ -351,7 +351,7 @@ export default function BoardPage() {
                       </span>
                     )}
                   </div>
-                  <p className="font-bold mt-1">{p.nickname}</p>
+                  <p className="font-bold mt-1 break-words [overflow-wrap:anywhere] leading-tight">{p.nickname}</p>
                   <p className={hasFinished ? 'text-sm text-yellow-300 font-semibold' : 'text-sm text-zinc-400'}>
                     {hasFinished ? `ชนะอันดับที่ ${finishRank + 1}` : `${game.cardCounts?.[p.id] ?? p.cardCount} ใบ`}
                   </p>
